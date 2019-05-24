@@ -732,9 +732,15 @@ __SYSCALL(__NR_pkey_alloc,    sys_pkey_alloc)
 __SYSCALL(__NR_pkey_free,     sys_pkey_free)
 #define __NR_statx 291
 __SYSCALL(__NR_statx,     sys_statx)
+/*
+ * 292-435 were added upstream after 4.14 and are not backported here:
+ * sys_call_table fills them with sys_ni_syscall, which returns -ENOSYS.
+ */
+#define __NR_close_range 436
+__SYSCALL(__NR_close_range, sys_close_range)
 
 #undef __NR_syscalls
-#define __NR_syscalls 292
+#define __NR_syscalls 437
 
 /*
  * All syscalls below here should go away really,
