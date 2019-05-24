@@ -643,6 +643,40 @@ out_unlock:
 	return -EBADF;
 }
 
+/**
+ * __close_range() - Close all file descriptors in a given range.
+ *
+ * @fd:     starting file descriptor to close
+ * @max_fd: last file descriptor to close
+ *
+ * This closes a range of file descriptors. All file descriptors
+ * from @fd up to and including @max_fd are closed.
+ */
+int __close_range(struct files_struct *files, unsigned fd, unsigned max_fd)
+{
+	unsigned int cur_max;
+
+	if (fd > max_fd)
+		return -EINVAL;
+
+	rcu_read_lock();
+	cur_max = files_fdtable(files)->max_fds;
+	rcu_read_unlock();
+
+	/* cap to last valid index into fdtable */
+	cur_max--;
+
+	while (fd <= max_fd) {
+		__close_fd(files, fd++);
+		cond_resched();
+
+		if (fd > cur_max)
+			break;
+	}
+
+	return 0;
+}
+
 void do_close_on_exec(struct files_struct *files)
 {
 	unsigned i;
