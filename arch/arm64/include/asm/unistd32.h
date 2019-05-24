@@ -817,6 +817,12 @@ __SYSCALL(__NR_pkey_alloc, sys_pkey_alloc)
 __SYSCALL(__NR_pkey_free, sys_pkey_free)
 #define __NR_statx 397
 __SYSCALL(__NR_statx, sys_statx)
+/*
+ * 398-435 were added upstream after 4.14 and are not backported here:
+ * compat_sys_call_table fills them with sys_ni_syscall (-ENOSYS).
+ */
+#define __NR_close_range 436
+__SYSCALL(__NR_close_range, sys_close_range)
 
 /*
  * Please add new compat syscalls above this comment and update
