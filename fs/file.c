@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/rcupdate.h>
+#include <linux/close_range.h>
 #include <linux/workqueue.h>
 
 unsigned int sysctl_nr_open __read_mostly = 1024*1024;
@@ -652,27 +653,52 @@ out_unlock:
  * This closes a range of file descriptors. All file descriptors
  * from @fd up to and including @max_fd are closed.
  */
-int __close_range(struct files_struct *files, unsigned fd, unsigned max_fd)
+int __close_range(unsigned fd, unsigned max_fd, unsigned int flags)
 {
 	unsigned int cur_max;
+	struct task_struct *me = current;
+	struct files_struct *cur_fds = me->files, *fds = NULL;
+
+	if (flags & ~CLOSE_RANGE_UNSHARE)
+		return -EINVAL;
 
 	if (fd > max_fd)
 		return -EINVAL;
 
+	if (flags & CLOSE_RANGE_UNSHARE) {
+		int ret;
+
+		/*
+		 * 4.14's unshare_fd() has no max_fds argument, so this goes
+		 * through unshare_files(): a private copy of the whole table,
+		 * installed in current at once, with the shared one handed
+		 * back in fds. Closing the range in the copy below leaves the
+		 * same table upstream ends up with when it copies only what
+		 * lies under @fd; the shared one is dropped at the end.
+		 */
+		ret = unshare_files(&fds);
+		if (ret)
+			return ret;
+		cur_fds = me->files;
+	}
+
 	rcu_read_lock();
-	cur_max = files_fdtable(files)->max_fds;
+	cur_max = files_fdtable(cur_fds)->max_fds;
 	rcu_read_unlock();
 
 	/* cap to last valid index into fdtable */
 	cur_max--;
 
 	while (fd <= max_fd) {
-		__close_fd(files, fd++);
+		__close_fd(cur_fds, fd++);
 		cond_resched();
 
 		if (fd > cur_max)
 			break;
 	}
+
+	if (fds)
+		put_files_struct(fds);
 
 	return 0;
 }
