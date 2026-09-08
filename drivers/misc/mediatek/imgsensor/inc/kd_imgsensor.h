@@ -299,6 +299,18 @@
 #define GC0330_SENSOR_ID                        0xC1
 #define GC0329_SENSOR_ID                        0xC0
 #define GC0310_SENSOR_ID                        0xa310
+/*
+ * 0x232A, e lo dice il confronto in GC032AGetSensorID
+ * ("52846542 mov"@0xffffff800872dfa8): l'identificativo si legge dai
+ * registri 0xF0 e 0xF1 e si confronta con questo.
+ */
+#define GC032A_SENSOR_ID                        0x232a
+/*
+ * 0x8044: e' il valore che `open` confronta con la coppia letta dai
+ * registri 0xf0 e 0xf1, e che `feature_control` porta in giro --
+ * "52881aa8 mov"@0xffffff800871c30c.
+ */
+#define GC8034_SENSOR_ID                        0x8044
 #define GC0313MIPI_YUV_SENSOR_ID                0xD0
 #define GC0312_SENSOR_ID                        0xb310
 /*SP*/
@@ -363,6 +375,16 @@
 #define SENSOR_DRVNAME_IMX258_MIPI_RAW          "imx258_mipi_raw"
 #define SENSOR_DRVNAME_IMX258_MIPI_MONO         "imx258_mipi_mono"
 #define SENSOR_DRVNAME_IMX230_MIPI_RAW          "imx230_mipi_raw"
+/*
+ * Il secondo fornitore di modulo per lo stesso sensore. Il nome deve
+ * combaciare con quello in CONFIG_CUSTOM_KERNEL_IMGSENSOR, perche' e' cosi'
+ * che imgsensor_set_driver sceglie il driver.
+ *
+ * L'identificatore e' quello del chip -- e' lo stesso silicio -- e la
+ * lista ammette duplicati: 0x0012, 0x00B1 e 0x08aa compaiono gia'
+ * due volte a testa in questo file.
+ */
+#define SENSOR_DRVNAME_IMX230XINFENGDA_MIPI_RAW "imx230xinfengda_mipi_raw"
 #define SENSOR_DRVNAME_IMX220_MIPI_RAW          "imx220_mipi_raw"
 #define SENSOR_DRVNAME_IMX219_MIPI_RAW          "imx219_mipi_raw"
 #define SENSOR_DRVNAME_IMX214_MIPI_MONO         "imx214_mipi_mono"
@@ -497,6 +519,8 @@
 #define SENSOR_DRVNAME_GC0329_YUV               "gc0329_yuv"
 #define SENSOR_DRVNAME_GC2145_MIPI_YUV          "gc2145_mipi_yuv"
 #define SENSOR_DRVNAME_GC0310_MIPI_YUV          "gc0310_mipi_yuv"
+#define SENSOR_DRVNAME_GC032A_MIPI_YUV          "gc032a_mipi_yuv"
+#define SENSOR_DRVNAME_GC8034_MIPI_RAW          "gc8034_mipi_raw"
 #define SENSOR_DRVNAME_GC0310_YUV               "gc0310_yuv"
 #define SENSOR_DRVNAME_GC0312_YUV               "gc0312_yuv"
 #define SENSOR_DRVNAME_GC0313MIPI_YUV           "gc0313_mipi_yuv"

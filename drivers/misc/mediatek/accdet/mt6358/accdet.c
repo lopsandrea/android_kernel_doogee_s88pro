@@ -13,8 +13,20 @@
 
 #include "accdet.h"
 #if PMIC_ACCDET_KERNEL
-#ifdef CONFIG_ACCDET_EINT
+/*
+ * FUORI DALL'#ifdef, e la ragione sta nel binario di fabbrica.
+ *
+ * ALPS teneva questi due include dentro CONFIG_ACCDET_EINT perche' li usava
+ * solo ext_eint_setup(). Ma il codice Wingtech di questo telefono --
+ * wtk_accdet_ap_eint_func, ricostruito da "97f86bb5 bl gpiod_set_raw_value"
+ * e "97f86237 bl gpio_to_desc" -- chiama gpiod_set_raw_value() e
+ * gpio_to_desc() FUORI da quella guardia, e la fabbrica quelle chiamate le
+ * ha. Spegnendo CONFIG_ACCDET_EINT sparivano gli include e non il codice
+ * che li usa.
+ */
 #include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
+#ifdef CONFIG_ACCDET_EINT
 #endif
 #include <linux/timer.h>
 #include <linux/of.h>
@@ -338,6 +350,167 @@ inline void pmic_write_clr(u32 addr, u32 shift)
 			__func__, addr, pmic_read(addr), shift);
 	}
 #endif
+}
+
+/* Wingtech: get_headset_gpio_info, wtk_set_mic_switch_state e (piu' sotto,
+ * dopo accdet_irq_handle) wtk_accdet_ap_eint_func sono le tre
+ * personalizzazioni Wingtech innestate su questo driver MediaTek standard,
+ * assenti sia dal nostro build sia dall'intero sorgente ALPS al commit
+ * 952d88e94 (`git grep -ln <nome>`, zero righe ciascuna). Il confine del
+ * CONFIG WTK_TYPE_C_ACCDET e' di 20 funzioni: le altre 17 sono gia' tutte
+ * presenti in questo file (docs/bringup/rapporti/rapporto-confini-nove.md,
+ * S2.3). Su questo hardware il rilevamento dell'accessorio non passa
+ * dall'EINT accdet nativo ma dal controller USB Type-C (TCPC), che
+ * notifica accdet chiamando wtk_accdet_ap_eint_func.
+ *
+ * Ricostruite dal disassemblato di stock.elf, funzione per funzione; ogni
+ * costante ha accanto la riga di disassemblato da cui viene, nella forma
+ * "<codifica a 8 cifre esadecimali> <mnemonico>" (tools/verificaistruzioni.py).
+ */
+static const struct of_device_id accdet_gpio_of_match[] = {
+	/* tabella passata a of_find_matching_node_and_match in
+	 * get_headset_gpio_info ("94142e30 bl of_find_matching_node_and_match"
+	 * con x1 = 0xffffff8008f38d48); le quattro voci "compatible" e il
+	 * terminatore letti a quell'indirizzo con leer_ofmatch_tmp.py:
+	 *   entry0 0xffffff8008f38d48 "mediatek,mt8173-accdet"
+	 *   entry1 0xffffff8008f38e10 "mediatek,mt8163-accdet"
+	 *   entry2 0xffffff8008f38ed8 "mediatek,pmic-accdet"
+	 *   entry3 0xffffff8008f38fa0 "mediatek,mt8167-accdet"
+	 *   entry4 0xffffff8008f39068 (terminatore, tutto zero)
+	 */
+	{.compatible = "mediatek,mt8173-accdet"},
+	{.compatible = "mediatek,mt8163-accdet"},
+	{.compatible = "mediatek,pmic-accdet"},
+	{.compatible = "mediatek,mt8167-accdet"},
+	{},
+};
+
+/* .bss a 0xffffff8009b41000+0x440/+0x444 in stock.elf: due int scritti da
+ * get_headset_gpio_info ("b90442a0 str w0, [x21,#1088]" e
+ * "b9044680 str w0, [x20,#1092]") e riletti da wtk_set_mic_switch_state e
+ * wtk_accdet_ap_eint_func. I nomi vengono dai due letterali di device-tree
+ * passati a of_get_named_gpio_flags (vedi sotto), non esistono altrove nel
+ * sorgente ALPS ne' nel nostro build.
+ */
+static int gpio_headset_usb_switch_pin;
+static int gpio_mic_switch_pin;
+
+/* Scritto da tcpci_report_usb_port_changed -- fuori dal confine dei 20 di
+ * WTK_TYPE_C_ACCDET (e' in un file/driver diverso, tipicamente
+ * drivers/misc/mediatek/typec/tcpc/, non toccato da questa patch) --
+ * subito prima di chiamare wtk_accdet_ap_eint_func: "b906d909 str w9,
+ * [x8,#1752]" nel chiamante, indirizzo 0xffffff8009915000+0x6d8, con w9=1
+ * (accessorio inserito) o 2 (rimosso, osservato nel disassemblato del
+ * chiamante). wtk_accdet_ap_eint_func lo rilegge con "b946d908 ldr w8,
+ * [x8,#1752]" e "7100051f cmp w8,#0x1". L'oracolo non ha simboli di dati:
+ * il nome e' una ricostruzione ragionevole del ruolo, non una citazione.
+ * Non-statico perche' deve essere scrivibile da quell'altro file: la sua
+ * dichiarazione extern lato tcpc non fa parte di questa patch (fuori dal
+ * confine dei 20).
+ */
+int accdet_typec_plugin_state;
+
+/*
+ * get_headset_gpio_info() - trova dal device tree e richiede i due gpio
+ * Wingtech (switch USB/audio e switch MIC/GND) del rilevatore Type-C.
+ * Chiamata da mt_accdet_probe in fabbrica (bl a 0xffffff800865b7e0,
+ * dentro mt_accdet_probe: 0xffffff800865acd4+0xb0c); mt_accdet_probe non
+ * e' fra le 20 funzioni del confine e diverge gia' di 560 byte dal nostro
+ * per ragioni indipendenti da questa patch, quindi il punto di chiamata
+ * non e' stato toccato qui -- vedi rapporto di revisione.
+ *
+ * ffffff8008659ce0 <get_headset_gpio_info>, 260 byte, 65 istruzioni.
+ */
+int get_headset_gpio_info(void)
+{
+	struct device_node *node;
+	int ret;
+
+	/* "94142e30 bl of_find_matching_node_and_match", x0=NULL,
+	 * x1=accdet_gpio_of_match, x2=NULL.
+	 */
+	node = of_find_matching_node_and_match(NULL, accdet_gpio_of_match, NULL);
+
+	/* "97f87ac6 bl of_get_named_gpio_flags": propname
+	 * "gpio_headset_usb_switch_pin"@0xffffff800917d254, index=0,
+	 * flags=NULL; risultato salvato con "b90442a0 str w0, [x21,#1088]".
+	 */
+	gpio_headset_usb_switch_pin = of_get_named_gpio_flags(node,
+			"gpio_headset_usb_switch_pin", 0, NULL);
+	/* "37f80280 tbnz w0,#31,..." = if (ret < 0) */
+	if (gpio_headset_usb_switch_pin < 0) {
+		/* KERN_ERR "%s get gpio_headset_usb_switch_pin failed!\n"@0xffffff800917d270
+		 * (il compilatore concatena il SOH+cifra
+		 * di KERN_ERR in testa al letterale: verificato byte per byte
+		 * da verificacitazioni.py). __func__ e' la stringa separata
+		 * "get_headset_gpio_info" a 0xffffff800917d29e -- non citata
+		 * qui con la sintassi "testo"@indirizzo perche' nel sorgente
+		 * non compare come letterale (e' __func__, non un testo fra
+		 * virgolette).
+		 */
+		printk(KERN_ERR "%s get gpio_headset_usb_switch_pin failed!\n",
+			__func__);
+		return gpio_headset_usb_switch_pin;
+	}
+	/* "97f879e5 bl gpio_request": x0 e' ancora il numero di gpio (w0 non
+	 * risovrascritto dal ramo precedente), x1 = la stessa stringa
+	 * "gpio_headset_usb_switch_pin" riusata come label.
+	 */
+	ret = gpio_request(gpio_headset_usb_switch_pin, "gpio_headset_usb_switch_pin");
+	if (ret < 0) {
+		/* KERN_ERR "%s gpio_request failed, gpio=%d\n"@0xffffff80091522cd */
+		printk(KERN_ERR "%s gpio_request failed, gpio=%d\n", __func__,
+			gpio_headset_usb_switch_pin);
+		return ret;
+	}
+
+	/* stessa sequenza per il secondo gpio: propname
+	 * "gpio_mic_switch_pin"@0xffffff800917d2b4, salvato con
+	 * "b9044680 str w0, [x20,#1092]".
+	 */
+	gpio_mic_switch_pin = of_get_named_gpio_flags(node,
+			"gpio_mic_switch_pin", 0, NULL);
+	if (gpio_mic_switch_pin < 0) {
+		/* KERN_ERR "%s get gpio_mic_switch_pin failed!\n"@0xffffff800917d2c8 */
+		printk(KERN_ERR "%s get gpio_mic_switch_pin failed!\n", __func__);
+		return gpio_mic_switch_pin;
+	}
+	ret = gpio_request(gpio_mic_switch_pin, "gpio_mic_switch_pin");
+	if (ret < 0) {
+		/* stesso letterale di sopra (0xffffff80091522cd), stesso
+		 * formato "%s gpio_request failed, gpio=%d\n": la fabbrica
+		 * riusa il medesimo indirizzo per entrambi i punti di
+		 * chiamata (verificato: il testo e' identico byte per byte).
+		 */
+		printk(KERN_ERR "%s gpio_request failed, gpio=%d\n", __func__,
+			gpio_mic_switch_pin);
+		return ret;
+	}
+
+	return 0;
+}
+
+/*
+ * wtk_set_mic_switch_state() - imposta lo stato del gpio switch MIC/GND.
+ *
+ * ffffff8008659de4 <wtk_set_mic_switch_state>, 52 byte, 13 istruzioni.
+ * Nessuna chiamata diretta ("bl") in tutto stock.elf (verificato sul
+ * disassemblato completo del kernel): l'unico punto dove il suo
+ * comportamento ricompare e' dentro wtk_accdet_ap_eint_func, che duplica
+ * esattamente la stessa sequenza gpio_to_desc+gpiod_set_raw_value -- letto
+ * qui come una chiamata incorporata dal compilatore nel suo unico punto di
+ * chiamata nel kernel, non come prova diretta di un "bl". Resta non
+ * statica: e' un simbolo globale (T) di fabbrica, coerente con un secondo
+ * chiamante fuori da stock.elf (un modulo, o un driver audio non ancora
+ * identificato) che questa patch non può dimostrare -- vedi rapporto di
+ * revisione.
+ */
+void wtk_set_mic_switch_state(int state)
+{
+	/* "b9444508 ldr w8, [x8,#1092]" = gpio_mic_switch_pin;
+	 * "97f8640b bl gpio_to_desc"; "97f86d84 bl gpiod_set_raw_value"
+	 */
+	gpiod_set_raw_value(gpio_to_desc(gpio_mic_switch_pin), state);
 }
 
 static void dump_register(void)
@@ -1623,8 +1796,9 @@ void accdet_irq_handle(void)
 {
 	u32 eintID = 0;
 	u32 irq_status;
-	unsigned int moisture_vol = 0;
 #ifdef CONFIG_ACCDET_EINT_IRQ
+	unsigned int moisture_vol = 0;
+
 	eintID = get_triggered_eint();
 #endif
 	irq_status = pmic_read(ACCDET_IRQ_STS);
@@ -1677,6 +1851,85 @@ void accdet_irq_handle(void)
 #if PMIC_ACCDET_CTP || PMIC_ACCDET_DEBUG
 	dump_register();
 #endif
+}
+
+/*
+ * wtk_accdet_ap_eint_func() - notificata dal controller USB Type-C (TCPC)
+ * quando la porta rileva o perde un accessorio audio: su questo hardware
+ * sostituisce l'EINT accdet nativo per il rilevamento headset. Il
+ * chiamante reale, tcpci_report_usb_port_changed ("97f5678b bl
+ * wtk_accdet_ap_eint_func" a 0xffffff80089006e0), sta in un file/driver
+ * diverso e fuori dal confine dei 20 di WTK_TYPE_C_ACCDET: non e' toccato
+ * da questa patch (vedi rapporto di revisione).
+ *
+ * ffffff800865a50c <wtk_accdet_ap_eint_func>, 224 byte, 56 istruzioni.
+ */
+void wtk_accdet_ap_eint_func(void)
+{
+	/* "910e5c00 add x0, x0, #0x397" + "97eb63ed bl printk":
+	 * "[wtk_accdet_ap_eint_func]Enter!\n"@0xffffff800917d397, nessun
+	 * prefisso KERN_* nel letterale (nessun byte \x01) -- printk() nudo,
+	 * a differenza del resto del file che usa pr_notice/pr_debug.
+	 */
+	printk("[wtk_accdet_ap_eint_func]Enter!\n");
+
+	/* "b946d908 ldr w8, [x8,#1752]" + "7100051f cmp w8,#0x1" +
+	 * "540002a1 b.ne ..." = if (accdet_typec_plugin_state == 1)
+	 */
+	if (accdet_typec_plugin_state == 1) {
+		/* "97f8623c bl gpio_to_desc" (gpio_mic_switch_pin) +
+		 * "2a1f03e1 mov w1, wzr" + "97f86bb5 bl gpiod_set_raw_value":
+		 * la stessa sequenza di wtk_set_mic_switch_state(0),
+		 * incorporata qui nel suo unico punto di chiamata.
+		 */
+		wtk_set_mic_switch_state(0);
+		/* "97f86237 bl gpio_to_desc" (gpio_headset_usb_switch_pin) +
+		 * "320003e1 orr w1, wzr, #0x1" + "97f86baf bl gpiod_set_raw_value"
+		 */
+		gpiod_set_raw_value(gpio_to_desc(gpio_headset_usb_switch_pin), 1);
+		/* "320003f3 orr w19, wzr, #0x1" + "39119113 strb w19, [x8,#1124]".
+		 * Il campo e' scritto/letto con strb/ldrb (8 bit) in tutta la
+		 * funzione, mentre cur_eint_state e' dichiarata u32 altrove nel
+		 * file (riga 176): non e' stato possibile stabilire con
+		 * certezza se sia un narrowing del compilatore sullo stesso
+		 * simbolo o una variabile distinta -- vedi rapporto di
+		 * revisione. Qui si riusa cur_eint_state: il letterale della
+		 * printk finale ("cur_eint_state=%d") e i valori (0/1) che
+		 * combaciano esattamente con EINT_PIN_PLUG_OUT/EINT_PIN_PLUG_IN
+		 * sono l'evidenza a favore.
+		 */
+		cur_eint_state = EINT_PIN_PLUG_IN;
+		/* "f944c108 ldr x8, [x8,#2432]" + "91177101 add x1, x8, #0x5dc":
+		 * 0x5dc = 1500 = 6*250 = MICBIAS_DISABLE_TIMER con CONFIG_HZ=250
+		 * (verificato in kernel-work/e977_dg_m13_71_q0.config); stesso
+		 * idioma "jiffies + MICBIAS_DISABLE_TIMER" gia' presente altrove
+		 * in questo file. "9111a000 add x0, x0, #0x468" = &micbias_timer;
+		 * "97ebdb72 bl mod_timer".
+		 */
+		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
+	} else {
+		/* "3911911f strb wzr, [x8,#1124]" */
+		cur_eint_state = EINT_PIN_PLUG_OUT;
+		wtk_set_mic_switch_state(0);
+		/* "97f86221 bl gpio_to_desc" + "2a1f03e1 mov w1, wzr" +
+		 * "97f86b9a bl gpiod_set_raw_value"
+		 */
+		gpiod_set_raw_value(gpio_to_desc(gpio_headset_usb_switch_pin), 0);
+	}
+
+	/* "39519101 ldrb w1, [x8,#1124]" + "910ee000 add x0, x0, #0x3b8" +
+	 * "97eb63c4 bl printk":
+	 * "[wtk_accdet_ap_eint_func]end,cur_eint_state=%d\n"@0xffffff800917d3b8
+	 */
+	printk("[wtk_accdet_ap_eint_func]end,cur_eint_state=%d\n", cur_eint_state);
+
+	/* "f9424d01 ldr x1, [x8,#1176]" (eint_workqueue) +
+	 * "91128042 add x2, x2, #0x4a0" (&eint_work) +
+	 * "321d03e0 orr w0, wzr, #0x8" (cpu=8, NR_CPUS su questo SoC, il
+	 * valore di WORK_CPU_UNBOUND che l'inline queue_work() passa) +
+	 * "97e9d2aa bl queue_work_on" == queue_work(eint_workqueue, &eint_work)
+	 */
+	queue_work(eint_workqueue, &eint_work);
 }
 
 static void accdet_int_handler(void)

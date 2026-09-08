@@ -36,6 +36,8 @@
 /* #include <asm/mach-types.h> */
 #include <asm/cacheflush.h>
 #include <linux/io.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include "ion_drv.h"
 //#include "mt-plat/dma.h"
 /* #include <mach/irqs.h> */
@@ -2925,6 +2927,50 @@ static struct early_suspend mtkfb_early_suspend_handler = {
 #endif
 
 
+
+/*
+ * IL NODO /proc/wtk_lcdInfo -- AGGIUNTA DI FABBRICA, tre funzioni contigue
+ * fra mtkfb_get_debug_state e mtkfb_probe nell'immagine:
+ *   wtk_creat_proc_lcm_info @0xffffff8008866b88, 64 byte
+ *   wtk_lcm_info_open       @0xffffff8008866bc8, 36 byte
+ *   wtk_lcm_info_show       @0xffffff8008866bec, 40 byte
+ *
+ * I permessi sono 0777, non 0444 come negli altri nodi wtk:
+ * "320023e1 orr"@0xffffff8008866ba0 mette 0x1ff in w1. E anche qui il nome
+ * del nodo e il messaggio d'errore non coincidono -- "wtk_lcdInfo"
+ * @0xffffff80091f5893 contro "create /proc/lcm_info_entry fail"
+ * @0xffffff80091f589f. Difetto di fabbrica, riprodotto.
+ *
+ * Il buffer che la show stampa non e' nuovo: e' `mtkfb_lcm_name`, che ALPS
+ * ha gia'. Verificato che sia lo stesso indirizzo che scrivono
+ * mtkfb_find_lcm_driver, mtkfb_probe e _parse_tag_videolfb.
+ */
+static int wtk_lcm_info_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%s\n", mtkfb_lcm_name);
+	return 0;
+}
+
+static int wtk_lcm_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, wtk_lcm_info_show, NULL);
+}
+
+static const struct file_operations wtk_lcm_info_fops = {
+	.open = wtk_lcm_info_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+int wtk_creat_proc_lcm_info(void)
+{
+	if (!proc_create("wtk_lcdInfo", 0777, NULL, &wtk_lcm_info_fops))
+		printk("create /proc/lcm_info_entry fail\n");
+
+	return 0;
+}
+
 int mtkfb_get_debug_state(char *stringbuf, int buf_len)
 {
 	int len = 0;
@@ -2962,6 +3008,7 @@ int mtkfb_get_debug_state(char *stringbuf, int buf_len)
 int __init mtkfb_init(void)
 {
 	int ret = 0;
+	char *lcm_par, *lcm_nome, *lcm_fine;
 
 	MSG_FUNC_ENTER();
 	DISPCHECK("%s Enter\n", __func__);
@@ -2976,6 +3023,42 @@ int __init mtkfb_init(void)
 	PanelMaster_Init();
 	DBG_Init();
 	mtkfb_ipo_init();
+
+	/*
+	 * IL BLOCCO WINGTECH: il nodo /proc e la lettura del nome del pannello
+	 * dalla riga di comando. Sta qui, dopo mtkfb_ipo_init e prima
+	 * dell'uscita -- "97bdef6b bl"@0xffffff80093796a8 e' la proc_create e
+	 * "97ebbd26 bl"@0xffffff80093796d0 la strstr.
+	 *
+	 * Il `+ 6` salta "lcm=1-": la riga di comando di questo dispositivo
+	 * porta lcm=1-<nome>, e cio' che serve e' il nome.
+	 *
+	 * DUE DIFETTI DI FABBRICA, RIPRODOTTI:
+	 *  - il controllo di lunghezza confronta con strlen(cmdline + 1), non
+	 *    con strlen(cmdline): "91000680 add"@0xffffff80093796dc somma 1
+	 *    prima della __pi_strlen;
+	 *  - il terminatore va a `buf[len + 1]` e non a `buf[len]`:
+	 *    "390006bf strb"@0xffffff8009379798 scrive a [x21,#1] dove x21 e'
+	 *    gia' buf + len. E' innocuo solo perche' il memset ha azzerato
+	 *    tutti i 256 byte.
+	 */
+	if (!proc_create("wtk_lcdInfo", 0777, NULL, &wtk_lcm_info_fops))
+		printk("create /proc/lcm_info_entry fail\n");
+
+	lcm_par = strstr(saved_command_line, "lcm=");
+	if (lcm_par) {
+		lcm_nome = lcm_par + 6;
+		if (lcm_nome - saved_command_line <= strlen(saved_command_line + 1)) {
+			printk("%s, %s\n", "wtk_lcm_command_line", lcm_nome);
+			lcm_fine = lcm_nome;
+			while ((*lcm_fine | 0x20) != 0x20)
+				lcm_fine++;
+			memset(mtkfb_lcm_name, 0, sizeof(mtkfb_lcm_name));
+			strncpy(mtkfb_lcm_name, lcm_nome, lcm_fine - lcm_nome);
+			mtkfb_lcm_name[lcm_fine - lcm_nome + 1] = '\0';
+			printk("%s, %s\n", "wtk_lcm_command_line", mtkfb_lcm_name);
+		}
+	}
 exit:
 	MSG_FUNC_LEAVE();
 	DISPCHECK("%s LEAVE\n", __func__);

@@ -30,3 +30,12 @@ config BACKLIGHT_SUPPORT_LM3697
 	  Set y to support.
 	  Set n to disable.
 	  Charge pump driver for external backlight.
+
+config WTK_LEDS_AW22127
+	bool "Awinic AW22xxx case LEDs (Doogee S88 Pro, dal disassemblato)"
+	depends on I2C && LEDS_CLASS
+	help
+	  LED della scocca Awinic AW22xxx, ricostruiti leggendo il kernel di
+	  fabbrica del Doogee S88 Pro. Il config di fabbrica li accende
+	  (CONFIG_WTK_LEDS_AW22127=y); nessun albero pubblico ha il sorgente.
+	  Vedi docs/bringup/driver-riscritti.md.

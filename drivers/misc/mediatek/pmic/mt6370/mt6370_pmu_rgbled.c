@@ -1008,6 +1008,62 @@ static struct led_trigger mt6370_pmu_led_trigger2[] = {
 };
 /* 6372 end */
 static void mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
+	enum led_brightness bright);
+
+/*
+ * wtk_mt6370_pmu_led_bright_set @0xffffff80085cf3cc, 248 byte, globale (T).
+ * Sta subito PRIMA di mt6370_pmu_led_bright_set nell'immagine, e la chiama.
+ *
+ * I quattro registri vengono dalla tavola dei salti a 0xffffff8008f2afe8
+ * ("10 00 04 06" rispetto a 0xffffff80085cf40c): caso 0 -> 0x82, caso 1 ->
+ * 0x83, caso 2 -> 0x84, caso 3 -> il blocco che scrive anche 0x80 in 0x92.
+ * Sono RGB1DIM, RGB2DIM, RGB3DIM e RGBCHRINDDIM.
+ *
+ * Il messaggio d'errore e' lo stesso di mt6370_pmu_led_blink_set --
+ * "%s: mode fix fail\n"@0xffffff800914ffbc -- e vale per TUTTI i percorsi
+ * d'errore, compreso il caso di indice non valido.
+ */
+int wtk_mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
+				  enum led_brightness bright)
+{
+	int led_index = mt6370_pmu_led_get_index(led_cdev);
+	uint8_t reg_addr;
+	int ret;
+
+	switch (led_index) {
+	case MT6370_PMU_LED1:
+		reg_addr = MT6370_PMU_REG_RGB1DIM;
+		break;
+	case MT6370_PMU_LED2:
+		reg_addr = MT6370_PMU_REG_RGB2DIM;
+		break;
+	case MT6370_PMU_LED3:
+		reg_addr = MT6370_PMU_REG_RGB3DIM;
+		break;
+	case MT6370_PMU_LED4:
+		ret = mt6370_pmu_led_update_bits(led_cdev,
+						 MT6370_PMU_REG_RGBCHRINDDIM,
+						 0x80, 0x80);
+		if (ret < 0)
+			goto errore;
+		reg_addr = MT6370_PMU_REG_RGBCHRINDDIM;
+		break;
+	default:
+		ret = -EINVAL;
+		goto errore;
+	}
+
+	ret = mt6370_pmu_led_update_bits(led_cdev, reg_addr, 0x60, 0x40);
+	if (ret >= 0)
+		goto imposta;
+errore:
+	dev_err(led_cdev->dev, "%s: mode fix fail\n", __func__);
+imposta:
+	mt6370_pmu_led_bright_set(led_cdev, bright ? 1 : 0);
+	return ret;
+}
+
+static void mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 	enum led_brightness bright)
 {
 	int led_index = mt6370_pmu_led_get_index(led_cdev);
@@ -1178,6 +1234,26 @@ static inline int mt6370_pmu_led_config_pwm(struct led_classdev *led_cdev,
 }
 
 static int mt6370_pmu_led_change_mode(struct led_classdev *led_cdev, int mode);
+static int mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
+	unsigned long *delay_on, unsigned long *delay_off);
+
+/*
+ * wtk_mt6370_pmu_led_blink_set @0xffffff80085cf5d8, 84 byte, globale (T).
+ * Chiama la blink_set normale e poi calcola la luminosita' dal rapporto fra
+ * acceso e spento: "d378dd0a lsl"@0xffffff80085cf604 seguita da
+ * "cb08014a sub"@0xffffff80085cf608 e' *on * 255 (256 meno uno), e
+ * "9ac80941 udiv"@0xffffff80085cf610 divide per (*off + *on).
+ */
+int wtk_mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
+				 unsigned long *delay_on,
+				 unsigned long *delay_off)
+{
+	mt6370_pmu_led_blink_set(led_cdev, delay_on, delay_off);
+	mt6370_pmu_led_bright_set(led_cdev,
+				  (*delay_on * 255) / (*delay_off + *delay_on));
+	return 0;
+}
+
 static int mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
 	unsigned long *delay_on, unsigned long *delay_off)
 {

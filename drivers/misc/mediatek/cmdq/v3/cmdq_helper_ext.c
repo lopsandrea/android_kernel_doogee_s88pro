@@ -134,7 +134,35 @@ enum xpr_id {
 };
 
 static u32 mdp_base[1] = {0};
-static u32 mdp_sub_base[1] = {0};
+/*
+ * I QUINDICI SOTTOSISTEMI CHE IL CMDQ PUO' SCRIVERE.
+ *
+ * ALPS lascia questa tabella con UN SOLO elemento a zero. Il risultato e' che
+ * `cmdq_mdp_is_sub_valid` accetta soltanto `base == 0` e rifiuta ogni altra
+ * scrittura che il servizio della fotocamera mette nella coda di comandi:
+ *
+ *   [CMDQ][ERR]instr:0x401014100000000
+ *   [CMDQ][ERR]CMDQ_IOCTL_ASYNC_JOB_EXEC flush task fail status:-14
+ *
+ * Quell'istruzione e' una CMDQ_CODE_WRITE (op 0x04) con sop 1 e ai 0x0141,
+ * cioe' `base = (0x0141 & 0xf000) | 1 = 1` -- che e' la PRIMA voce della
+ * tabella di fabbrica.
+ *
+ * La tabella vera sta a 0xffffff8008f5c354 e la usa `cmdq_mdp_is_sub_valid`
+ * ("910d514a add"@0xffffff80087f181c, poi
+ * "b869794a ldr"@0xffffff80087f1820 che indicizza con last_idx). I quindici
+ * valori si leggono uno per uno; subito dopo comincia un'altra tabella, con
+ * gli indirizzi fisici corrispondenti (0x14000000, 0x14001000, ...), e per
+ * questo la lettura si ferma a quindici e non prosegue.
+ *
+ * Il formato di ogni voce e' `(offset & 0xf000) | subsys`, lo stesso che la
+ * funzione calcola per confrontarle.
+ */
+static u32 mdp_sub_base[] = {
+	0x00000001, 0x00001001, 0x00003001, 0x00004001, 0x00005001,
+	0x00006001, 0x00007001, 0x0000e001, 0x0000b002, 0x0000c002,
+	0x00006002, 0x00000004, 0x00002004, 0x0000a004, 0x0000d004,
+};
 
 static bool cmdq_mdp_is_reg_valid(const unsigned long pa)
 {

@@ -1,0 +1,10 @@
+config ODM_LTR2568
+	bool "Lite-On LTR-2568 ALS/PS for MediaTek package (Doogee S88 Pro, dal disassemblato)"
+	default n
+	help
+	  Sensore di luce ambientale e prossimita' Lite-On LTR-2568 del Doogee
+	  S88 Pro, ricostruito leggendo il kernel di fabbrica disassemblato. Il
+	  config di fabbrica lo accende (CONFIG_ODM_LTR2568=y) e nessun albero
+	  pubblico ha il sorgente: senza questo simbolo `olddefconfig` scarta la
+	  riga del config di fabbrica in silenzio e il driver non entra mai nel
+	  kernel. Vedi docs/bringup/driver-riscritti.md.

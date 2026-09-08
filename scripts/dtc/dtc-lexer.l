@@ -38,7 +38,18 @@ LINECOMMENT	"//".*\n
 #include "srcpos.h"
 #include "dtc-parser.tab.h"
 
-YYLTYPE yylloc;
+/*
+ * extern, altrimenti non si compila con le toolchain moderne.
+ *
+ * Con -fno-common -- il default da GCC 10 e dai clang recenti -- questa
+ * definizione tentativa entra in conflitto con quella che bison genera in
+ * dtc-parser.tab.c, e il collegamento di scripts/dtc/dtc muore con
+ * \ld.lld: error: duplicate symbol: yylloc\.
+ *
+ * Serve per compilare dentro LineageOS, che usa clang-r487747c; con il
+ * clang-r353983c di fabbrica il difetto non si vedeva.
+ */
+extern YYLTYPE yylloc;
 extern bool treesource_error;
 
 /* CAUTION: this will stop working if we ever use yyless() or yyunput() */

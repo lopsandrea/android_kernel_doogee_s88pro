@@ -135,6 +135,9 @@ config TOUCHSCREEN_MTK_GT5688
 	  module will be called.
 
 source "drivers/input/touchscreen/mediatek/GT5688/Kconfig"
+source "drivers/input/touchscreen/mediatek/ilitek_e977/Kconfig"
+source "drivers/input/touchscreen/mediatek/GT917S/Kconfig"
+source "drivers/input/touchscreen/mediatek/ft8719/Kconfig"
 source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
 
 config TOUCHSCREEN_MTK_GT911

@@ -182,9 +182,41 @@ static int def_data_rate;
 static int dsi_currect_mode;
 static int dsi_force_config;
 static int dsi0_te_enable = 1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi0;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsidual;
+/*
+ * NIENTE const, e non e' una pulizia di stile: e' la ragione per cui il
+ * telefono si riavviava a ogni spegnimento dello schermo quando il kernel
+ * lo compila clang-17.
+ *
+ * Queste tre erano dichiarate const senza inizializzatore, e
+ * ddp_dsi_set_lcm_utils() le casta a non-const per riempirle:
+ *
+ *     utils = (struct LCM_UTIL_FUNCS *)&lcm_utils_dsi0;
+ *     utils->mdelay = lcm_mdelay;
+ *     utils->dsi_set_cmdq_V2 = DSI_set_cmdq_V2_Wrapper_DSI0;
+ *
+ * Scrivere su un oggetto dichiarato const e' comportamento indefinito: il
+ * compilatore puo' assumere che non cambi mai e buttare via le scritture.
+ * clang-9 le teneva, clang-17 le butta. Contate nel binario, sulla stessa
+ * funzione:
+ *
+ *     clang-9   25 istruzioni str/stp
+ *     clang-17   3
+ *
+ * Le 22 mancanti sono proprio gli assegnamenti a utils->. La struttura
+ * restava azzerata, lcm_set_util_funcs() ne copiava zeri in lcm_util, e il
+ * primo push_table() del pannello saltava a NULL:
+ *
+ *     Internal error: Attempting to execute userspace memory: 86000005
+ *     PC is at 0x0
+ *     LR is at lcm_init+0x88/0x130
+ *
+ * Misurato con le tracce sui due lati della copia: stesso puntatore, stessa
+ * sizeof (248), e i campi gia' NULL nel framework prima di consegnarli --
+ * quindi non un problema di layout, ma di scritture mai eseguite.
+ */
+static struct LCM_UTIL_FUNCS lcm_utils_dsi0;
+static struct LCM_UTIL_FUNCS lcm_utils_dsi1;
+static struct LCM_UTIL_FUNCS lcm_utils_dsidual;
 static cmdqBackupSlotHandle _h_intstat;
 unsigned int impendance0[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE0 */
 unsigned int impendance1[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE1 */

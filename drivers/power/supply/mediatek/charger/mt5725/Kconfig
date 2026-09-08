@@ -1,0 +1,18 @@
+config MTK_MT5725_WLS_SUPPORT
+	bool "Maxic MT5725 wireless charger (Doogee S88 Pro, dal disassemblato)"
+	depends on MTK_CHARGER
+	select WTK_USB_INSERT_DETECT
+	default n
+	help
+	  Caricatore wireless Maxic MT5725 del Doogee S88 Pro (E977),
+	  ricostruito leggendo il kernel di fabbrica disassemblato. Il config
+	  di fabbrica lo accende (CONFIG_MTK_MT5725_WLS_SUPPORT=y) e nessun
+	  albero pubblico ha il sorgente: senza questo simbolo `olddefconfig`
+	  scarta in silenzio la riga del config di fabbrica e il driver non
+	  entra mai nel kernel.
+
+	  IL `select` NON E' UNA COMODITA'.  `mt5725.c` chiama `usb_insert_online`,
+	  che sta in un'altra unita' di traduzione di cui questo progetto ha
+	  ricostruito UNA funzione su cinque: senza, il link del kernel si ferma
+	  con "undefined reference to `usb_insert_online'".  Misurato -- e' il
+	  quinto dei sei simboli che il primo `LD vmlinux` mai tentato ha chiesto.

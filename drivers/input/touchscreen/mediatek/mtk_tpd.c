@@ -18,6 +18,11 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/fb.h>
+/* per proc_create/single_open/seq_printf delle quattro funzioni
+ * Wingtech aggiunte piu' sotto -- FUORI dai #if condizionali che
+ * questo file usa piu' avanti per <linux/input/mt.h> */
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
 #include <mtk_6306_gpio.h>
 #endif
@@ -524,6 +529,158 @@ int tpd_driver_remove(struct tpd_driver_t *tpd_drv)
 	return 0;
 }
 
+/*
+ * ---------------------------------------------------------------------
+ * L'AGGIUNTA WINGTECH DENTRO mtk_tpd.c -- quattro funzioni, 204 byte
+ * ---------------------------------------------------------------------
+ * Ricostruite dal disassemblato del kernel di fabbrica. Non sono in nessun
+ * albero pubblico: l'albero ALPS ha questo file ma non queste funzioni, ed
+ * e' lo stesso schema di `mt_charger_set_opa_mode` dentro
+ * mt6370_pmu_charger.c e del flashlight.
+ *
+ * CHE STIANO IN QUESTO FILE lo dice l'adiacenza degli indirizzi: di fabbrica
+ * occupano [0xffffff8008a5151c, 0xffffff8008a515e8), cioe' esattamente lo
+ * spazio fra `tpd_driver_remove` (0xffffff8008a514a8, che finisce a
+ * 0xffffff8008a5151c) e `tpd_probe` (0xffffff8008a515e8) -- due funzioni che
+ * questo file gia' contiene.
+ *
+ *   fix_tp_proc_info        0xffffff8008a5151c    64   T
+ *   wtk_creat_proc_tp_info  0xffffff8008a5155c    64   T
+ *   wtk_tp_info_open        0xffffff8008a5159c    36   t
+ *   wtk_tp_info_show        0xffffff8008a515c0    40   t
+ *
+ * PERCHE' SERVONO: `fix_tp_proc_info` e' chiamata da tre driver di tocco --
+ * "97ffdce1 bl"@0xffffff8008a5a198 (ILITEK, dentro ilitek_ic.c),
+ * "97ff66ae bl"@0xffffff8008a77a64 e "97ff46ac bl"@0xffffff8008a7fa6c --
+ * e senza di essa ILITEK non si linka.
+ *
+ * QUESTA NOTA DICEVA IL CONTRARIO, ED ERA SBAGLIATA. Diceva:
+ * «wtk_creat_proc_tp_info non e' chiamata da nessuno, non c'e' nessuna `bl`
+ * verso 0xffffff8008a5155c in tutto il kernel; quindi /proc/wtk_tpInfo di
+ * fabbrica non viene mai creato». La `bl` non c'e' davvero -- ma perche' la
+ * funzione e' INCORPORATA dentro tpd_device_init, dove la fabbrica ha
+ * "97bdc883 bl"@0xffffff8009383248 verso proc_create con la stessa stringa e
+ * gli stessi permessi. Il nodo viene creato eccome. Costava 44 byte su
+ * tpd_device_init, ed e' lo stesso errore che nascondeva il nodo
+ * /proc/wtk_memInfo dentro chip_common_init.
+ */
+
+/*
+ * LA DIMENSIONE DI QUESTO VETTORE E' UNA SCELTA, NON UNA MISURA. Il binario
+ * non la dice: `fix_tp_proc_info` riceve la lunghezza come argomento e i tre
+ * chiamanti passano il valore reso da una `sprintf`
+ * ("2a0003e1 mov"@0xffffff8008a5a190 dopo "9410417a bl"@0xffffff8008a5a18c),
+ * quindi non c'e' nessuna costante da leggere. Cio' che e' MISURATO e' il
+ * limite superiore: il vettore comincia a 0xffffff800a0fc0b9 e il primo
+ * offset piu' alto usato da qualunque codice nella stessa pagina di `.bss` e'
+ * 0xe4, quindi il vettore sta in [0xb9, 0xe4) ed e' al piu' di 43 byte.
+ * Scelti 43, il massimo compatibile con la misura. Il nome e' scelto anch'esso:
+ * l'oracolo non contiene simboli di dati.
+ */
+/*
+ * IL BYTE CHE PRECEDE `wtk_tp_info`, e sta in QUESTA unita' di traduzione.
+ *
+ * Il binario non lo nomina, quindi il nome viene dall'indirizzo -- lo stesso
+ * che usa GT917S/gt1x_generic.c, che lo dichiara `extern u8 g0fc0b8` -- e non
+ * e' un fatto. Cio' che E' misurato:
+ *
+ *   sta a 0xffffff800a0fc0b8, ed e' letto SEI volte in tutta l'immagine, tutte
+ *   `ldrb` seguito da `cbz`/`cbnz`, mai una scrittura:
+ *     "3942e108 ldrb"@0xffffff80087fca6c   (lcm_suspend)
+ *     "3942e108 ldrb"@0xffffff80087fd858   (lcm_suspend, secondo ramo)
+ *     "3942e108 ldrb"@0xffffff8008a74d74   (gt1x_suspend)
+ *     "3942e108 ldrb"@0xffffff8008a75008   (gt1x_resume)
+ *     "3942e108 ldrb"@0xffffff8008a75ef0   (gt1x_debug_write_proc)
+ *     "3942e108 ldrb"@0xffffff8008a78028   (tpd_event_handler)
+ *
+ *   e il byte SUCCESSIVO, 0xffffff800a0fc0b9, e' `wtk_tp_info`, che
+ *   `fix_tp_proc_info` riempie con __memcpy. Adiacenti in .bss vuol dire
+ *   stessa unita' di traduzione, ed e' questa: e' la stessa tecnica che ha
+ *   deciso a chi appartenesse `ilitek_dbg_en`.
+ *
+ * E' GLOBALE perche' lo leggono altre due unita' (il driver LCM e GT917S), e
+ * il primo link con GT917S acceso si e' fermato proprio qui, cinque volte.
+ *
+ * NESSUNO LO SCRIVE, in tutta l'immagine: resta zero, e i sei rami che lo
+ * guardano non si prendono mai. E' un difetto di fabbrica, ed e' riprodotto.
+ */
+u8 g0fc0b8;
+
+static char wtk_tp_info[43];
+
+/*
+ * "92401c33 and"@0xffffff8008a51530 maschera il secondo argomento a OTTO bit
+ * prima di usarlo: e' un `u8`, non un `int`. "941019ef bl"@0xffffff8008a51544
+ * va a <__memcpy> con x0 = il vettore, x1 = l'argomento, x2 = la lunghezza; e
+ * "38336a9f strb"@0xffffff8008a5154c scrive lo zero in coda a `[x20,x19]`,
+ * cioe' `wtk_tp_info[len]`. "2a1f03e0 mov"@0xffffff8008a51550 rende 0.
+ */
+int fix_tp_proc_info(const char *buf, u8 len)
+{
+	memcpy(wtk_tp_info, buf, len);
+	wtk_tp_info[len] = '\0';
+	return 0;
+}
+
+/*
+ * "97e11a92 bl"@0xffffff8008a515d8 va a <seq_printf> con
+ * x1 = "%s\n"@0xffffff8009226be1 e x2 = il vettore
+ * ("9102e442 add"@0xffffff8008a515d4 = pagina + 0xb9, lo stesso indirizzo che
+ * `fix_tp_proc_info` scrive). "2a1f03e0 mov"@0xffffff8008a515dc rende 0.
+ */
+static int wtk_tp_info_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%s\n", wtk_tp_info);
+	return 0;
+}
+
+/*
+ * "aa0103e0 mov"@0xffffff8008a515a4 passa il SECONDO argomento come primo a
+ * <single_open> ("97e11c04 bl"@0xffffff8008a515b4): il primo argomento della
+ * funzione non e' usato, com'e' per una `.open` di `file_operations`.
+ * "91170021 add"@0xffffff8008a515ac mette x1 = 0xffffff8008a515c0, cioe'
+ * `wtk_tp_info_show`, e "aa1f03e2 mov"@0xffffff8008a515b0 mette x2 = NULL.
+ */
+static int wtk_tp_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, wtk_tp_info_show, NULL);
+}
+
+/*
+ * La struttura sta a 0xffffff8008f7e390 e si legge dalle rilocazioni, perche'
+ * il kernel e' CONFIG_RELOCATABLE=y e i puntatori valgono zero nell'immagine:
+ *
+ *   +8   0xffffff8008297dd8  ->  seq_lseek       (.llseek)
+ *   +16  0xffffff8008297730  ->  seq_read        (.read)
+ *   +96  0xffffff8008a5159c  ->  wtk_tp_info_open (.open)
+ *   +112 0xffffff8008298798  ->  single_release  (.release)
+ *
+ * e tutti gli altri campi non sono relocati, cioe' sono NULL -- compreso
+ * `.owner` a +0.
+ */
+static const struct file_operations wtk_tp_info_fops = {
+	.open = wtk_tp_info_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+/*
+ * "52802481 mov"@0xffffff8008a51574 = 0x124 = 0444, "aa1f03e2 mov"@0xffffff8008a51578
+ * mette NULL come genitore, e "910e5c00 add"@0xffffff8008a5156c mette
+ * "wtk_tpInfo"@0xffffff800923d397. La prova del ritorno e' "b5000080 cbnz"
+ * @0xffffff8008a51580, che SALTA la `printk` quando il puntatore non e' nullo:
+ * il messaggio "create /proc/wtk_tpInfo fail\n"@0xffffff800923d3a2 e'
+ * il ramo d'errore. "2a1f03e0 mov"@0xffffff8008a51590 rende 0 in tutti e due
+ * i casi.
+ */
+int wtk_creat_proc_tp_info(void)
+{
+	if (!proc_create("wtk_tpInfo", 0444, NULL, &wtk_tp_info_fops))
+		printk("create /proc/wtk_tpInfo fail\n");
+	return 0;
+}
+
 static void tpd_create_attributes(struct device *dev, struct tpd_attrs *attrs)
 {
 	int num = attrs->num;
@@ -740,6 +897,17 @@ static int __init tpd_device_init(void)
 	res = queue_work(tpd_init_workqueue, &tpd_init_work);
 	if (!res)
 		pr_info("tpd : touch device init failed res:%d\n", res);
+	/* RITRATTAZIONE. La nota qui sopra diceva che wtk_creat_proc_tp_info
+	 * non e' chiamata da nessuno, perche' non c'e' nessuna `bl` verso
+	 * 0xffffff8008a5155c. La `bl` non c'e' perche' e' INCORPORATA qui: la
+	 * fabbrica ha "97bdc883 bl"@0xffffff8009383248 (proc_create) con la
+	 * stessa stringa "wtk_tpInfo"@0xffffff800923d397 e gli stessi permessi
+	 * ("52802481 mov"@0xffffff8009383240, 0x124 = 0444), seguita da
+	 * "97b6c09f bl"@0xffffff8009383258 sul messaggio d'errore. Cercare una
+	 * `bl` e non trovarla non dimostra che una funzione non sia chiamata:
+	 * dimostra solo che non e' chiamata FUORI LINEA. */
+	wtk_creat_proc_tp_info();
+
 	return 0;
 }
 /* should never be called */

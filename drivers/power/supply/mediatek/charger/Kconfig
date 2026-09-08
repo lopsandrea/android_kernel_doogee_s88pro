@@ -154,6 +154,52 @@ config CHARGER_HL7005
 	  Halo HL7005 driver.
 	  It depends on config MTK_SWCHR_SUPPORT.
 
+#
+# LE OPZIONI DI FABBRICA CHE MANCAVANO, dichiarate il 2026-08-26.
+#
+# Il .config di fabbrica le ha tutte a =y e il nostro albero non le
+# dichiarava affatto: `olddefconfig` scarta un simbolo che nessun Kconfig
+# definisce, quindi non c'era modo di accenderle.
+#
+# ATTENZIONE, e va detto prima di leggerle come «funzioni aggiunte»:
+# **nessuna di queste guardia protegge codice che esista in questo albero.**
+# Accenderle allinea il .config al kernel di fabbrica e non cambia un byte
+# del binario. Servono a due cose:
+#
+#   1. togliere quindici differenze dal confronto dei config, che e' una
+#      delle tre misure del progetto;
+#   2. dare un posto dove attaccare il codice quando lo si scrivera'.
+#
+# Il posto in cui stanno lo abbiamo scelto noi, per sottosistema: il Kconfig
+# di fabbrica non e' fra i file recuperati, e dedurlo dal binario non si puo'
+# -- un simbolo di Kconfig non lascia traccia nel codice compilato.
+#
+
+config MTK_SGM2541_IC_OTG
+	bool "OTG sul SGM2541 (nome di fabbrica)"
+	default y
+
+config MTK_WLS_SUPPORT
+	bool "carica senza fili (nome di fabbrica)"
+	default y
+	help
+	  Il driver del ricevitore, MT5725, c'e' e misura 44 funzioni su 50
+	  uguali alla fabbrica -- ma non nomina questa guardia da nessuna parte.
+
+config MTK_REVERSER_CHARGER_SUPPORT
+	bool "carica inversa (nome di fabbrica)"
+	default y
+
+config MT5725_REVERSER_CHARGER
+	bool "carica inversa sul MT5725 (nome di fabbrica)"
+	default y
+	help
+	  Sta qui e non in mt5725/Kconfig perche' quel file e' portato da
+	  mt5725-dal-disassemblato.patch: metterci dentro una voce di config
+	  farebbe litigare due patch che parlano di cose diverse. Il posto
+	  giusto secondo la fabbrica non lo sappiamo -- il suo Kconfig non e'
+	  fra i file recuperati.
+
 config CHARGER_BQ25601
 	bool "CHARGER_BQ25601"
 	help
@@ -161,3 +207,5 @@ config CHARGER_BQ25601
 	  It depends on config MTK_SMART_BATTERY
 	  and config MTK_SWCHR_SUPPORT
 	  Set to Yes if BQ25601 is used.
+source "drivers/power/supply/mediatek/charger/mt5725/Kconfig"
+source "drivers/power/supply/mediatek/charger/usb_insert_detect/Kconfig"

@@ -27,6 +27,10 @@ enum LCM_DSI_MODE_CON lcm_dsi_mode;
 #define LCD_HW_ID_STATUS_FLOAT 0x02
 #define LCD_HW_ID_STATUS_ERROR  0x03
 
+/* Doogee S88 Pro: il pannello del progetto, portato dal ramo .186.
+ * Sorgente e provenienza in kernel/doogee/S88Pro/lcm/. */
+extern struct LCM_DRIVER ili7807g_ltps_1080x2340_6p3_dezhixin_e977_lcm_drv;
+
 struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(ES6311_ANX6585_ZIGZAG_WXGA)
 	&es6311_anx6585_zigzag_wxga_lcm_drv,
@@ -1229,6 +1233,9 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(FT8719_FHDP_DSI_VDO_AUO_LM36273)
 	&ft8719_fhdp_dsi_vdo_auo_lm36273_lcm_drv,
 #endif
+#if defined(ILI7807G_LTPS_1080X2340_6P3_DEZHIXIN_E977)
+	&ili7807g_ltps_1080x2340_6p3_dezhixin_e977_lcm_drv,
+#endif
 #if defined(SOFEG01_FHDPLUS_DSI_CMD_SAMSUNG)
 	&sofeg01_fhdplus_dsi_cmd_samsung_lcm_drv,
 #endif
@@ -1371,7 +1378,18 @@ unsigned char lcm_name_list[][128] = {
 
 unsigned int lcm_count =
 	sizeof(lcm_driver_list) / sizeof(struct LCM_DRIVER *);
-LCM_COMPILE_ASSERT(sizeof(lcm_driver_list) / sizeof(struct LCM_DRIVER *) != 0);
+/* Ramo oracolo: CONFIG_CUSTOM_KERNEL_LCM e' vuoto di proposito -- il
+ * pannello vero di questo progetto (ili7807g/otm1911a/ft8719 con le
+ * varianti Dezhixin/Hongzhan) non ha sorgente in un albero ALPS pubblico,
+ * e mettere al suo posto un pannello di riferimento MTK qualunque
+ * rischierebbe di far combaciare per caso nomi di funzione generici
+ * (lcm_init e simili, definiti identici in ogni driver pannello) con
+ * quelli veri nell'oracolo -- un falso positivo nella misura di
+ * copertura, non un vero accordo di sorgente. Meglio un elenco vuoto e
+ * onesto: l'assert originale vieta zero pannelli per una build che deve
+ * avviare un telefono vero, non per una build che serve solo a misurare
+ * quante funzioni del resto del kernel combaciano con la fabbrica. */
+LCM_COMPILE_ASSERT(1);
 #if defined(NT35520_HD720_DSI_CMD_TM) | \
 	defined(NT35520_HD720_DSI_CMD_BOE) | \
 	defined(NT35521_HD720_DSI_VDO_BOE) | \

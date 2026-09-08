@@ -61,6 +61,26 @@ static DEFINE_MUTEX(gimgsensor_open_mutex);
 
 struct IMGSENSOR gimgsensor;
 
+/*
+ * I CINQUE NOMI DI SENSORE, aggiunta di fabbrica. Sono `char[32]` contigui a
+ * 0xffffff8009917a98, ab8, ad8, af8 e b18: la strncpy di ogni caso ne copia
+ * 31 ("320013e2 orr"@0xffffff80086ff654 mette 0x1f in w2).
+ *
+ * I NOMI SONO SCELTI, non misurati: l'oracolo non ha simboli di dato, quindi
+ * si usa l'indirizzo. Cio' che e' letto e' a quale sensore corrisponda
+ * ciascuno, e viene dal messaggio del suo caso.
+ *
+ * UN DISALLINEAMENTO DI FABBRICA, riprodotto: il quarto buffer (g9917af8) e'
+ * riempito dal caso SUB2 e il suo messaggio dice "wtk_camera_sub2", ma
+ * /proc/wtk_cameraInfo lo stampa sotto l'etichetta "Main3Camera". Il quinto
+ * (g9917b18) e' l'unico davvero di main3, e /proc non lo mostra affatto.
+ */
+char g9917a98[32];
+char g9917ab8[32];
+char g9917ad8[32];
+char g9917af8[32];
+char g9917b18[32];
+
 /******************************************************************************
  * Profiling
  ******************************************************************************/
@@ -531,6 +551,62 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 	} else {
 		PK_DBG("Sensor found ID = 0x%x\n", sensorID);
 		err = ERROR_NONE;
+
+		/*
+		 * LA COPIA DEL NOME STA QUI DENTRO, E LA GUARDIA NON E' UN
+		 * ORNAMENTO.
+		 *
+		 * `imgsensor_check_is_alive` e' `static inline`, quindi il
+		 * compilatore la incorpora in tutti i chiamanti. Nel binario di
+		 * fabbrica le cinque strncpy compaiono percio' due volte, in
+		 * `imgsensor_set_driver` E in `imgsensor_ioctl`:
+		 *
+		 *     fabbrica:  set_driver 5   ioctl 5
+		 *     nostro:    set_driver 5   ioctl 0
+		 *
+		 * PERCHE' LA GUARDIA. Questa funzione ha DUE chiamanti, e sono
+		 * diversi:
+		 *
+		 *   - `imgsensor_set_driver` la chiama dentro il ciclo di
+		 *     ricerca, subito dopo aver messo `psensor_inst->psensor_list`
+		 *     -- li' il puntatore e' valido;
+		 *   - il caso SENSOR_FEATURE_CHECK_IS_ALIVE di `imgsensor_ioctl`
+		 *     la chiama su una camera che puo' non essere ancora stata
+		 *     identificata, e li' `psensor_list` e' NULL.
+		 *
+		 * Senza la guardia, la prima versione di questa correzione
+		 * dereferenziava quel NULL: le camere restavano elencate ma
+		 * `open` non riusciva piu' a leggere l'identificativo. La
+		 * fabbrica non ha la guardia perche' a quel punto ha sempre lo
+		 * stato buono; noi ci arriviamo anche per una via in cui non
+		 * ce l'ha.
+		 */
+		if (psensor_inst->psensor_list) {
+			switch (psensor_inst->sensor_idx) {
+			case IMGSENSOR_SENSOR_IDX_MAIN:
+				strncpy(g9917a98,
+					psensor_inst->psensor_list->name, 31);
+				break;
+			case IMGSENSOR_SENSOR_IDX_SUB:
+				strncpy(g9917ab8,
+					psensor_inst->psensor_list->name, 31);
+				break;
+			case IMGSENSOR_SENSOR_IDX_MAIN2:
+				strncpy(g9917ad8,
+					psensor_inst->psensor_list->name, 31);
+				break;
+			case IMGSENSOR_SENSOR_IDX_SUB2:
+				strncpy(g9917af8,
+					psensor_inst->psensor_list->name, 31);
+				break;
+			case IMGSENSOR_SENSOR_IDX_MAIN3:
+				strncpy(g9917b18,
+					psensor_inst->psensor_list->name, 31);
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 	imgsensor_hw_power(&pimgsensor->hw,
@@ -575,6 +651,47 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 					__func__,
 					psensor_inst->sensor_idx,
 					psensor_inst->psensor_list->name);
+
+					/* LA COPIA DEL NOME, per /proc/wtk_cameraInfo.
+					 * "941da3a3 bl"@0xffffff80086ff660 e' la prima
+					 * delle cinque strncpy, e il selettore e'
+					 * "b9400688 ldr"@0xffffff8008 6ff628 seguito da
+					 * "7100111f cmp"@0xffffff80086ff62c contro 4. */
+					switch (psensor_inst->sensor_idx) {
+					case IMGSENSOR_SENSOR_IDX_MAIN:
+						strncpy(g9917a98,
+							psensor_inst->psensor_list->name, 31);
+						pr_debug("[imgsensor]%scall front wtk_camera_back %s \n",
+							 __func__, g9917a98);
+						break;
+					case IMGSENSOR_SENSOR_IDX_SUB:
+						strncpy(g9917ab8,
+							psensor_inst->psensor_list->name, 31);
+						pr_debug("[imgsensor]%s call back wtk_camera_front = %s \n",
+							 __func__, g9917ab8);
+						break;
+					case IMGSENSOR_SENSOR_IDX_MAIN2:
+						strncpy(g9917ad8,
+							psensor_inst->psensor_list->name, 31);
+						pr_debug("[imgsensor]%s call back wtk_camera_main2 = %s \n",
+							 __func__, g9917ad8);
+						break;
+					case IMGSENSOR_SENSOR_IDX_SUB2:
+						strncpy(g9917af8,
+							psensor_inst->psensor_list->name, 31);
+						pr_debug("[imgsensor]%s call back wtk_camera_sub2 = %s \n",
+							 __func__, g9917af8);
+						break;
+					case IMGSENSOR_SENSOR_IDX_MAIN3:
+						strncpy(g9917b18,
+							psensor_inst->psensor_list->name, 31);
+						pr_debug("[imgsensor]%s call back wtk_camera_main3 = %s \n",
+							 __func__, g9917b18);
+						break;
+					default:
+						break;
+					}
+
 					ret = 0;
 					break;
 				}

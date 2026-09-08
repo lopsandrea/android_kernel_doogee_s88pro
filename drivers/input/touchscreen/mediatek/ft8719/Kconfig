@@ -1,0 +1,29 @@
+config WTK_FT8719_E977
+	bool "FocalTech FT8719 touch per pacchetto MediaTek (Doogee S88 Pro, dal disassemblato)"
+	default n
+	help
+	  Touchscreen FocalTech FT8719 del Doogee S88 Pro, ricostruito leggendo
+	  il kernel di fabbrica disassemblato.  Il config di fabbrica lo accende
+	  (CONFIG_WTK_FT8719_E977=y in e977_dg_m13_71_q0.config) e l'albero ALPS
+	  non ha il simbolo: senza questa voce `olddefconfig` scarta la riga del
+	  config di fabbrica in silenzio.
+
+	  IL LOTTO E' COMPLETO dal 2026-08-22: il blocco di fabbrica ha 67
+	  funzioni in SEI unita' di traduzione e ci sono tutte e 67.
+
+	    focaltech_core.c            unita' C  16 fn
+	    focaltech_sysfs.c           unita' A  22 fn
+	    focaltech_flash.c           unita' B  17 fn
+	    focaltech_ex_mode.c         unita' D   3 fn
+	    focaltech_i2c.c             unita' E   7 fn
+	    focaltech_ft8719_upgrade.c  unita' F   3 fn (piu' l'aggiornamento)
+
+	  64 delle 67 combaciano al byte col compilatore di fabbrica
+	  (clang-r353983c).  Le tre che no stanno in focaltech_core.c:
+	  tpd_probe, get_module_id e touch_event_handler.
+
+	  QUESTO TESTO DICEVA "IL DRIVER NON SI LINKA" ed elencava l'unita' B
+	  come mancante per intero: era vero quando e' stato scritto e non lo e'
+	  piu'.  Il nome `focaltech_flash.c` e' una SCELTA dichiarata -- FocalTech
+	  non usa `pr_debug`, quindi non ci sono descrittori `_ddebug` che
+	  nominino i suoi file e il binario il nome non lo dice.

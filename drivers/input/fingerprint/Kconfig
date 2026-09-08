@@ -47,4 +47,6 @@ config GOODIX_SENSOR_TYPE
 	  GF3288 GF5206 GF5216 GF5208
 endif
 endif
+
+source "drivers/input/fingerprint/sunwave/Kconfig"
 endmenu

@@ -1,0 +1,314 @@
+config WTK_GT917S_E977
+	bool "Goodix GT917S touch per pacchetto MediaTek (Doogee S88 Pro, dal disassemblato)"
+	default n
+	depends on !TOUCHSCREEN_MTK_GT1151 && !TOUCHSCREEN_MTK_GT5688
+	help
+	  Touchscreen Goodix GT917S del Doogee S88 Pro, ricostruito leggendo il
+	  kernel di fabbrica disassemblato.  Il config di fabbrica lo accende
+	  (CONFIG_WTK_GT917S_E977=y alla riga 2220 di e977_dg_m13_71_q0.config)
+	  e l'albero ALPS non ha il simbolo: senza questa voce `olddefconfig`
+	  scarta la riga del config di fabbrica in silenzio.
+
+	  IL `depends on` NON E' UNA PRECAUZIONE, E' UNA MISURA.  Le tre
+	  varianti Goodix definiscono gli STESSI simboli globali:
+
+	    $ comm -12 <(nm --defined-only --extern-only GT917S/built-in.o) \
+	                <(nm --defined-only --extern-only GT5688/built-in.o)
+	    92 nomi, fra cui gt1x_i2c_read, gt1x_init, gesture_event_handler
+	    (91 con GT1151/)
+
+	  Accenderne due insieme fa fallire il link con "multiple definition".
+	  La fabbrica infatti le tiene spente tutte e due (righe 2210 e 2216
+	  dello stesso config), e questa riga rende la cosa impossibile invece
+	  di lasciarla a chi configura.
+
+	  NON C'E' UN SECONDO `depends on`, e una stesura precedente ne aveva uno
+	  sbagliato: escludeva ILITEK e FT8719 «perche' registrano tutti e tre un
+	  tpd_driver_t per lo stesso pannello».  Il config di fabbrica li accende
+	  tutti e tre (righe 2220, 2224, 2227), e il quadro `tpd` di MediaTek
+	  sceglie a tempo di esecuzione.  I tre non hanno nemmeno un simbolo
+	  globale in comune -- misurato, zero -- quindi non c'e' niente da
+	  escludere.  Il vincolo che resta e' solo quello Goodix qui sopra, che
+	  invece e' una collisione vera.
+
+	  Il blocco di fabbrica ha 85 funzioni in sei unita' di traduzione, e 84
+	  combaciano al byte col compilatore di fabbrica (clang-r353983c).
+	  L'unica che diverge e' gt1x_touch_event_handler, +8.
+
+# ---------------------------------------------------------------------------
+# I SIMBOLI `GTP_*`, E PERCHE' STANNO QUI
+# ---------------------------------------------------------------------------
+# GT917S non compilava affatto dal config, e l'ha scoperto il primo link vero:
+#
+#   gt1x_generic.c:990:7: error: use of undeclared identifier 'gesture_enabled'
+#   gt1x_generic.c:2216:6: error: use of undeclared identifier 'hotknot_enabled'
+#   gt1x_generic.c:2408:19: error: use of undeclared identifier 'GTP_INT_TRIGGER'
+#
+# I sorgenti usano quei nomi, e `include/gt1x_tpd_common.h` li dichiara solo
+# sotto CONFIG_GTP_GESTURE_WAKEUP, CONFIG_GTP_HOTKNOT e CONFIG_GTP_CUSTOM_CFG.
+# Quei simboli pero' vivevano DENTRO `if TOUCHSCREEN_MTK_GT5688` nel Kconfig di
+# GT5688: esistono solo se GT5688 e' acceso, e la fabbrica lo tiene spento.
+#
+# E' UN DIFETTO DI MISURA, NON SOLO DI CABLAGGIO. Il "84 funzioni su 85 uguali
+# al byte" di GT917S e' stato misurato in un albero il cui `.config` aveva
+# CONFIG_TOUCHSCREEN_MTK_GT5688=y -- cioe' in una configurazione che NON e'
+# quella di fabbrica, e da cui il blocco prendeva in prestito i suoi GTP_*.
+# I default qui sotto riproducono esattamente quelli con cui la misura e' stata
+# fatta, cosi' che il numero resti riproducibile senza GT5688:
+#
+#   CONFIG_GTP_CUSTOM_CFG=y      CONFIG_GTP_AUTO_UPDATE=y
+#   CONFIG_GTP_GESTURE_WAKEUP=y  CONFIG_GTP_CREATE_WR_NODE=y
+#   CONFIG_GTP_HOTKNOT=y         (tutti gli altri: n)
+#
+# Kconfig ammette che lo stesso simbolo sia definito in piu' file -- le voci si
+# fondono -- e i due `if` sono mutuamente esclusivi per costruzione.
+
+if WTK_GT917S_E977
+config GT917S_FIRMWARE
+	string "GT917S per MediaTek firmware"
+
+config GT917S_CONFIG
+	string "GT917S per MediaTek config"
+
+config GTP_DRIVER_SEND_CFG
+	bool "GT917S per MediaTek package"
+	default n
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_DRIVER_SEND_CFG.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_CUSTOM_CFG
+	bool "GT917S per MediaTek package"
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_CUSTOM_CFG.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_CHANGE_X2Y
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_CHANGE_X2Y.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_WARP_X_ON
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_WARP_X_ON.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_WARP_Y_ON
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_WARP_Y_ON.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_GESTURE_WAKEUP
+	bool "GT917S per MediaTek package"
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_GESTURE_WAKEUP.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_HOTKNOT
+	bool "GT917S per MediaTek package"
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_HOTKNOT.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config HOTKNOT_TYPE
+	bool "GT917S per MediaTek package"
+	help
+	  Say Y here if you have GT5688 touch panel HOTKNOT_TYPE.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config HOTKNOT_BLOCK_RW
+	bool "GT917S per MediaTek package"
+	help
+	  Say Y here if you have GT5688 touch panel HOTKNOT_BLOCK_RW.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_PROXIMITY
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_PROXIMITY.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_WITH_STYLUS
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_WITH_STYLUS.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_HAVE_STYLUS_KEY
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_HAVE_STYLUS_KEY.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_AUTO_UPDATE
+	bool "GT917S per MediaTek package"
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_AUTO_UPDATE.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_HEADER_FW_UPDATE
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_HEADER_FW_UPDATE.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_REQUEST_FW_UPDATE
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	Say Y here if you have GT5688 touch panel GTP_REQUEST_FW_UPDATE.
+
+	If unsure, say N.
+
+	To compile this dirver as a module, choose M here: the
+	module will be called.
+
+config GTP_CREATE_WR_NODE
+	bool "GT917S per MediaTek package"
+	default y
+	help
+	  Say Y here if you have GT5688 touch panel GTP_CREATE_WR_NODE.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_ESD_PROTECT
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_ESD_PROTECT.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_CHARGER_SWITCH
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_CHARGER_SWITCH.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_DEBUG_ARRAY_ON
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_DEBUG_ARRAY_ON.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_DEBUG_FUNC_ON
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_DEBUG_FUNC_ON.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_POWER_CTRL_SLEEP
+	bool "GT917S per MediaTek package"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_POWER_CTRL_SLEEP.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config GTP_ICS_SLOT_REPORT
+	bool "GT5688 for TYPE_B_PROTOCOL"
+	default n
+	help
+	  Say Y here if you have GT5688 touch panel GTP_ICS_SLOT_REPORT
+	  to support TYPE_B_PROTOCOL.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+endif

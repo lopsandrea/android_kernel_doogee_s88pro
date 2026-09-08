@@ -1,14 +1,123 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * flashlights-mt6370.c -- ALPS con TRE innesti letti dal binario di fabbrica
+ * ============================================================================
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * COSA CONTIENE
+ *   Il file `drivers/misc/mediatek/flashlight/flashlights-mt6370.c` dell'albero
+ *   ALPS, invariato, PIU' tre modifiche derivate dal disassemblato del kernel
+ *   di fabbrica del Doogee S88 Pro.  Non e' un driver riscritto: e' un driver
+ *   FATTO COMBACIARE.  Ogni innesto porta accanto le citazioni verificabili.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * IL CONFINE
+ *   Le tre modifiche stanno in `mt6370_enable`, in `mt6370_disable_ch1` (che
+ *   nel binario esiste solo dentro `mt6370_disable`) e in `mt6370_operate`.
+ *   Il resto del file non e' stato toccato.  Il conteggio, contato e non
+ *   stimato:
+ *     - dentro il blocco della mappa (0xffffff800875b5f8..0xffffff8008760ce4)
+ *       questo file mette 17 funzioni;
+ *     - fuori dalla mappa, in `.exit.text` oltre `_einittext`, ce n'e' una
+ *       diciottesima: `flashlight_mt6370_exit`, 0xffffff80093aa294, 120 byte;
+ *     - tolte le tre toccate restano 15 funzioni non toccate.  NON 12.
+ *
+ *   E NON erano «gia' identiche»: e' un'affermazione che il lotto stesso
+ *   smentisce.  Con l'albero ALPS INTATTO e il compilatore della fabbrica, le
+ *   gia' identiche fra le 17 del blocco erano 13:
+ *     - `mt6370_disable` e `mt6370_enable` non esistevano nemmeno come simbolo
+ *       (clang le incorporava, perche' il codice ALPS e' piu' piccolo);
+ *     - `mt6370_operate` misurava 1148 byte contro i 944 di fabbrica;
+ *     - `mt6370_work_disable_ch1` misurava 168 byte contro 68, ed e' diventata
+ *       identica come EFFETTO dell'innesto in `mt6370_disable_ch1`, non
+ *       perche' fosse gia' a posto.
+ *   Uscita letterale (ALPS intatto + clang r353983c, contro l'oracolo):
+ *     dimensione UGUALE           : 87
+ *     dimensione DIVERSA          : 2
+ *     MANCANTI                    : 2  ['mt6370_disable', 'mt6370_enable']
+ *     mt6370_operate                                  944     1148     +204
+ *     mt6370_work_disable_ch1                          68      168     +100
+ *
+ * PERCHE' SERVIVANO
+ *   Compilando l'albero ALPS con il compilatore VERO della fabbrica
+ *   (clang r353983c / LLVM 9.0.3, lo stesso della `linux_banner` dell'oracolo)
+ *   87 funzioni su 89 del blocco flashlight risultavano gia' identiche
+ *   istruzione per istruzione.  Le due che restavano erano `mt6370_operate` e
+ *   `mt6370_work_disable_ch1`, e non erano rumore del compilatore: erano
+ *   `mt6370_disable` e `mt6370_enable`, che di fabbrica hanno un simbolo
+ *   proprio (472 e 208 byte) e da noi venivano INCORPORATE perche' il nostro
+ *   codice era piu' piccolo.  Dopo i tre innesti sono 91 su 91 nel blocco
+ *   della mappa e 95 su 95 contando le quattro `.exit` -- ma solo CON IL
+ *   COMPILATORE DELLA FABBRICA, e il numero non si scrive senza dirlo.  Con il
+ *   compilatore del progetto (clang r383902) sono 70 su 95 = 73,7%, IC95%
+ *   Clopper-Pearson [63.6%; 82.2%], che contiene il 77,10% del ramo e quindi
+ *   NON discrimina.  91 su 91 = 100%, IC95% [96.0%; 100.0%]: quello discrimina.
+ *
+ * COME SI RIVERIFICA (sul PC di build)
+ *   # 1. compila con il compilatore della fabbrica (il percorso e' quello vero:
+ *   #    lo script sta in kernel-stock/lotto-flash, non in /tmp)
+ *   sh lotto-flash/b9.sh
+ *   # 2. misura contro l'oracolo, per dimensione
+ *   ./venv/bin/python3 lotto-flash/misura.py oracolo/stock.map <nostro.txt> \
+ *       --inizio 0xffffff800875b5f8 --fine 0xffffff8008760ce4 \
+ *       --extra flashlight_init=0xffffff8009373088 \
+ *       --extra flashlight_mt6370_init=0xffffff800937315c \
+ *       --extra flashlight_class_init=0xffffff8009373200
+ *   # 3. e istruzione per istruzione (maschera solo i campi rilocati)
+ *   ./venv/bin/python3 lotto-flash/identita2.py <dir del .o>
+ *   # 4. i descrittori pr_debug di fabbrica di questo file (27, non 28)
+ *   ./venv/bin/python3 ddebug.py oracolo/stock.elf \
+ *       --file flashlights-mt6370 --tutte
+ *   # 5. le citazioni di istruzione: 32 trovate, 32 confermate, 0 assenti
+ *   ./venv/bin/python3 verificaistruzioni.py <questo file> oracolo/stock.elf \
+ *       --intervallo 0xffffff800875b5f8:0xffffff8008760ce4
+ *   # 6. le quattro `.exit`, che la mappa NON contiene: confini e dimensioni
+ *   #    ricavati dai prologhi, non dalla mappa
+ *   ./venv/bin/python3 lotto-flash/exit2.py <dir del .o>
+ *
+ * DIVERGENZE APERTE
+ *   1. Il codice qui e' scritto INCONDIZIONATO.  Di fabbrica quasi certamente
+ *      sta dentro `#ifdef CONFIG_WTK_MAIN_FLASHLIGHT_CH0`, che nell'albero ALPS
+ *      non esiste (serve una voce `Kconfig`: e' il "delta di header" del
+ *      rapporto, e NON e' stato fatto qui).  L'aritmetica delle righe del
+ *      `.ddebug` e' compatibile con quella forma -- +15 e +9 righe sui due
+ *      blocchi SOSTITUITI se il codice ALPS resta in un `#else`, +18 sul terzo
+ *      che e' una pura AGGIUNTA -- ma dipende dalla formattazione, quindi e'
+ *      una corroborazione, non una prova.  Il binario non registra il
+ *      preprocessore.
+ *   2. `mt6370_disable_ch1` usa `flashlight_dev_ch2` senza controllo NULL.
+ *      E' un difetto della fabbrica, riprodotto (regola 7), non un errore qui.
+ *   3. Con IL NOSTRO compilatore (clang r383902 / LLVM 11.0.1) le dimensioni
+ *      NON tornano.  I numeri sono due coppie, di due artefatti diversi, e
+ *      vanno tenuti separati:
+ *        - albero ALPS INTATTO (l'esperimento di controllo): 64 su 89 in
+ *          dimensione e 15 su 89 in codifica, contro 87 e 87 con il
+ *          compilatore della fabbrica;
+ *        - QUESTO albero, cioe' con i tre innesti: 66 su 91 in dimensione e
+ *          16 su 91 in codifica, contro 91 e 91 con quello della fabbrica.
+ *      Non e' un difetto di questo file -- e' la deriva fra due versioni di
+ *      LLVM: le 25 funzioni che divergono con clang 11 tornano TUTTE identiche
+ *      con clang 9, e questo prova la causa COLLETTIVAMENTE.  Il meccanismo
+ *      funzione per funzione sta su un grado di prova piu' basso: quattro
+ *      funzioni sono state lette affiancate, per le altre 21 l'evidenza e' il
+ *      solo istogramma dei mnemonici.  Vedi il rapporto.
+ *   4. `verificacitazioni.py` segnala NON_ANCORATA la citazione
+ *      "1a8a1553 cinc"@0xffffff8008760150.  E' un FALSO POSITIVO dello
+ *      strumento, non un difetto di questo file: `cinc` (come `cinv` e `cneg`)
+ *      manca dall'insieme MNEMONICI di `confinecitazioni.py`, che ha invece le
+ *      forme non-alias `csinc`/`csinv`/`csneg`; objdump stampa l'alias, quindi
+ *      la citazione finisce nel dominio dei LETTERALI invece che in quello
+ *      delle istruzioni.  `verificaistruzioni.py` la accetta e la conferma: su
+ *      questo file lo strumento trova 32 citazioni di istruzione e le conferma
+ *      tutte e 32, 0 assenti.  DUE delle 32 stanno in questo cappello -- la
+ *      citazione qui sopra e la riga di objdump qui sotto, che lo strumento
+ *      legge come citazione con operandi -- e sono contate anch'esse: 32 e' la
+ *      misura sul FILE, non sul solo corpo.  Verifica a mano:
+ *        $OD -d --start-address 0xffffff8008760150 \
+ *            --stop-address 0xffffff8008760154 oracolo/stock.elf
+ *        ffffff8008760150:  1a8a1553  cinc  w19, w10, eq
+ *      `confinecitazioni.py` e' uno strumento CONDIVISO: la correzione e'
+ *      descritta nel rapporto come delta, e non e' stata fatta qui.  Finche'
+ *      non e' fatta, `verificacitazioni.py` su questo file esce con 1 anche
+ *      dichiarando come eccezione tutti e 61 i letterali: la NON_ANCORATA
+ *      resta, ed e' il falso positivo, non una citazione sbagliata.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": %s: " fmt, __func__
@@ -173,34 +282,43 @@ static int mt6370_enable(void)
 			|| (mt6370_en_ch2 == MT6370_ENABLE_FLASH))
 		mode = FLASHLIGHT_MODE_FLASH;
 
-	pr_debug("enable(%d,%d), mode:%d.\n",
-		mt6370_en_ch1, mt6370_en_ch2, mode);
-
+	/*
+	 * DAL BINARIO -- `mt6370_enable` (0xffffff800876010c, 208 byte).
+	 * ALPS ha qui, in piu': una `pr_debug("enable(%d,%d), mode:%d.\n", ...)`
+	 * e un ramo "dual flash mode" con tre letture di `mt6370_decouple_mode`.
+	 * Nella fabbrica NON ci sono, e la prova non e' solo la dimensione:
+	 *  - `mt6370_decouple_mode` (0x9c98ad8) non e' MAI letto nei 208 byte;
+	 *  - il `.ddebug` di fabbrica ha 27 descrittori per questo file e NESSUNO
+	 *    e' in `mt6370_enable` (ddebug.py oracolo/stock.elf
+	 *    --file flashlights-mt6370 --tutte).  ALPS ne ha 28.
+	 * Il `mode` e il triplice test per canale:
+	 *   "7100093f cmp"@0xffffff8008760148   cmp w9,#2   (en_ch2 == FLASH?)
+	 *   "7a421904 ccmp"@0xffffff800876014c  ccmp w8,#2,#4,ne (en_ch1 == FLASH?)
+	 *   "1a8a1553 cinc"@0xffffff8008760150  mode = 1 + (uno dei due e' FLASH)
+	 *   "7100011f cmp"@0xffffff8008760154   cmp w8,#0     su en_ch1
+	 *   "540000ed b.le"@0xffffff800876015c  > 0  -> set_mode(dev_ch1, mode)
+	 *   "34ffff08 cbz"@0xffffff8008760180   == 0 -> set_mode(dev_ch1, OFF)
+	 *                                       < 0  -> NIENTE (MT6370_NONE = -1)
+	 *   "7100011f cmp"@0xffffff8008760188   lo stesso su en_ch2
+	 *   "34000168 cbz"@0xffffff80087601a8
+	 *   "2a1f03f3 mov"@0xffffff80087601d4   mode = 0 = FLASHLIGHT_MODE_OFF
+	 * ALPS scrive `if (mt6370_en_ch1)`, che per un valore NEGATIVO chiamerebbe
+	 * con `mode`: il `b.le` della fabbrica lo esclude.  Il confine e' `> 0`,
+	 * non `!= 0`.
+	 */
 	/* enable channel 1 and channel 2 */
-	if (mt6370_decouple_mode == FLASHLIGHT_SCENARIO_COUPLE &&
-			mt6370_en_ch1 != MT6370_DISABLE &&
-			mt6370_en_ch2 != MT6370_DISABLE) {
-		pr_info("dual flash mode\n");
-		if (mode == FLASHLIGHT_MODE_TORCH)
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch1, FLASHLIGHT_MODE_DUAL_TORCH);
-		else
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch1, FLASHLIGHT_MODE_DUAL_FLASH);
-	} else {
-		if (mt6370_en_ch1)
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch1, mode);
-		else if (mt6370_decouple_mode == FLASHLIGHT_SCENARIO_COUPLE)
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch1, FLASHLIGHT_MODE_OFF);
-		if (mt6370_en_ch2)
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch2, mode);
-		else if (mt6370_decouple_mode == FLASHLIGHT_SCENARIO_COUPLE)
-			ret |= flashlight_set_mode(
-				flashlight_dev_ch2, FLASHLIGHT_MODE_OFF);
-	}
+	if (mt6370_en_ch1 > MT6370_DISABLE)
+		ret |= flashlight_set_mode(
+			flashlight_dev_ch1, mode);
+	else if (mt6370_en_ch1 == MT6370_DISABLE)
+		ret |= flashlight_set_mode(
+			flashlight_dev_ch1, FLASHLIGHT_MODE_OFF);
+	if (mt6370_en_ch2 > MT6370_DISABLE)
+		ret |= flashlight_set_mode(
+			flashlight_dev_ch2, mode);
+	else if (mt6370_en_ch2 == MT6370_DISABLE)
+		ret |= flashlight_set_mode(
+			flashlight_dev_ch2, FLASHLIGHT_MODE_OFF);
 
 	if (ret < 0)
 		pr_err("Failed to enable.\n");
@@ -220,7 +338,37 @@ static int mt6370_disable_ch1(void)
 		return -1;
 	}
 
-	ret |= flashlight_set_mode(flashlight_dev_ch1, FLASHLIGHT_MODE_OFF);
+	/*
+	 * DAL BINARIO -- il ramo `channel == MT6370_CHANNEL_CH1` di
+	 * `mt6370_disable` (0xffffff800875f144, 472 byte).  ALPS qui ha UNA riga
+	 * sola, `ret |= flashlight_set_mode(flashlight_dev_ch1, OFF)`, senza
+	 * guardie.  La fabbrica ne ha due, sulle due variabili di canale:
+	 *   "b94ac908 ldr"@0xffffff800875f180   ldr w8,[x8,#2760] = mt6370_en_ch1
+	 *   "34000788 cbz"@0xffffff800875f184   -> chiama solo se e' ZERO
+	 *   "2a1f03f3 mov"@0xffffff800875f188   ret = 0 quando NON chiama
+	 *   "2a1f03e1 mov"@0xffffff800875f274   w1 = 0 = FLASHLIGHT_MODE_OFF
+	 *   "940004f7 bl"@0xffffff800875f278    bl flashlight_set_mode
+	 *   "2a0003f3 mov"@0xffffff800875f27c   ret = w0   (il primo `|=` su 0)
+	 *   "b94acd08 ldr"@0xffffff800875f284   ldr w8,[x8,#2764] = mt6370_en_ch2
+	 *   "350000c8 cbnz"@0xffffff800875f288  -> salta se NON e' zero
+	 *   "f9455d00 ldr"@0xffffff800875f290   ldr x0,[x8,#2744] = dev_ch2
+	 *   "2a130013 orr"@0xffffff800875f29c   ret |= w0
+	 * Le due variabili si riconoscono da `mt6370_enable`, che le legge in
+	 * quest'ordine per decidere il `mode` (vedi la citazione la' sopra):
+	 * 0x9c98ac8 comanda `flashlight_dev_ch1`, 0x9c98acc `flashlight_dev_ch2`.
+	 *
+	 * DIFETTO DELLA FABBRICA, RIPRODOTTO: il secondo ramo usa
+	 * `flashlight_dev_ch2` SENZA controllarlo per NULL, mentre il primo ha
+	 * il controllo su `flashlight_dev_ch1` qui sopra.  Nel binario e' cosi'
+	 * (`ldr x0,[x8,#2744]` seguito subito dal `bl`, nessun `cbz`), e regola 7
+	 * dice di riprodurlo, non di correggerlo.
+	 */
+	if (!mt6370_en_ch1)
+		ret |= flashlight_set_mode(flashlight_dev_ch1,
+					   FLASHLIGHT_MODE_OFF);
+	if (!mt6370_en_ch2)
+		ret |= flashlight_set_mode(flashlight_dev_ch2,
+					   FLASHLIGHT_MODE_OFF);
 
 	if (ret < 0)
 		pr_info("Failed to disable.\n");
@@ -545,6 +693,46 @@ static int mt6370_operate(int channel, int enable)
 		/* clear flashlight state */
 		mt6370_en_ch1 = MT6370_NONE;
 		mt6370_en_ch2 = MT6370_NONE;
+	/*
+	 * DAL BINARIO -- `mt6370_operate` (0xffffff800875fd5c, 944 byte).
+	 * ALPS non fa NULLA quando uno dei due canali e' MT6370_NONE: il blocco
+	 * qui sotto e' cio' che la fabbrica esegue quando il canale 2 non ha mai
+	 * ricevuto un comando -- cioe' il caso di un flash principale SOLO sul
+	 * canale 0, che e' quello che nomina `CONFIG_WTK_MAIN_FLASHLIGHT_CH0`.
+	 *   "3100053f cmn"@0xffffff800875fec4   cmn w9,#1  -> en_ch1 == -1 ?
+	 *   "54000d20 b.eq"@0xffffff800875fec8  se si', esce senza fare nulla
+	 *   "34000589 cbz"@0xffffff800875fecc   en_ch1 == 0 -> il ramo "spegni"
+	 *   "b94a9908 ldr"@0xffffff800875fed4   ldr w8,[x8,#2712]
+	 *                                       0x9c98a98 = mt6370_timeout_ms[0]
+	 *   "34000248 cbz"@0xffffff800875fed8   timeout 0 -> niente timer
+	 *   "97e7cdcf bl"@0xffffff800875ff1c    bl hrtimer_start_range_ns
+	 *   "9400007b bl"@0xffffff800875ff20    bl mt6370_enable
+	 * il ramo "spegni" e' `mt6370_disable(MT6370_CHANNEL_ALL)` incorporato
+	 * (il compilatore ne piega la costante) seguito da un solo hrtimer_cancel:
+	 *   "321f07e1 orr"@0xffffff800875ff94   w1 = 6 = FLASHLIGHT_MODE_DUAL_OFF
+	 *   "97e7cf4d bl"@0xffffff800876000c    bl hrtimer_cancel (solo il CH1)
+	 * e in uscita si azzera un solo canale, non due:
+	 *   "12800008 mov"@0xffffff8008760010   w8 = -1 = MT6370_NONE
+	 *   "b90aca88 str"@0xffffff8008760014   str w8,[x20,#2760] = en_ch1
+	 */
+	} else if (mt6370_en_ch1 != MT6370_NONE) {
+		if (mt6370_en_ch1 == MT6370_DISABLE) {
+			mt6370_disable(MT6370_CHANNEL_ALL);
+			mt6370_timer_cancel(MT6370_CHANNEL_CH1);
+		} else {
+			if (mt6370_timeout_ms[MT6370_CHANNEL_CH1]) {
+				s = mt6370_timeout_ms[MT6370_CHANNEL_CH1] /
+					1000;
+				ns = mt6370_timeout_ms[MT6370_CHANNEL_CH1] %
+					1000 * 1000000;
+				ktime = ktime_set(s, ns);
+				mt6370_timer_start(MT6370_CHANNEL_CH1, ktime);
+			}
+			mt6370_enable();
+		}
+
+		/* clear flashlight state */
+		mt6370_en_ch1 = MT6370_NONE;
 	}
 
 	return 0;

@@ -1,0 +1,20 @@
+#
+# Lettore di impronte Sunwave, variante TrustKernel TEE (SPI + tee_spi_transfer).
+#
+# Corrisponde a CONFIG_WTK_SUNWAVE_TRUSTKERNEL_TEE=y nel config di fabbrica
+# (e977_dg_m13_71_q0.config, riga 2324), sotto "Fingerprint support" insieme
+# a WTK_FINGERPRINT_MICROARRAY_REE/WTK_MICROARRAY_TRUSTKERNEL_TEE/
+# WTK_FINGERPRINT_SUNWAVE_REE/WTK_FPSENSOR_*, nessuno dei quali e' acceso su
+# questo esemplare. Dipende da TRUSTKERNEL_TEE_FP_SUPPORT (gia' acceso nel
+# config di fabbrica, riga 1689): il driver chiama tee_spi_transfer(), gia'
+# presente nel nostro build (drivers/misc/mediatek/tkcore/core/tee_fp.c).
+#
+config WTK_SUNWAVE_TRUSTKERNEL_TEE
+	bool "Sunwave TrustKernel TEE Fingerprint"
+	depends on SPI && TRUSTKERNEL_TEE_FP_SUPPORT
+	default n
+	help
+	  Sunwave capacitive/optical fingerprint sensor SPI driver, TrustKernel
+	  TEE variant. Ricostruito leggendo il kernel di fabbrica disassemblato
+	  (18 funzioni: probe/remove/ioctl/GPIO/IRQ/clock SPI/init/exit della
+	  piattaforma) -- vedi docs/bringup/driver-riscritti.md.

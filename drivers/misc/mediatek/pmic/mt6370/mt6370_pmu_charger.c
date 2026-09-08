@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/of_gpio.h>
 #include <linux/of.h>
 #include <linux/types.h>
 #include <linux/delay.h>
@@ -1033,6 +1034,21 @@ static int mt6370_chgdet_handler(struct mt6370_pmu_charger_data *chg_data)
 	mutex_unlock(&chg_data->bc12_access_lock);
 	return ret;
 }
+
+/*
+ * extern_mt6370_chgdet_handler @0xffffff80085d2d00, 24 byte, globale (T).
+ * NESSUNO LA CHIAMA -- zero `bl` verso quell'indirizzo in tutta l'immagine --
+ * ed e' proprio per questo che c'e': essendo globale il compilatore la emette
+ * lo stesso. Sei istruzioni: prologo, "f9406800 ldr"@0xffffff80085d2d08 che
+ * prende chg_data da chg_dev, "94000003 bl"@0xffffff80085d2d0c ed epilogo.
+ */
+int extern_mt6370_chgdet_handler(struct charger_device *chg_dev)
+{
+	struct mt6370_pmu_charger_data *chg_data =
+		dev_get_drvdata(&chg_dev->dev);
+
+	return mt6370_chgdet_handler(chg_data);
+}
 #endif /* CONFIG_MT6370_PMU_CHARGER_TYPE_DETECT */
 
 /* Select IINLMTSEL */
@@ -1922,7 +1938,9 @@ static int mt6370_enable_power_path(struct charger_device *chg_dev, bool en)
 	int ret = 0;
 	struct mt6370_pmu_charger_data *chg_data =
 		dev_get_drvdata(&chg_dev->dev);
-	u32 mivr = en ? chg_data->mivr : MT6370_MIVR_MAX;
+	/* come sopra: "f94002e8 ldr"@0xffffff80085d5954 e
+	 * "b9400914 ldr"@0xffffff80085d5958. */
+	u32 mivr = en ? chg_data->chg_desc->mivr : MT6370_MIVR_MAX;
 
 	dev_info(chg_data->dev, "%s: en = %d\n", __func__, en);
 
@@ -2063,7 +2081,12 @@ static int mt6370_set_mivr(struct charger_device *chg_dev, u32 uV)
 
 	ret = __mt6370_set_mivr(chg_data, uV);
 	if (ret >= 0)
-		chg_data->mivr = uV;
+	/* chg_desc->mivr, non chg_data->mivr: la fabbrica passa dal
+	 * puntatore al descrittore, che e' il primo campo. In
+	 * mt6370_set_mivr "f9400288 ldr"@0xffffff80085d5818 legge
+	 * chg_data->chg_desc e "b9000913 str"@0xffffff80085d581c scrive
+	 * a +8, cioe' il terzo u32 del descrittore. */
+		chg_data->chg_desc->mivr = uV;
 	return ret;
 }
 
@@ -2125,6 +2148,30 @@ static int mt6370_set_otg_current_limit(struct charger_device *chg_dev, u32 uA)
 	);
 
 	return ret;
+}
+
+
+/*
+ * IL GPIO CHE PILOTA IL DRVBUS DELL'OTG, aggiunta di fabbrica. Il numero sta
+ * in un globale a 0xffffff8009b2c64c, letto dal device tree nella probe e
+ * usato da mt6370_enable_otg e da gpio_enable_otg_exitern.
+ * Il nome del globale e' il suo indirizzo (regola 5).
+ */
+int g9b2c64c;
+
+/*
+ * gpio_enable_otg_exitern @0xffffff80085d3204, 92 byte, globale (T).
+ * NOTA L'INVERSIONE, che e' misurata e non ovvia: con en VERO il gpio va a
+ * ZERO ("2a1f03e1 mov"@0xffffff80085d3228) e con en falso a UNO
+ * ("320003e1 orr"@0xffffff80085d323c). E' un pilotaggio attivo basso.
+ */
+int gpio_enable_otg_exitern(int en)
+{
+	gpio_set_value(g9b2c64c, !en);
+
+	printk(en ? "gpio_enable_otg on \n" : "gpio_enable_otg off \n");
+
+	return 0;
 }
 
 static int mt6370_enable_otg(struct charger_device *chg_dev, bool en)
@@ -2244,6 +2291,10 @@ err_en_otg:
 	ret = -EIO;
 out:
 	mt6370_enable_hidden_mode(chg_data, false);
+	/* E POI IL GPIO, con la stessa inversione: "97fa73c2 bl"
+	 * @0xffffff80085d5f24 e' la gpio_to_desc subito dopo la
+	 * mt6370_enable_hidden_mode di uscita. */
+	gpio_set_value(g9b2c64c, !en);
 	return ret;
 }
 
@@ -2287,6 +2338,81 @@ static int mt6370_enable_discharge(struct charger_device *chg_dev, bool en)
 
 out:
 	mt6370_enable_hidden_mode(chg_data, false);
+	return ret;
+}
+
+/*
+ * ------------------------------------------------------------------
+ * mt_charger_set_opa_mode @0xffffff80085d2ad0, 124 byte
+ * ------------------------------------------------------------------
+ * AGGIUNTA WINGTECH DENTRO UN FILE ALPS, ricostruita dal disassemblato del
+ * kernel di fabbrica. Non e' in nessun albero pubblico: l'albero ALPS ha
+ * questo file ma non questa funzione, ed e' lo stesso schema del flashlight
+ * (`CONFIG_WTK_MAIN_FLASHLIGHT_CH0`). La chiama `mt5725`, e senza di essa
+ * quel driver -- completo per il resto -- non si linka.
+ *
+ * Che stia in QUESTO file lo dice l'adiacenza: di fabbrica sta subito prima
+ * di `mt6370_pmu_reg_clr_bit` (0xffffff80085d2b4c), `mt6370_pmu_reg_set_bit`
+ * (0xffffff80085d2b64) e `mt6370_enable_discharge` (0xffffff80085d2b7c),
+ * tutte e tre `t` e tutte e tre di questo file.
+ *
+ * I DUE OFFSET, misurati e non dedotti:
+ *   "f9406815 ldr"@0xffffff80085d2ae0   arg+208 -> `dev_get_drvdata(&chg_dev->dev)`
+ *   "f94006a0 ldr"@0xffffff80085d2af0   +8      -> `chg_data->chip`, il secondo
+ *                                                 campo di mt6370_pmu_charger_data
+ * Il secondo combacia con la definizione ALPS della struttura (`chg_desc` a
+ * +0, `chip` a +8): e' una conferma che poteva fallire.
+ *
+ * IL REGISTRO e' 0x11 = `MT6370_PMU_REG_CHGCTRL1`
+ * ("52800221 mov"@0xffffff80085d2aec, ripetuto a 0xffffff80085d2b1c), e la
+ * maschera e' 1 ("320003e2 orr"@0xffffff80085d2af4 e @0xffffff80085d2b20).
+ *
+ * LA SCELTA FRA set_bit E clr_bit E' UNA `csel` FRA DUE PUNTATORI A FUNZIONE,
+ * non due chiamate:
+ *   "912d3108 add"@0xffffff80085d2b0c   x8 = mt6370_pmu_reg_clr_bit
+ *   "912d9129 add"@0xffffff80085d2b10   x9 = mt6370_pmu_reg_set_bit
+ *   "7200029f tst"@0xffffff80085d2b14   bit 0 di `en`
+ *   "9a881128 csel"@0xffffff80085d2b18  ne -> set_bit, altrimenti clr_bit
+ *   "d63f0100 blr"@0xffffff80085d2b24
+ * E' esattamente la forma `(en ? f : g)(args)` che `mt6370_enable_discharge`
+ * usa gia' in questo stesso file: clang materializza i due indirizzi e ne
+ * sceglie uno. Scriverla come due chiamate distinte darebbe due `bl`.
+ *
+ * NON E' `static`: la mappa la marca `T`, ed e' l'unica ragione per cui
+ * `mt5725` puo' chiamarla da un'altra unita' di traduzione.
+ *
+ * DIVERGENZA DICHIARATA -- L'ORDINE. Di fabbrica questa funzione sta PRIMA
+ * di `mt6370_enable_discharge` (0xffffff80085d2ad0 contro 0xffffff80085d2b7c),
+ * che pero' chiama. Perche' il sorgente di fabbrica compili in quell'ordine
+ * servirebbe una dichiarazione anticipata, e il binario non dice se ci sia.
+ * Qui e' messa DOPO, che e' la forma che non richiede di inventarla. La
+ * conseguenza e' sull'ordine degli indirizzi, non sul codice di questa
+ * funzione.
+ *
+ * IL VALORE DI RITORNO E' QUELLO DELLA `csel`, NON DI enable_discharge:
+ * "2a0003f5 mov"@0xffffff80085d2b28 lo mette da parte in w21 e
+ * "2a1503e0 mov"@0xffffff80085d2b40 lo rimette in w0 DOPO
+ * "94000012 bl"@0xffffff80085d2b34. E il risultato della prima
+ * `mt6370_pmu_reg_update_bits` non e' usato affatto.
+ */
+int mt_charger_set_opa_mode(struct charger_device *chg_dev, bool en)
+{
+	struct mt6370_pmu_charger_data *chg_data =
+		dev_get_drvdata(&chg_dev->dev);
+	int ret;
+
+	/* "97ffdf65 bl"@0xffffff80085d2afc, con w3 = 0
+	 * ("2a1f03e3 mov"@0xffffff80085d2af8): il risultato non e' usato */
+	mt6370_pmu_reg_update_bits(chg_data->chip,
+				   MT6370_PMU_REG_CHGCTRL1, 0x01, 0x00);
+
+	ret = (en ? mt6370_pmu_reg_set_bit : mt6370_pmu_reg_clr_bit)
+		(chg_data->chip, MT6370_PMU_REG_CHGCTRL1, 0x01);
+
+	/* "12000281 and"@0xffffff80085d2b2c -- il bit 0 di `en`, e
+	 * "aa1303e0 mov"@0xffffff80085d2b30 -- il chg_dev originale */
+	mt6370_enable_discharge(chg_dev, en);
+
 	return ret;
 }
 
@@ -3424,11 +3550,18 @@ static irqreturn_t mt6370_pmu_attachi_irq_handler(int irq, void *data)
 	if (!chg_data->bc12_en) {
 		dev_err(chg_data->dev, "%s: bc12 disabled, ignore irq\n",
 			__func__);
-		goto out;
+		mutex_unlock(&chg_data->bc12_access_lock);
+		return IRQ_HANDLED;
 	}
-	__mt6370_chgdet_handler(chg_data);
-out:
+	/* DIFETTO DI FABBRICA, RIPRODOTTO: il lock si RILASCIA qui e la
+	 * mt6370_chgdet_handler lo riprende subito dopo, invece di tenerlo per
+	 * tutta la sequenza come fa ALPS con __mt6370_chgdet_handler. Fra le
+	 * due c'e' una finestra in cui bc12_en puo' cambiare. Il binario lo
+	 * dice senza ambiguita': "94226aaa bl"@0xffffff80085d8924 e' la
+	 * mutex_unlock e "97ffe8fb bl"@0xffffff80085d892c la chiamata, in
+	 * quest'ordine. */
 	mutex_unlock(&chg_data->bc12_access_lock);
+	mt6370_chgdet_handler(chg_data);
 #endif /* CONFIG_MT6370_PMU_CHARGER_TYPE_DETECT */
 
 	return IRQ_HANDLED;
@@ -3494,11 +3627,18 @@ static irqreturn_t mt6370_pmu_dcdti_irq_handler(int irq, void *data)
 				MT6370_SHIFT_DCDT, &dcdt);
 		if (ret < 0 || !dcdt)
 			return IRQ_HANDLED;
-		dev_info(chg_data->dev, "%s: unknown TA Detected\n", __func__);
+		/* SENZA il prefisso e senza __func__: la fabbrica passa solo x1
+		 * a _dev_info ("91028021 add"@0xffffff80085d8a9c mette la
+		 * stringa a 0xffffff80091520a0 e x2 non viene toccato).
+		 * Valeva due istruzioni. */
+		dev_info(chg_data->dev, "unknown TA Detected\n");
 		mutex_lock(&chg_data->bc12_access_lock);
 		chg_data->dcd_timeout = true;
-		__mt6370_chgdet_handler(chg_data);
+		/* come in attachi: il lock si rilascia PRIMA della chiamata.
+		 * "94226a44 bl"@0xffffff80085d8abc poi
+		 * "97ffe895 bl"@0xffffff80085d8ac4. */
 		mutex_unlock(&chg_data->bc12_access_lock);
+		mt6370_chgdet_handler(chg_data);
 	}
 #endif /* CONFIG_MT6370_PMU_CHARGER_TYPE_DETECT */
 
@@ -4085,6 +4225,7 @@ static const DEVICE_ATTR_WO(shipping_mode);
 
 static int mt6370_pmu_charger_probe(struct platform_device *pdev)
 {
+	struct device_node *np_otg;
 	int ret = 0;
 	struct mt6370_pmu_charger_data *chg_data;
 	bool use_dt = pdev->dev.of_node;
@@ -4180,6 +4321,16 @@ static int mt6370_pmu_charger_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_notice(&pdev->dev, "create shipping attr fail\n");
 		goto err_register_ls_dev;
+	}
+
+	/* Il gpio del DRVBUS, letto da un nodo DIVERSO da quello del charger:
+	 * "94164332 bl"@0xffffff80085d46cc cerca "mediatek,usb_iddig_bi_eint"
+	 * e "97fa9053 bl"@0xffffff80085d46e4 ne prende gpio_otg_drvbus_pin. */
+	np_otg = of_find_compatible_node(NULL, NULL, "mediatek,usb_iddig_bi_eint");
+	if (np_otg) {
+		g9b2c64c = of_get_named_gpio(np_otg, "gpio_otg_drvbus_pin", 0);
+		if (g9b2c64c >= 0)
+			gpio_request(g9b2c64c, "gpio_otg_drvbus_pin");
 	}
 
 	/* Schedule work for microB's BC1.2 */

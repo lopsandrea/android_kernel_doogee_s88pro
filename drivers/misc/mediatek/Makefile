@@ -156,6 +156,7 @@ obj-y += perf/
 obj-$(CONFIG_MTK_JPEG) += jpeg/
 obj-$(CONFIG_MTK_SPMTWAM) += twam/
 obj-$(CONFIG_MTK_LOW_POWER_MODULE) += lpm/
+obj-$(CONFIG_NFC_CHIP_SUPPORT) += nfc/
 
 ifeq ($(CONFIG_MTK_HAVE_EXTERNAL_VENDOR_PATH),y)
 obj-y += ../../../../$(subst $\",,$(CONFIG_MTK_EXTERNAL_VENDOR_PATH))

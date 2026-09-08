@@ -4217,33 +4217,18 @@ static int Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static void Ext_Speaker_Amp_Change(bool enable)
-{
-#define SPK_WARM_UP_TIME        (25)	/* unit is ms */
-	if (enable) {
-		pr_debug("%s() ON+\n", __func__);
-
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
-
-		/*udelay(1000); */
-		usleep_range(1 * 1000, 20 * 1000);
-
-		AudDrv_GPIO_EXTAMP_Select(true, 3);
-
-		msleep(SPK_WARM_UP_TIME);
-
-		pr_debug("%s() ON-\n", __func__);
-	} else {
-		pr_debug("%s(), OFF+\n", __func__);
-
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
-
-		udelay(500);
-
-		pr_debug("%s(), OFF-\n", __func__);
-	}
-}
-
+/*
+ * Ext_Speaker_Amp_Change TOLTA: in stock.map non c'e' (mentre
+ * Ext_Speaker_Amp_Get e Ext_Speaker_Amp_Set ci sono entrambe), e dopo la
+ * correzione qui sotto non la chiamava piu' nessuno.
+ *
+ * La sua struttura era gia' quella giusta -- stessi ritardi: usleep_range(1000,
+ * 20000), msleep(25), udelay(500) -- solo con AudDrv_GPIO_EXTAMP_Select() al
+ * posto delle due chiamate all'amplificatore. La fabbrica ha sostituito
+ * quelle due chiamate e ha incorporato la funzione dentro
+ * Ext_Speaker_Amp_Set. Che i ritardi combacino a uno a uno e' la conferma
+ * che la lettura del disassemblato e' giusta.
+ */
 static int Ext_Speaker_Amp_Get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
@@ -4252,17 +4237,63 @@ static int Ext_Speaker_Amp_Get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/*
+ * L'AMPLIFICATORE ESTERNO AW87329, che ALPS non accende mai.
+ *
+ * Il difetto era udibile: nessun suono dall'altoparlante. Il PCM andava --
+ * /proc/asound/card0/pcm*p/sub0/status dava "state: RUNNING" -- ma
+ * l'amplificatore restava spento: `hwen: 0` in
+ * /sys/bus/i2c/devices/6-0059/hwen. Scrivendo 1 a mano in quel file il suono
+ * si sentiva, e questo ha chiuso la diagnosi.
+ *
+ * ALPS qui chiama Ext_Speaker_Amp_Change(), che governa il GPIO di un
+ * amplificatore generico e dell'AW87329 non sa nulla. La fabbrica chiama
+ * invece direttamente le due funzioni del driver, e nel nostro albero
+ * NESSUNO le chiamava: aw87329_audio_kspk e aw87329_audio_off erano
+ * compilate e irraggiungibili.
+ *
+ * I due chiamanti di fabbrica si trovano cercando le BL verso
+ * aw87329_audio_kspk (0xffffff8008c5879c):
+ *
+ *     da 0xffffff8008c1de9c  in Ext_Speaker_Amp_Set
+ *     da 0xffffff8008c59e28  in aw87329_set_mode
+ *
+ * La sequenza qui sotto e' Ext_Speaker_Amp_Set di fabbrica
+ * (0xffffff8008c1de68), letta istruzione per istruzione:
+ *
+ *     "9400ec0c bl"@0xffffff8008c1de8c   aw87329_audio_off
+ *     "52807d00 mov"@0xffffff8008c1de90  w0 = 1000
+ *     "5289c401 mov"@0xffffff8008c1de94  w1 = 20000   -> usleep_range
+ *     "9400ea40 bl"@0xffffff8008c1de9c   aw87329_audio_kspk
+ *     "52800320 mov"@0xffffff8008c1dea0  w0 = 25      -> msleep
+ *
+ * e nel ramo di spegnimento:
+ *
+ *     "9400ebf7 bl"@0xffffff8008c1dee0   aw87329_audio_off
+ *     "52989580 mov"+"72a00400 movk"     w0 = 0x20c4ac = 500 * 0x10C7,
+ *                                        cioe' udelay(500)
+ *
+ * Lo spegnimento prima dell'accensione non e' un refuso: e' la fabbrica che
+ * porta l'amplificatore a uno stato noto prima di metterlo in modo speaker.
+ */
+extern int aw87329_audio_kspk(void);
+extern int aw87329_audio_off(void);
+
 static int Ext_Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
 	if (ucontrol->value.integer.value[0]) {
-		Ext_Speaker_Amp_Change(true);
+		aw87329_audio_off();
+		usleep_range(1000, 20000);
+		aw87329_audio_kspk();
+		msleep(25);
 		mCodec_data->dev_power[ANA_DEV_OUT_EXTSPKAMP] =
 			ucontrol->value.integer.value[0];
 	} else {
 		mCodec_data->dev_power[ANA_DEV_OUT_EXTSPKAMP] =
 			ucontrol->value.integer.value[0];
-		Ext_Speaker_Amp_Change(false);
+		aw87329_audio_off();
+		udelay(500);
 	}
 	return 0;
 }

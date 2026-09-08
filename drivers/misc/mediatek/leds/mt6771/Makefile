@@ -14,3 +14,5 @@
 obj-$(CONFIG_MTK_LEDS) := mtk_leds.o
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/include
+
+obj-$(CONFIG_WTK_LEDS_AW22127) += aw22127/

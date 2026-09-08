@@ -73,18 +73,50 @@ unsigned char UcH1LvlMod;  /* H1 level coef mode */
 
 #endif
 
+/*
+ * QUI NON C'E' PIU' UNA SCELTA A COMPILAZIONE, CE N'E' UNA A ESECUZIONE.
+ *
+ * Il prologo di SetH1cMod legge g9c96cbc una volta sola
+ * ("3972f309 ldrb"@0xffffff8008748518) e poi fa quattro csel di seguito,
+ * tenendo gli esiti in x21, x19, x23 e x20 per tutta la funzione:
+ *
+ *   "9a880155 csel"@0xffffff8008748534  x21 = MAXLMT
+ *   "9a890113 csel"@0xffffff8008748548  x19 = CHGCOEF
+ *   "9a8a0117 csel"@0xffffff8008748558  x23 = CHGCOEF_MOV
+ *   "9a8b0194 csel"@0xffffff8008748560  x20 = MINLMT
+ *
+ * Chi e' chi si legge dal registro del chip a cui il valore viene scritto:
+ * x20 va a gxlmt6L ("528205a0 mov"@0xffffff80087485a4, 0x102D), x21 a
+ * gxlmt6H (0x102E), x19 a gxmg (0x10AA), x23 a gxmg nel ramo MOVMODE.
+ *
+ * Dei sei valori dei due #if di ALPS ne sopravvive UNO SOLO, 0x40400000, ed
+ * e' il MAXLMT di CORRECT_1DEG: la fabbrica e' partita da quel ramo. Gli
+ * altri cinque sono stati ritarati e non compaiono piu' da nessuna parte.
+ * Per questo il #ifdef sparisce invece di restare accanto: tenerlo
+ * suggerirebbe che una delle due colonne sia ancora quella di ALPS.
+ */
 #ifdef H1COEF_CHANGER
-#ifdef CORRECT_1DEG
-#define MAXLMT 0x40400000  /* 3.0 */
-#define MINLMT 0x3FE66666  /* 1.8 */
-#define CHGCOEF 0xBA195555 /*  */
-#else
-#define MAXLMT 0x40000000  /* 2.0 */
-#define MINLMT 0x3F8CCCCD  /* 1.1 */
-#define CHGCOEF 0xBA4C71C7 /*  */
-#endif
+/*
+ * static, E NON PER PULIZIA: static E' QUEL CHE RENDE POSSIBILE IL csel.
+ *
+ * La fabbrica legge g9c96cbc UNA VOLTA per funzione e tiene gli esiti in
+ * registri conservati attraverso le chiamate a RamWrite32A. Un compilatore
+ * puo' farlo solo se sa che nessuna di quelle chiamate puo' cambiare la
+ * variabile, e lo sa solo se la variabile e' interna al file e non ne esce
+ * mai l'indirizzo.
+ *
+ * Con la stessa variabile globale il codice cresce di 92 byte in SetH1cMod e
+ * di 12 in S2cPro: una rilettura dopo ogni bl. Non e' una scelta di stile,
+ * e' la differenza fra combaciare e non combaciare.
+ *
+ * g9c96cb8 invece resta globale, perche' OisIni.c lo legge.
+ */
+unsigned char g9c96cbc;
+#define MAXLMT ((g9c96cbc == 2) ? 0x40400000 : 0x40333333)
+#define MINLMT ((g9c96cbc == 2) ? 0x40000000 : 0x3FC51EB9)
+#define CHGCOEF ((g9c96cbc == 2) ? 0xB9400000 : 0xBA120820)
 #define MINLMT_MOV 0x00000000 /* 0.0 */
-#define CHGCOEF_MOV 0xB9700000
+#define CHGCOEF_MOV ((g9c96cbc == 2) ? 0xB8800000 : 0xB92B6DB7)
 #endif
 
 /* ************************** */
@@ -116,14 +148,42 @@ const unsigned long ClGyyZom[ZOOMTBL] = {
 
 /* DI Coefficient Setting Value */
 #define COEFTBL 7
+/*
+ * DUE TABELLE, NON UNA, E I VALORI SONO SCRITTI IN CHIARO.
+ *
+ * Sono 2 x 7 x 8 byte contigui in .rodata, letti dal binario:
+ * a 0xffffff8008f4c650 sette volte 0x3F7FFD00, a 0xffffff8008f4c688 sette
+ * volte 0x3F7FFE00. Otto byte per voce, e lo conferma l'indicizzazione
+ * ("f8697901 ldr"@0xffffff8008748e6c scorre di 3): unsigned long.
+ *
+ * Qui i valori NON possono venire da DIFIL_S2 come in ALPS, perche' DIFIL_S2
+ * adesso e' una scelta a esecuzione e un inizializzatore statico vuole una
+ * costante. E' il motivo per cui le tabelle sono due invece di una sola con
+ * la macro dentro: la fabbrica ha dovuto separarle per la stessa ragione.
+ *
+ * g8f4c650 sta PRIMA perche' sta prima in .rodata, e l'ordine di .rodata e'
+ * quello di definizione.
+ */
+#define COEFTBL_VAL_2 0x3F7FFD00
+
+const unsigned long g8f4c650[COEFTBL] = {
+	COEFTBL_VAL_2, /* 0 */
+	COEFTBL_VAL_2, /* 1 */
+	COEFTBL_VAL_2, /* 2 */
+	COEFTBL_VAL_2, /* 3 */
+	COEFTBL_VAL_2, /* 4 */
+	COEFTBL_VAL_2, /* 5 */
+	COEFTBL_VAL_2  /* 6 */
+};
+
 const unsigned long ClDiCof[COEFTBL] = {
-	DIFIL_S2, /* 0 */
-	DIFIL_S2, /* 1 */
-	DIFIL_S2, /* 2 */
-	DIFIL_S2, /* 3 */
-	DIFIL_S2, /* 4 */
-	DIFIL_S2, /* 5 */
-	DIFIL_S2  /* 6 */
+	0x3F7FFE00, /* 0 */
+	0x3F7FFE00, /* 1 */
+	0x3F7FFE00, /* 2 */
+	0x3F7FFE00, /* 3 */
+	0x3F7FFE00, /* 4 */
+	0x3F7FFE00, /* 5 */
+	0x3F7FFE00  /* 6 */
 };
 
 
@@ -150,6 +210,35 @@ unsigned short TneRun(void)
 	UcDrvMod = UcPwmMod;
 	if (UcDrvMod == PWMMOD_CVL)
 		DrvPwmSw(Mpwm); /* PWM mode */
+
+	/*
+	 * LA TARATURA DEL PUNTO MEDIO, che ALPS non chiama -- e IL SUO ESITO
+	 * ENTRA NELLA SOMMA FINALE, al posto di UsOscSts.
+	 *
+	 * "9000aa88 adrp"@0xffffff80087463f8 rilegge il globale che SelectModule
+	 * scrive, "7100091f cmp"@0xffffff8008746400 lo confronta con 2, e sul
+	 * ramo uguale chiama. E' l'unico posto in tutto stock.elf da cui
+	 * AfMidOffAdj venga chiamata.
+	 *
+	 * Che finisca in UsOscSts e non in una variabile nuova lo dice
+	 * l'aritmetica. La fabbrica conserva "51001017 sub"@0xffffff800874640c,
+	 * cioe' `esito - 4`, e sull'altro ramo mette 0xfffe
+	 * ("321f3bf7 orr"@0xffffff8008746414), che e' -2; poi in coda somma tre
+	 * termini soli, "0b3302e8 add"@0xffffff80087465dc e la successiva:
+	 * quel valore piu' UcHlxSts piu' UcHlySts.
+	 *
+	 * La formula di ALPS, con UcAtxSts e UcAtySts pari a EXE_END, si riduce
+	 * a Hlx + Hly + UsOscSts - 4. Le due cose coincidono se e solo se il
+	 * termine conservato e' UsOscSts - 4 -- ed e' proprio quel che la `sub`
+	 * calcola. Sul ramo diverso, UsOscSts = EXE_END da' 2 - 4 = -2 = 0xfffe.
+	 *
+	 * L'assegnamento a UsOscSts piu' in alto resta dov'e': viene sovrascritto
+	 * qui e clang lo butta via, esattamente come fa la fabbrica.
+	 */
+	if (g9c96cb8 == 2)
+		UsOscSts = AfMidOffAdj();
+	else
+		UsOscSts = EXE_END;
 
 #ifdef HALLADJ_HW
 	UcHlySts = BiasOffsetAdj(Y_DIR, 0);
@@ -1383,7 +1472,17 @@ void GyrCon(unsigned char UcGyrCon)
 
 #ifdef GAIN_CONT
 	/* Gain3 Register */
-	/* AutoGainControlSw( ON ) ;  */ /* Auto Gain Control Mode ON */
+	/*
+	 * RIATTIVATA, e GAIN_CONT era gia' definita in Ois.h: era la CHIAMATA a
+	 * essere commentata, non il blocco che la contiene.
+	 *
+	 * "94000945 bl"@0xffffff80087483b8 la chiama con w0 = 1 subito prima di
+	 * ClrGyr, dentro OisEna -- dove GyrCon e' incorporata. Le tre chiamate di
+	 * questa funzione mancavano a quattro misure insieme: GyrCon -32,
+	 * OisEna -8, OisEnaLin -8 e RtnCen -8, quest'ultima perche' chiama
+	 * GyrCon(OFF) e se la fa incorporare.
+	 */
+	AutoGainControlSw(ON);	/* Auto Gain Control Mode ON */
 #endif
 		ClrGyr(0x000E, CLR_FRAM1); /* Gyro Delay RAM Clear */
 
@@ -1394,7 +1493,7 @@ void GyrCon(unsigned char UcGyrCon)
 
 #ifdef GAIN_CONT
 	/* Gain3 Register */
-	/* AutoGainControlSw( ON ) ;  */ /* Auto Gain Control Mode ON */
+	AutoGainControlSw(ON);	/* Auto Gain Control Mode ON */
 #endif
 
 		RamWrite32A_LC898122AF(sxggf, 0x3F800000); /* 0x10B5 */
@@ -1407,7 +1506,7 @@ void GyrCon(unsigned char UcGyrCon)
 
 #ifdef GAIN_CONT
 		/* Gain3 Register */
-		/* AutoGainControlSw( OFF ); */
+		AutoGainControlSw(OFF);
 #endif
 	}
 }
@@ -1454,14 +1553,34 @@ void TimPro(void)
 
 void S2cPro(unsigned char uc_mode)
 {
+	/*
+	 * LA SCELTA SI FA UNA VOLTA SOLA, E NON E' PULIZIA.
+	 *
+	 * La fabbrica legge g9c96cbc e fa il csel PRIMA del ramo
+	 * ("3972f108 ldrb"@0xffffff8008748468, "9a8b0153 csel"@0xffffff8008748480),
+	 * poi passa il risultato due volte con `mov x1, x19`. Scrivendo DIFIL_S2
+	 * direttamente nelle due chiamate il compilatore rilegge il byte e
+	 * rifa' il confronto dopo ogni bl -- dodici byte in piu' -- perche' non
+	 * puo' escludere che RamWrite32A cambi la variabile.
+	 *
+	 * `static` NON basta a fargliela escludere, ed e' stato provato: chi
+	 * scrive la variabile e' SelectModule, che ha collegamento esterno, e
+	 * una chiamata esterna qualunque potrebbe arrivarci. Il compilatore ha
+	 * ragione a rileggere; la fabbrica non gli fa la domanda.
+	 *
+	 * Il nome della locale e' nostro: una locale non lascia traccia nel
+	 * binario, e qui l'unica cosa misurata e' che ce ne sia UNA.
+	 */
+	unsigned long UlDifSel = DIFIL_S2;
+
 	if (uc_mode == 1) {
 #ifdef H1COEF_CHANGER
 		SetH1cMod(S2MODE); /* cancel Lvl change */
 #endif
 		/* HPFÅ®Through Setting */
-		RegWriteA_LC898122AF(WG_SHTON, 0x11);    /* 0x0107 */
-		RamWrite32A_LC898122AF(gxh1c, DIFIL_S2); /* 0x1012 */
-		RamWrite32A_LC898122AF(gyh1c, DIFIL_S2); /* 0x1112 */
+		RegWriteA_LC898122AF(WG_SHTON, 0x11);     /* 0x0107 */
+		RamWrite32A_LC898122AF(gxh1c, UlDifSel);  /* 0x1012 */
+		RamWrite32A_LC898122AF(gyh1c, UlDifSel);  /* 0x1112 */
 	} else {
 		RamWrite32A_LC898122AF(gxh1c, UlH1Coefval); /* 0x1012 */
 		RamWrite32A_LC898122AF(gyh1c, UlH1Coefval); /* 0x1112 */
@@ -2070,6 +2189,7 @@ void StbOnn(void)
 {
 	unsigned char UcRegValx, UcRegValy; /* Registor value */
 	unsigned char UcRegIni;
+	unsigned char UcCntPla = 0;
 
 	RegReadA_LC898122AF(WH_EQSWX, &UcRegValx); /* 0x0170 */
 	RegReadA_LC898122AF(WH_EQSWY, &UcRegValy); /* 0x0171 */
@@ -2081,11 +2201,20 @@ void StbOnn(void)
 		SrvCon(X_DIR, ON);
 		SrvCon(Y_DIR, ON);
 
-		UcRegIni = 0x11;
-		while ((UcRegIni & 0x77) != 0x66)
+		while (UcCntPla < 60) {
 			RegReadA_LC898122AF(RH_SMTSRVSTT, &UcRegIni);
+			if ((UcRegIni & 0x77) == 0x66)
+				break;
+			WitTim_LC898122AF(10);
+			UcCntPla++;
+		}
 
 		RegWriteA_LC898122AF(WH_SMTSRVON, 0x00);
+
+		if (UcCntPla == 60) {
+			RamWrite32A_LC898122AF(SXOFFZ2, 0x00000000);
+			RamWrite32A_LC898122AF(SYOFFZ2, 0x00000000);
+		}
 
 	} else {
 		SrvCon(X_DIR, ON);
@@ -2098,6 +2227,7 @@ void StbOnnN(unsigned char UcStbY, unsigned char UcStbX)
 {
 	unsigned char UcRegIni;
 	unsigned char UcSttMsk = 0;
+	unsigned char UcCntPla = 0;
 
 	RegWriteA_LC898122AF(WH_SMTSRVON,
 			     0x01); /* 0x017C               Smooth Servo ON */
@@ -2109,11 +2239,22 @@ void StbOnnN(unsigned char UcStbY, unsigned char UcStbX)
 	SrvCon(X_DIR, UcStbX);
 	SrvCon(Y_DIR, UcStbY);
 
-	UcRegIni = 0x11;
-	while ((UcRegIni & UcSttMsk) != (0x66 & UcSttMsk))
+	while (UcCntPla < 60) {
 		RegReadA_LC898122AF(RH_SMTSRVSTT, &UcRegIni);
+		if ((UcRegIni & UcSttMsk) == (0x66 & UcSttMsk))
+			break;
+		WitTim_LC898122AF(10);
+		UcCntPla++;
+	}
 
 	RegWriteA_LC898122AF(WH_SMTSRVON, 0x00);
+
+	if (UcCntPla == 60) {
+		if (UcStbX == ON)
+			RamWrite32A_LC898122AF(SXOFFZ2, 0x00000000);
+		if (UcStbY == ON)
+			RamWrite32A_LC898122AF(SYOFFZ2, 0x00000000);
+	}
 }
 
 void OptCen(unsigned char UcOptmode, unsigned short UsOptXval,
@@ -2802,7 +2943,7 @@ void SetGcf(unsigned char UcSetNum)
 	if (UcSetNum > (COEFTBL - 1))
 		UcSetNum = (COEFTBL - 1); /* è„å¿ÇCOEFTBL-1Ç…ê›íËÇ∑ÇÈ */
 
-	UlH1Coefval = ClDiCof[UcSetNum];
+	UlH1Coefval = ((g9c96cbc == 2) ? g8f4c650 : ClDiCof)[UcSetNum];
 
 	/* Zoom Value Setting */
 	RamWrite32A_LC898122AF(gxh1c, UlH1Coefval); /* 0x1012 */
@@ -2817,6 +2958,16 @@ void SetGcf(unsigned char UcSetNum)
 
 void SetH1cMod(unsigned char UcSetNum)
 {
+	/*
+	 * Quattro csel di seguito in cima, prima dello switch, e poi nessuna
+	 * rilettura: "3972f309 ldrb"@0xffffff8008748518 e' l'unico accesso a
+	 * g9c96cbc di tutta la funzione. Vale la stessa ragione di S2cPro --
+	 * senza le locali sono novantadue byte in piu'.
+	 */
+	unsigned long UlMaxLmt = MAXLMT;
+	unsigned long UlMinLmt = MINLMT;
+	unsigned long UlChgCoef = CHGCOEF;
+	unsigned long UlChgCoefMov = CHGCOEF_MOV;
 
 	switch (UcSetNum) {
 	case (ACTMODE):		  /* initial */
@@ -2824,26 +2975,26 @@ void SetH1cMod(unsigned char UcSetNum)
 
 		/* enable setting */
 		/* Zoom Step */
-		UlH1Coefval = ClDiCof[0];
+		UlH1Coefval = ((g9c96cbc == 2) ? g8f4c650 : ClDiCof)[0];
 
 		UcH1LvlMod = 0;
 
 		/* Limit value Value Setting */
-		RamWrite32A_LC898122AF(gxlmt6L, MINLMT); /* 0x102D L-Limit */
-		RamWrite32A_LC898122AF(gxlmt6H, MAXLMT); /* 0x102E H-Limit */
+		RamWrite32A_LC898122AF(gxlmt6L, UlMinLmt); /* 0x102D L-Limit */
+		RamWrite32A_LC898122AF(gxlmt6H, UlMaxLmt); /* 0x102E H-Limit */
 
-		RamWrite32A_LC898122AF(gylmt6L, MINLMT); /* 0x112D L-Limit */
-		RamWrite32A_LC898122AF(gylmt6H, MAXLMT); /* 0x112E H-Limit */
+		RamWrite32A_LC898122AF(gylmt6L, UlMinLmt); /* 0x112D L-Limit */
+		RamWrite32A_LC898122AF(gylmt6H, UlMaxLmt); /* 0x112E H-Limit */
 
 		RamWrite32A_LC898122AF(gxhc_tmp,
 				       UlH1Coefval); /* 0x100E Base Coef */
 		RamWrite32A_LC898122AF(
-			gxmg, CHGCOEF); /* 0x10AA Change coefficient gain */
+			gxmg, UlChgCoef); /* 0x10AA Change coefficient gain */
 
 		RamWrite32A_LC898122AF(gyhc_tmp,
 				       UlH1Coefval); /* 0x110E Base Coef */
 		RamWrite32A_LC898122AF(
-			gymg, CHGCOEF); /* 0x11AA Change coefficient gain */
+			gymg, UlChgCoef); /* 0x11AA Change coefficient gain */
 
 		RegWriteA_LC898122AF(
 			WG_HCHR, 0x12); /* 0x011B       GmHChrOn[1]=1 Sw ON */
@@ -2863,9 +3014,9 @@ void SetH1cMod(unsigned char UcSetNum)
 				       MINLMT_MOV); /* 0x112D L-Limit */
 
 		RamWrite32A_LC898122AF(
-			gxmg, CHGCOEF_MOV); /* 0x10AA Change coefficient gain */
+			gxmg, UlChgCoefMov); /* 0x10AA Change coefficient gain */
 		RamWrite32A_LC898122AF(
-			gymg, CHGCOEF_MOV); /* 0x11AA Change coefficient gain */
+			gymg, UlChgCoefMov); /* 0x11AA Change coefficient gain */
 
 		RamWrite32A_LC898122AF(gxhc_tmp,
 				       UlH1Coefval); /* 0x100E Base Coef */
@@ -2881,13 +3032,13 @@ void SetH1cMod(unsigned char UcSetNum)
 
 		UcH1LvlMod = UcSetNum;
 
-		RamWrite32A_LC898122AF(gxlmt6L, MINLMT); /* 0x102D L-Limit */
-		RamWrite32A_LC898122AF(gylmt6L, MINLMT); /* 0x112D L-Limit */
+		RamWrite32A_LC898122AF(gxlmt6L, UlMinLmt); /* 0x102D L-Limit */
+		RamWrite32A_LC898122AF(gylmt6L, UlMinLmt); /* 0x112D L-Limit */
 
 		RamWrite32A_LC898122AF(
-			gxmg, CHGCOEF); /* 0x10AA Change coefficient gain */
+			gxmg, UlChgCoef); /* 0x10AA Change coefficient gain */
 		RamWrite32A_LC898122AF(
-			gymg, CHGCOEF); /* 0x11AA Change coefficient gain */
+			gymg, UlChgCoef); /* 0x11AA Change coefficient gain */
 
 		RamWrite32A_LC898122AF(gxhc_tmp,
 				       UlH1Coefval); /* 0x100E Base Coef */
@@ -2905,6 +3056,312 @@ unsigned short RdFwVr(void)
 {
 	unsigned short UsVerVal;
 
-	UsVerVal = (unsigned short)((MDL_VER << 8) | FW_VER);
+	/*
+	 * SOLO FW_VER: la fabbrica restituisce 0x1E, non 0x061E. Il nostro
+	 * build dava 0x0603, che ha la stessa DIMENSIONE -- otto byte in
+	 * tutti e due i casi -- e per questo la misura in byte non l'ha mai
+	 * segnalato. L'ha trovato il confronto istruzione per istruzione.
+	 */
+	UsVerVal = (unsigned short)FW_VER;
 	return UsVerVal;
+}
+
+/*
+ * Tre funzioni OIS che ALPS non ha, ricostruite dal binario.
+ *
+ *   stock.map: 0xffffff80087490cc SelectModule    36 byte
+ *   stock.map: 0xffffff8008749038 SetDOFSTDAF    148 byte
+ *   stock.map: 0xffffff800874adb8 RemOff         356 byte
+ *
+ * Le chiama LC898122AF_Ioctl_Main, ed e' per questo che vengono prima
+ * dell'Ioctl e non dopo: senza di loro quello non si puo' scrivere.
+ *
+ * I TRE GLOBALI NON SONO `static`, ed e' una necessita' non una scelta.
+ * SelectModule scrive e basta -- nessuna di queste tre funzioni rilegge quel
+ * che scrive -- e su una variabile `static` mai letta clang butta via le
+ * scritture, e con loro la funzione. Restano globali finche' non si sa chi
+ * altro le legge; il binario non nomina i dati, quindi il nome e' l'indirizzo
+ * (regola 5).
+ */
+unsigned char g9c96cb8;
+unsigned char g9c96cbc;
+
+/*
+ * "1a9f3408 csinc"@0xffffff80087490e0 e' tutta la funzione: se
+ * (UcSelPrm - 1) & 0xff sta sotto 2 -- cioe' se il parametro e' 1 o 2 --
+ * scrive il parametro, altrimenti scrive 1. Poi due `strb` allo stesso
+ * valore, a 0xffffff8009c96cb8 e 0xffffff8009c96cbc.
+ */
+void SelectModule(unsigned char UcSelPrm)
+{
+	switch (UcSelPrm) {
+	case 1:
+	case 2:
+		g9c96cb8 = UcSelPrm;
+		g9c96cbc = UcSelPrm;
+		break;
+
+	default:
+		g9c96cb8 = 1;
+		g9c96cbc = 1;
+		break;
+	}
+}
+
+/*
+ * Due strade, scelte da un globale confrontato con 0x93
+ * ("71024d1f cmp"@0xffffff8008749060).
+ *
+ * Sul ramo uguale legge prima il registro 0x83, scrive 0x84 col parametro
+ * spostato di tre bit e mascherato con 0xffffffc0
+ * ("531d7268 lsl"@0xffffff8008749074 e la `and` dopo), poi rimette in 0x83 i
+ * bit 4..6 di quel che aveva letto piu' i tre bit bassi del parametro --
+ * "33000a61 bfxil"@0xffffff8008749090, che e' un innesto di campo e non una
+ * `or` qualunque.
+ *
+ * Sul ramo diverso scrive solo 0x84, col parametro spostato di tre bit e
+ * SENZA maschera: "531d7261 lsl"@0xffffff8008749098.
+ */
+void SetDOFSTDAF(unsigned char UcSetDat)
+{
+	unsigned char UcSetDat2;
+
+	if (UcCvrCod == 0x93) {
+		RegReadA_LC898122AF(0x0083, &UcSetDat2);
+		RegWriteA_LC898122AF(0x0084, (UcSetDat << 3) & 0xC0);
+		RegWriteA_LC898122AF(0x0083,
+				     (UcSetDat2 & 0x70) | (UcSetDat & 0x07));
+	} else {
+		RegWriteA_LC898122AF(0x0084, UcSetDat << 3);
+	}
+}
+
+/*
+ * Altre quattro OIS che ALPS non ha.
+ *
+ *   stock.map: 0xffffff800874ad84 SetTregAf        52 byte
+ *   stock.map: 0xffffff8008748fd4 MesMSABS1AV     100 byte
+ *   stock.map: 0xffffff8008748ea8 GetDOFSTDAF     144 byte
+ *   stock.map: 0xffffff8008748f38 SetDOFSTDAF_WT  156 byte
+ *
+ * Nessuna di queste quattro viene chiamata da quel che abbiamo: restano
+ * perche' sono globali, come DW9714AF_PowerDown. Di fabbrica e' lo stesso --
+ * in stock.elf non c'e' una `bl` verso nessuna delle quattro.
+ */
+
+/*
+ * MesMSABS1AV restituisce quel che ha letto: "f94003e0 ldr"@0xffffff8008749014
+ * carica in x0, dal buffer in pila, il valore appena messo li' da
+ * RamRead32A_LC898122AF, e subito dopo c'e' l'uscita. Sessantaquattro bit,
+ * non trentadue -- e' una `ldr` su x, non su w.
+ */
+unsigned long MesMSABS1AV(void)
+{
+	unsigned long UlReadVal;
+
+	ClrGyr(0x1000, 0x02);
+
+	GenMes(0x144F, 0);
+
+	RamRead32A_LC898122AF(0x1041, &UlReadVal);
+
+	return UlReadVal;
+}
+
+/*
+ * GetDOFSTDAF e' l'inverso di SetDOFSTDAF, e ne condivide il bivio sullo
+ * stesso globale confrontato con 0x93.
+ *
+ * "33000920 bfxil"@0xffffff8008748ef8 innesta i tre bit bassi del registro
+ * 0x83 dentro il risultato, che porta gia' i bit del registro 0x84 spostati
+ * di tre e mascherati con 0x18. Un `|` fra due valori interi avrebbe dato
+ * altro: bfxil dice che il campo di destinazione e' largo esattamente tre bit.
+ */
+unsigned char GetDOFSTDAF(void)
+{
+	unsigned char UcSetDat;
+	unsigned char UcSetDat2;
+
+	if (UcCvrCod == 0x93) {
+		RegReadA_LC898122AF(0x0083, &UcSetDat2);
+		RegReadA_LC898122AF(0x0084, &UcSetDat);
+
+		return ((UcSetDat >> 3) & 0x18) | (UcSetDat2 & 0x07);
+	}
+
+	RegReadA_LC898122AF(0x0084, &UcSetDat);
+
+	return UcSetDat >> 3;
+}
+
+/*
+ * SetDOFSTDAF_WT e' SetDOFSTDAF piu' un'attesa in coda:
+ * "52801f40 mov"@0xffffff8008748fa4 mette w0 a 250 e chiama
+ * WitTim_LC898122AF -- che di fabbrica e' vuota, quindi quei 250
+ * millisecondi non esistono. Si riproduce com'e' (regola 7).
+ */
+void SetDOFSTDAF_WT(unsigned char UcSetDat)
+{
+	unsigned char UcSetDat2;
+
+	if (UcCvrCod == 0x93) {
+		RegReadA_LC898122AF(0x0083, &UcSetDat2);
+		RegWriteA_LC898122AF(0x0084, (UcSetDat << 3) & 0xC0);
+		RegWriteA_LC898122AF(0x0083,
+				     (UcSetDat2 & 0x70) | (UcSetDat & 0x07));
+	} else {
+		RegWriteA_LC898122AF(0x0084, UcSetDat << 3);
+	}
+
+	WitTim_LC898122AF(250);
+}
+
+/*
+ * IL GLOBALE CHE AfMidOffAdj LASCIA DIETRO DI SE'.
+ * "39324157 strb"@0xffffff8008746a54 lo scrive a 0xffffff8009c96c90, e nessuna
+ * delle funzioni che abbiamo lo rilegge: resta globale per lo stesso motivo
+ * degli altri tre (una `static` mai letta si porta via le scritture).
+ */
+unsigned char g9c96c90;
+
+/*
+ * stock.map: 0xffffff8008746654 AfMidOffAdj, 1300 byte -- la taratura del
+ * punto medio dell'autofocus.
+ *
+ * Salva cinque registri, ne forza altri, misura due volte due punti, ricava
+ * una pendenza, e rimette tutto com'era.
+ *
+ * ## Le tre cose che il binario ha detto
+ *
+ * LA DIVISIONE E' PER TRENTUNO, e non c'e' nessun 31 nel codice: c'e'
+ * "52810869 mov"@0xffffff8008746838 con movk #0x8421, cioe' il moltiplicatore
+ * magico 0x84210843, seguito da smull, dal ritaglio della parola alta,
+ * dall'addendo e da uno scorrimento di quattro
+ * ("13047e76 asr"@0xffffff8008746854). Il divisore si ricava all'indietro:
+ * 2^36 / (2^32 + 0x84210843 come intero con segno) = 31 esatto. La correzione
+ * di segno arriva piu' tardi, a "0b537ed6 add"@0xffffff80087468a8.
+ *
+ * Trentuno e' anche la distanza fra i due punti misurati -- SetDOFSTDAF(0x00)
+ * e SetDOFSTDAF(0x1F) -- quindi e' una pendenza, non una costante a caso.
+ *
+ * LA SECONDA DIVISIONE INVECE E' UNA `sdiv` VERA
+ * ("1ad60d36 sdiv"@0xffffff8008746958), perche' il divisore e' la pendenza
+ * appena calcolata e non si conosce a compilazione.
+ *
+ * DUE LETTURE NON SERVONO A NIENTE. "97fff86e bl"@0xffffff8008746a24 e la
+ * successiva leggono i registri 0x83 e 0x84 in due slot di pila che nessuno
+ * rilegge piu'. Non sono un GetDOFSTDAF incorporato -- quello ha il bivio su
+ * 0x93 e qui non c'e'. Sono due letture morte, difetto di fabbrica, e si
+ * riproducono (regola 7).
+ *
+ * ## Cosa restituisce
+ *
+ * 0x0802 oppure 0x0002, scelto senza salti da due `csel`
+ * ("1a880129 csel"@0xffffff8008746a44 e "1a89c113 csel"@0xffffff8008746a50):
+ * il primo guarda se la pendenza ha bit sopra 0xE0, il secondo se l'ultima
+ * misura supera la penultima. E lo stesso valore decide, in coda, quale dei
+ * due DOFSTDAF rimettere.
+ */
+unsigned short AfMidOffAdj(void)
+{
+	unsigned char UcRegDat250;
+	unsigned char UcRegDat255;
+	unsigned char UcRegDat25B;
+	unsigned char UcRegDat83;
+	unsigned char UcRegDat84;
+	unsigned char UcDofstd;
+	unsigned char UcDofstd2;
+	unsigned short UsTreg;
+	unsigned long UlRead1529;
+	int SlMeasureAV1;
+	int SlMeasureAV2;
+	int SlMeasureAV3;
+	int SlSlope;
+	unsigned short UsResult;
+
+	RegReadA_LC898122AF(0x0250, &UcRegDat250);
+	RegReadA_LC898122AF(0x0255, &UcRegDat255);
+	RegReadA_LC898122AF(0x025B, &UcRegDat25B);
+	RamRead32A_LC898122AF(0x1529, &UlRead1529);
+
+	UcDofstd = GetDOFSTDAF();
+
+	RamReadA_LC898122AF(0x0380, &UsTreg);
+
+	MesFil(3);
+
+	RegWriteA_LC898122AF(0x0250, 0xA3);
+	RegWriteA_LC898122AF(0x025B, 0x04);
+	RegWriteA_LC898122AF(0x0255, 0x00);
+	RamWrite32A_LC898122AF(0x1529, 0x3F434F78);
+
+	SetTregAf(0x03B8);
+	WitTim_LC898122AF(250);
+
+	SetDOFSTDAF(0x00);
+	WitTim_LC898122AF(250);
+	SlMeasureAV1 = MesMSABS1AV();
+
+	SetDOFSTDAF(0x1F);
+	WitTim_LC898122AF(250);
+	SlMeasureAV2 = MesMSABS1AV();
+
+	SlSlope = (SlMeasureAV2 - SlMeasureAV1) / 31;
+
+	SetTregAf(0x0400);
+	WitTim_LC898122AF(250);
+
+	SetDOFSTDAF(0x00);
+	WitTim_LC898122AF(250);
+	SlMeasureAV1 = MesMSABS1AV();
+
+	SetDOFSTDAF(0x1F);
+	WitTim_LC898122AF(250);
+	SlMeasureAV2 = MesMSABS1AV();
+
+	SlSlope = (SlMeasureAV2 - SlMeasureAV1) / SlSlope;
+
+	SetDOFSTDAF(SlSlope);
+	WitTim_LC898122AF(250);
+	SlMeasureAV3 = MesMSABS1AV();
+
+	UcDofstd2 = GetDOFSTDAF();
+
+	RegReadA_LC898122AF(0x0083, &UcRegDat83);
+	RegReadA_LC898122AF(0x0084, &UcRegDat84);
+
+	/*
+	 * DUE `if` SEPARATI, non un `||`. La fabbrica emette due `csel`
+	 * in catena -- "1a880129 csel"@0xffffff8008746a44 e
+	 * "1a89c113 csel"@0xffffff8008746a50 -- che e' la forma di due
+	 * assegnamenti successivi allo stesso valore. Un `||` da' invece due
+	 * `cset` e una `orr`, cioe' due istruzioni in piu': erano tutti e
+	 * otto i byte che mancavano.
+	 */
+	if (SlSlope & 0xE0)
+		UsResult = 0x0802;
+	else
+		UsResult = 0x0002;
+
+	if (SlMeasureAV3 > SlMeasureAV2)
+		UsResult = 0x0802;
+
+	g9c96c90 = UcDofstd2;
+
+	MesFil(2);
+
+	RegWriteA_LC898122AF(0x0250, UcRegDat250);
+	RegWriteA_LC898122AF(0x0255, UcRegDat255);
+	RegWriteA_LC898122AF(0x025B, UcRegDat25B);
+	RamWrite32A_LC898122AF(0x1529, UlRead1529);
+	RamWriteA_LC898122AF(0x0380, UsTreg);
+
+	if (UsResult == 0x0802)
+		SetDOFSTDAF(UcDofstd);
+	else
+		SetDOFSTDAF(UcDofstd2);
+
+	WitTim_LC898122AF(250);
+
+	return UsResult;
 }

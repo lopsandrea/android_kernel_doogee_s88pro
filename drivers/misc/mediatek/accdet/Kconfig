@@ -120,3 +120,36 @@ config TS3A225E_ACCDET
 	  If you want to use TS3A225E
 	  say Y.
 	  If unsure, say N.
+
+#
+# LE OPZIONI DI FABBRICA CHE MANCAVANO, dichiarate il 2026-08-26.
+#
+# Il .config di fabbrica le ha tutte a =y e il nostro albero non le
+# dichiarava affatto: `olddefconfig` scarta un simbolo che nessun Kconfig
+# definisce, quindi non c'era modo di accenderle.
+#
+# ATTENZIONE, e va detto prima di leggerle come «funzioni aggiunte»:
+# **nessuna di queste guardia protegge codice che esista in questo albero.**
+# Accenderle allinea il .config al kernel di fabbrica e non cambia un byte
+# del binario. Servono a due cose:
+#
+#   1. togliere quindici differenze dal confronto dei config, che e' una
+#      delle tre misure del progetto;
+#   2. dare un posto dove attaccare il codice quando lo si scrivera'.
+#
+# Il posto in cui stanno lo abbiamo scelto noi, per sottosistema: il Kconfig
+# di fabbrica non e' fra i file recuperati, e dedurlo dal binario non si puo'
+# -- un simbolo di Kconfig non lascia traccia nel codice compilato.
+#
+
+config WTK_TYPE_C_ACCDET
+	bool "rilevamento cuffie sul connettore Type-C (nome di fabbrica)"
+	default y
+	help
+	  Il .config di fabbrica ha CONFIG_WTK_TYPE_C_ACCDET=y e nessun file di
+	  questo albero nomina questa guardia.
+
+	  E' il candidato piu' probabile per i 588 byte di differenza di
+	  mt_accdet_probe, che e' lo scarto piu' grosso fra i driver
+	  ricostruiti -- ma finche' il codice non c'e', questo resta un
+	  sospetto e non una spiegazione.

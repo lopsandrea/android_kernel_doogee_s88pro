@@ -4,4 +4,53 @@ config MTK_IMGSENSOR
 	help
 	  CONFIG_MTK_IMGSENSOR
 
+#
+# LE OPZIONI DI FABBRICA CHE MANCAVANO, dichiarate il 2026-08-26.
+#
+# Il .config di fabbrica le ha tutte a =y e il nostro albero non le
+# dichiarava affatto: `olddefconfig` scarta un simbolo che nessun Kconfig
+# definisce, quindi non c'era modo di accenderle.
+#
+# ATTENZIONE, e va detto prima di leggerle come «funzioni aggiunte»:
+# **nessuna di queste guardia protegge codice che esista in questo albero.**
+# Accenderle allinea il .config al kernel di fabbrica e non cambia un byte
+# del binario. Servono a due cose:
+#
+#   1. togliere quindici differenze dal confronto dei config, che e' una
+#      delle tre misure del progetto;
+#   2. dare un posto dove attaccare il codice quando lo si scrivera'.
+#
+# Il posto in cui stanno lo abbiamo scelto noi, per sottosistema: il Kconfig
+# di fabbrica non e' fra i file recuperati, e dedurlo dal binario non si puo'
+# -- un simbolo di Kconfig non lascia traccia nel codice compilato.
+#
+
+config WTK_SUB2_CAMERA_SUPPORT
+	bool "seconda fotocamera secondaria (nome di fabbrica)"
+	default y
+
+config WTK_SUB2_CAMERA_YUV_SUPPORT
+	bool "la seconda secondaria e' YUV (nome di fabbrica)"
+	default y
+
+config WTK_MAIN_CAMERA_AVDD_GPIO
+	bool "AVDD della principale su GPIO (nome di fabbrica)"
+	default y
+
+config WTK_MAIN_CAMERA_DVDD_GPIO
+	bool "DVDD della principale su GPIO (nome di fabbrica)"
+	default y
+
+config WTK_MAIN2_CAMERA_DVDD_GPIO
+	bool "DVDD della seconda principale su GPIO (nome di fabbrica)"
+	default y
+
+config WTK_MAIN3_CAMERA_AVDD_GPIO
+	bool "AVDD della terza principale su GPIO (nome di fabbrica)"
+	default y
+
+config WTK_MAIN3_CAMERA_DVDD_GPIO
+	bool "DVDD della terza principale su GPIO (nome di fabbrica)"
+	default y
+
 source "drivers/misc/mediatek/imgsensor/src/Kconfig"

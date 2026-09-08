@@ -191,6 +191,13 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+/*
+ * Definito qui perche' qui e' scritto, e in .bss finisce a
+ * 0xffffff8009c90244 -- dodici byte prima di gi2c, che e' il primo oggetto
+ * del file successivo nell'ordine di link.
+ */
+enum IMGSENSOR_SENSOR_IDX g9c90244;
+
 enum IMGSENSOR_RETURN imgsensor_hw_power(
 		struct IMGSENSOR_HW *phw,
 		struct IMGSENSOR_SENSOR *psensor,
@@ -214,6 +221,24 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 
 
 	snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+
+	/*
+	 * L'INDICE DEL SENSORE, LASCIATO IN UN GLOBALE. ALPS non ce l'ha: la
+	 * fabbrica aggiunge questa store subito prima della prima
+	 * imgsensor_hw_power_sequence ("b9024515 str"@0xffffff80087045d0), e
+	 * il valore e' proprio sensor_idx -- lo stesso w21 che va in w1 alle
+	 * due chiamate che seguono.
+	 *
+	 * Serve ai driver di sensore YUV, che lo leggono per sapere se il
+	 * telefono sta accendendo LORO: GC0310 fa `if (g9c90244 == 3)` in
+	 * Open e in GetSensorID, cioe' lavora solo quando l'indice e' quello
+	 * suo. Senza questo globale quei due `if` non si possono nemmeno
+	 * scrivere.
+	 *
+	 * Il nome e' l'indirizzo perche' stock.map non nomina i dati.
+	 */
+	g9c90244 = sensor_idx;
+
 	imgsensor_hw_power_sequence(
 			phw,
 			sensor_idx,

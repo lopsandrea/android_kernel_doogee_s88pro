@@ -27,6 +27,239 @@ unsigned short UsCntYof; /* OPTICAL Center Yvalue */
 unsigned char UcPwmMod;  /* PWM MODE */
 unsigned char UcCvrCod;  /* CverCode */
 
+/*
+ * DUE COPPIE DI TABELLE: la seconda e' per l'altro modulo.
+ *
+ * IniFil sceglie con due csel sullo stesso g9c96cbc
+ * ("3972f108 ldrb"@0xffffff800874a0e0): a 0xffffff8008f4c6e8 e
+ * 0xffffff8008f4c708 le tabelle del modulo 2, a 0xffffff8008f4d388 e
+ * 0xffffff8008f4d3a8 le altre.
+ *
+ * LE DUE TABELLE DI REGISTRI SONO IDENTICHE FRA LORO E A QUELLA DI ALPS --
+ * lette dal binario, non supposte. Restano due perche' il csel sceglie fra
+ * due INDIRIZZI: se nel sorgente ce ne fosse una sola non ci sarebbe niente
+ * da scegliere, e il csel non ci sarebbe.
+ *
+ * QUELLE DELLA RAM sono 199 voci piu' il terminatore, contro le 322 di
+ * ALPS. Dentro ci sono 20 indirizzi che ALPS non ha, 11 valori ritarati
+ * rispetto ad ALPS, e fra le due di fabbrica 39 valori diversi.
+ *
+ * IniFil accende WC_RAMACCXY prima del ciclo della RAM e lo spegne dopo. Il
+ * nome del registro dice "accesso a X e Y", e una tabella piu' corta e'
+ * coerente con lo scrivere due assi in un colpo -- ma quella e' una lettura
+ * del nome, non una misura: 37 indirizzi oltre 0x1100 ci sono ancora.
+ */
+const struct STFILREG g8f4c6e8[] = {{0x0111, 0x00},
+				    {0x0113, 0x00},
+				    {0x0114, 0x00},
+				    {0x0172, 0x00},
+				    {0x01E3, 0x00},
+				    {0x01E4, 0x00},
+				    {0xFFFF, 0xFF} };
+
+const struct STFILRAM g8f4c708[] = {
+	{0x1000, 0x3F800000},
+	{0x1001, 0x3F800000},
+	{0x1002, 0x00000000},
+	{0x1003, 0x3F800000},
+	{0x1004, 0x38A8A540},
+	{0x1005, 0x38A8A540},
+	{0x1006, 0x3F7FF580},
+	{0x1007, 0x3F800000},
+	{0x1008, 0xBF800000},
+	{0x1009, 0x00000000},
+	{0x100A, 0x3F800000},
+	{0x100B, 0x3F800000},
+	{0x100C, 0x3F800000},
+	{0x100E, 0x3F800000},
+	{0x1010, 0x3DA2AD80},
+	{0x1011, 0x00000000},
+	{0x1012, 0x3F7FFD00},
+	{0x1013, 0x3FC83380},
+	{0x1014, 0xBFC58900},
+	{0x1015, 0x3F75E8C0},
+	{0x1016, 0x3F06BD80},
+	{0x1017, 0xBF06BA00},
+	{0x1018, 0x3F7FFC80},
+	{0x1019, 0x3F800000},
+	{0x101A, 0x00000000},
+	{0x101B, 0x00000000},
+	{0x101C, 0x3F800000},
+	{0x101D, 0x00000000},
+	{0x101E, 0x00000000},
+	{0x1020, 0x3F800000},
+	{0x1021, 0x3F800000},
+	{0x1022, 0x3F800000},
+	{0x1023, 0x3F800000},
+	{0x1024, 0x00000000},
+	{0x1025, 0x00000000},
+	{0x1026, 0x00000000},
+	{0x1027, 0x00000000},
+	{0x1030, 0x3F800000},
+	{0x1031, 0x00000000},
+	{0x1032, 0x00000000},
+	{0x1033, 0x3F800000},
+	{0x1034, 0x00000000},
+	{0x1035, 0x00000000},
+	{0x1036, 0x3F800000},
+	{0x1037, 0x00000000},
+	{0x1038, 0x00000000},
+	{0x1039, 0x3F800000},
+	{0x103A, 0x00000000},
+	{0x103B, 0x00000000},
+	{0x103C, 0x3F800000},
+	{0x103D, 0x00000000},
+	{0x103E, 0x00000000},
+	{0x1043, 0x39D2BD40},
+	{0x1044, 0x39D2BD40},
+	{0x1045, 0x3F7FCB40},
+	{0x1046, 0x38A8A540},
+	{0x1047, 0x38A8A540},
+	{0x1048, 0x3F7FF580},
+	{0x1049, 0x390C87C0},
+	{0x104A, 0x390C87C0},
+	{0x104B, 0x3F7FEE80},
+	{0x104C, 0x398C8300},
+	{0x104D, 0x398C8300},
+	{0x104E, 0x3F7FDCC0},
+	{0x1053, 0x3F800000},
+	{0x1054, 0x00000000},
+	{0x1055, 0x00000000},
+	{0x1056, 0x3F800000},
+	{0x1057, 0x00000000},
+	{0x1058, 0x00000000},
+	{0x1059, 0x3F800000},
+	{0x105A, 0x00000000},
+	{0x105B, 0x00000000},
+	{0x105C, 0x3F800000},
+	{0x105D, 0x00000000},
+	{0x105E, 0x00000000},
+	{0x1063, 0x3F800000},
+	{0x1066, 0x3F800000},
+	{0x1069, 0x3F800000},
+	{0x106C, 0x3F800000},
+	{0x1073, 0x00000000},
+	{0x1076, 0x3F800000},
+	{0x1079, 0x3F800000},
+	{0x107C, 0x3F800000},
+	{0x1083, 0x38D1B700},
+	{0x1086, 0x00000000},
+	{0x1089, 0x00000000},
+	{0x108C, 0x00000000},
+	{0x1093, 0x00000000},
+	{0x1098, 0x3F800000},
+	{0x1099, 0x3F800000},
+	{0x109A, 0x3F800000},
+	{0x10A1, 0x3C58B440},
+	{0x10A2, 0x3C58B440},
+	{0x10A3, 0x3F793A40},
+	{0x10A4, 0x3C58B440},
+	{0x10A5, 0x3C58B440},
+	{0x10A6, 0x3F793A40},
+	{0x10A7, 0x3F800000},
+	{0x10A8, 0x00000000},
+	{0x10A9, 0x00000000},
+	{0x10AA, 0x00000000},
+	{0x10AB, 0x3BDA2580},
+	{0x10AC, 0x3BDA2580},
+	{0x10AD, 0x3F7C9780},
+	{0x10B0, 0x3E0DE280},
+	{0x10B1, 0x3E0DE280},
+	{0x10B2, 0x3F390EC0},
+	{0x10B3, 0x3F800000},
+	{0x10B4, 0x00000000},
+	{0x10B5, 0x00000000},
+	{0x10B6, 0x3F353C00},
+	{0x10B8, 0x3F800000},
+	{0x10B9, 0x00000000},
+	{0x10C0, 0x3FE304C0},
+	{0x10C1, 0xBFDF6540},
+	{0x10C2, 0x3F437BC0},
+	{0x10C3, 0x3F7F7D40},
+	{0x10C4, 0xBF7C6D00},
+	{0x10C5, 0x3F7BEA40},
+	{0x10C6, 0x3D506F00},
+	{0x10C7, 0x3D506F00},
+	{0x10C8, 0x3F65F240},
+	{0x10C9, 0x3BAED500},
+	{0x10CA, 0x3BAED500},
+	{0x10CB, 0x3F7FEE80},
+	{0x10CC, 0x3E0FC5C0},
+	{0x10CD, 0xBE0ED000},
+	{0x10CE, 0x3F7FC280},
+	{0x10D0, 0x3FFF64C0},
+	{0x10D1, 0x00000000},
+	{0x10D2, 0x3F800000},
+	{0x10D3, 0x3F800000},
+	{0x10D4, 0x3F800000},
+	{0x10D5, 0x3F800000},
+	{0x10D7, 0x3F8EF7C0},
+	{0x10D8, 0x3F8EF7C0},
+	{0x10D9, 0x3F5FD780},
+	{0x10DA, 0x3F7B0A00},
+	{0x10DB, 0xBFE0EDC0},
+	{0x10DC, 0x3FE0EDC0},
+	{0x10DD, 0x3F62FDC0},
+	{0x10DE, 0xBF5E07C0},
+	{0x10E0, 0x3F7C5880},
+	{0x10E1, 0xBFEFD200},
+	{0x10E2, 0x3FEFD200},
+	{0x10E3, 0x3F6AA180},
+	{0x10E4, 0xBF66FA40},
+	{0x10E5, 0x3F800000},
+	{0x10E8, 0x3F800000},
+	{0x10E9, 0x00000000},
+	{0x10EA, 0x00000000},
+	{0x10EB, 0x00000000},
+	{0x10F0, 0x3F800000},
+	{0x10F1, 0x00000000},
+	{0x10F2, 0x00000000},
+	{0x10F3, 0x00000000},
+	{0x10F4, 0x00000000},
+	{0x10F5, 0x3F800000},
+	{0x10F6, 0x00000000},
+	{0x10F7, 0x00000000},
+	{0x10F8, 0x00000000},
+	{0x10F9, 0x00000000},
+	{0x1200, 0x00000000},
+	{0x1201, 0x3F800000},
+	{0x1202, 0x3F800000},
+	{0x1203, 0x3F800000},
+	{0x1204, 0x3F800000},
+	{0x1205, 0x00000000},
+	{0x1206, 0x00000000},
+	{0x1207, 0x3F800000},
+	{0x1208, 0x00000000},
+	{0x1209, 0x00000000},
+	{0x120A, 0x3F800000},
+	{0x120B, 0x00000000},
+	{0x120C, 0x00000000},
+	{0x120D, 0x3F800000},
+	{0x120E, 0x00000000},
+	{0x120F, 0x00000000},
+	{0x1210, 0x3F800000},
+	{0x1211, 0x00000000},
+	{0x1212, 0x00000000},
+	{0x1213, 0x3F800000},
+	{0x1214, 0x3F800000},
+	{0x1215, 0x3F800000},
+	{0x1216, 0x3F800000},
+	{0x1217, 0x3F800000},
+	{0x1218, 0x00000000},
+	{0x1219, 0x00000000},
+	{0x121A, 0x00000000},
+	{0x121B, 0x00000000},
+	{0x121C, 0x00000000},
+	{0x121D, 0x3F800000},
+	{0x121E, 0x3F800000},
+	{0x121F, 0x3F800000},
+	{0x1235, 0x3F800000},
+	{0x1236, 0x3F800000},
+	{0x1237, 0x3F800000},
+	{0x1238, 0x3F800000},
+	{0xFFFF, 0xFFFFFFFF}
+};
+
 const struct STFILREG CsFilReg[] = {{0x0111, 0x00}, /*00,0111 */
 				   {0x0113, 0x00}, /*00,0113 */
 				   {0x0114, 0x00}, /*00,0114 */
@@ -37,409 +270,207 @@ const struct STFILREG CsFilReg[] = {{0x0111, 0x00}, /*00,0111 */
 
 /* 32bit */
 const struct STFILRAM CsFilRam[] = {
-	{0x1000, 0x3F800000}, /*3F800000,1000,0dB,invert=0 */
-	{0x1001, 0x3F800000}, /*3F800000,1001,0dB,invert=0 */
-	{0x1002, 0x00000000}, /*00000000,1002,Cutoff,invert=0 */
-	{0x1003, 0x3F800000}, /*3F800000,1003,0dB,invert=0 */
-	{0x1004, 0x3828A700}, /*3828A700,1004,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1005, 0x3828A700}, /*3828A700,1005,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1006, 0x3F7FFAC0}, /*3F7FFAC0,1006,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1007, 0x3F800000}, /*3F800000,1007,0dB,invert=0 */
-	{0x1008, 0xBF800000}, /*BF800000,1008,0dB,invert=1 */
-	{0x1009, 0x3F800000}, /*3F800000,1009,0dB,invert=0 */
-	{0x100A, 0x3F800000}, /*3F800000,100A,0dB,invert=0 */
-	{0x100B, 0x3F800000}, /*3F800000,100B,0dB,invert=0 */
-	{0x100C, 0x3F800000}, /*3F800000,100C,0dB,invert=0 */
-	{0x100E, 0x3F800000}, /*3F800000,100E,0dB,invert=0 */
-	{0x1010, 0x3DA2AD80}, /*3DA2AD80,1010 */
-	{0x1011, 0x00000000}, /*00000000,1011,Free,fs/1,invert=0 */
-	{0x1012, 0x3F7FFE00}, /*3F7FFE00,1012,Free,fs/1,invert=0 */
-	{0x1013,
-	0x3FB26DC0}, /*3FB26DC0,1013,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1014,
-	0xBFB00DC0}, /*BFB00DC0,1014,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1015,
-	0x3F75E8C0}, /*3F75E8C0,1015,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1016,
-	0x3F1B2780}, /*3F1B2780,1016,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1017,
-	0xBF1B2400}, /*BF1B2400,1017,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1018,
-	0x3F7FFC80}, /*3F7FFC80,1018,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1019, 0x3F800000}, /*3F800000,1019,Through,0dB,fs/1,invert=0 */
-	{0x101A, 0x00000000}, /*00000000,101A,Through,0dB,fs/1,invert=0 */
-	{0x101B, 0x00000000}, /*00000000,101B,Through,0dB,fs/1,invert=0 */
-	{0x101C, 0x3F800000}, /*3F800000,101C,0dB,invert=0 */
-	{0x101D, 0x00000000}, /*00000000,101D,Cutoff,invert=0 */
-	{0x101E, 0x3F800000}, /*3F800000,101E,0dB,invert=0 */
-	{0x1020, 0x3F800000}, /*3F800000,1020,0dB,invert=0 */
-	{0x1021, 0x3F800000}, /*3F800000,1021,0dB,invert=0 */
-	{0x1022, 0x3F800000}, /*3F800000,1022,0dB,invert=0 */
-	{0x1023, 0x3F800000}, /*3F800000,1023,Through,0dB,fs/1,invert=0 */
-	{0x1024, 0x00000000}, /*00000000,1024,Through,0dB,fs/1,invert=0 */
-	{0x1025, 0x00000000}, /*00000000,1025,Through,0dB,fs/1,invert=0 */
-	{0x1026, 0x00000000}, /*00000000,1026,Through,0dB,fs/1,invert=0 */
-	{0x1027, 0x00000000}, /*00000000,1027,Through,0dB,fs/1,invert=0 */
-	{0x1030, 0x3F800000}, /*3F800000,1030,Through,0dB,fs/1,invert=0 */
-	{0x1031, 0x00000000}, /*00000000,1031,Through,0dB,fs/1,invert=0 */
-	{0x1032, 0x00000000}, /*00000000,1032,Through,0dB,fs/1,invert=0 */
-	{0x1033, 0x3F800000}, /*3F800000,1033,Through,0dB,fs/1,invert=0 */
-	{0x1034, 0x00000000}, /*00000000,1034,Through,0dB,fs/1,invert=0 */
-	{0x1035, 0x00000000}, /*00000000,1035,Through,0dB,fs/1,invert=0 */
-	{0x1036, 0x3F800000}, /*3F800000,1036,Through,0dB,fs/1,invert=0 */
-	{0x1037, 0x00000000}, /*00000000,1037,Through,0dB,fs/1,invert=0 */
-	{0x1038, 0x00000000}, /*00000000,1038,Through,0dB,fs/1,invert=0 */
-	{0x1039, 0x3F800000}, /*3F800000,1039,Through,0dB,fs/1,invert=0 */
-	{0x103A, 0x00000000}, /*00000000,103A,Through,0dB,fs/1,invert=0 */
-	{0x103B, 0x00000000}, /*00000000,103B,Through,0dB,fs/1,invert=0 */
-	{0x103C, 0x3F800000}, /*3F800000,103C,Through,0dB,fs/1,invert=0 */
-	{0x103D, 0x00000000}, /*00000000,103D,Through,0dB,fs/1,invert=0 */
-	{0x103E, 0x00000000}, /*00000000,103E,Through,0dB,fs/1,invert=0 */
-	{0x1043, 0x39D2BD40}, /*39D2BD40,1043,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1044, 0x39D2BD40}, /*39D2BD40,1044,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1045, 0x3F7FCB40}, /*3F7FCB40,1045,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1046, 0x388C8A40}, /*388C8A40,1046,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1047, 0x388C8A40}, /*388C8A40,1047,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1048, 0x3F7FF740}, /*3F7FF740,1048,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1049, 0x390C87C0}, /*390C87C0,1049,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x104A, 0x390C87C0}, /*390C87C0,104A,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x104B, 0x3F7FEE80}, /*3F7FEE80,104B,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x104C, 0x398C8300}, /*398C8300,104C,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x104D, 0x398C8300}, /*398C8300,104D,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x104E, 0x3F7FDCC0}, /*3F7FDCC0,104E,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x1053, 0x3F800000}, /*3F800000,1053,Through,0dB,fs/1,invert=0 */
-	{0x1054, 0x00000000}, /*00000000,1054,Through,0dB,fs/1,invert=0 */
-	{0x1055, 0x00000000}, /*00000000,1055,Through,0dB,fs/1,invert=0 */
-	{0x1056, 0x3F800000}, /*3F800000,1056,Through,0dB,fs/1,invert=0 */
-	{0x1057, 0x00000000}, /*00000000,1057,Through,0dB,fs/1,invert=0 */
-	{0x1058, 0x00000000}, /*00000000,1058,Through,0dB,fs/1,invert=0 */
-	{0x1059, 0x3F800000}, /*3F800000,1059,Through,0dB,fs/1,invert=0 */
-	{0x105A, 0x00000000}, /*00000000,105A,Through,0dB,fs/1,invert=0 */
-	{0x105B, 0x00000000}, /*00000000,105B,Through,0dB,fs/1,invert=0 */
-	{0x105C, 0x3F800000}, /*3F800000,105C,Through,0dB,fs/1,invert=0 */
-	{0x105D, 0x00000000}, /*00000000,105D,Through,0dB,fs/1,invert=0 */
-	{0x105E, 0x00000000}, /*00000000,105E,Through,0dB,fs/1,invert=0 */
-	{0x1063, 0x3F800000}, /*3F800000,1063,0dB,invert=0 */
-	{0x1066, 0x3F800000}, /*3F800000,1066,0dB,invert=0 */
-	{0x1069, 0x3F800000}, /*3F800000,1069,0dB,invert=0 */
-	{0x106C, 0x3F800000}, /*3F800000,106C,0dB,invert=0 */
-	{0x1073, 0x00000000}, /*00000000,1073,Cutoff,invert=0 */
-	{0x1076, 0x3F800000}, /*3F800000,1076,0dB,invert=0 */
-	{0x1079, 0x3F800000}, /*3F800000,1079,0dB,invert=0 */
-	{0x107C, 0x3F800000}, /*3F800000,107C,0dB,invert=0 */
-	{0x1083, 0x38D1B700}, /*38D1B700,1083,-80dB,invert=0 */
-	{0x1086, 0x00000000}, /*00000000,1086,Cutoff,invert=0 */
-	{0x1089, 0x00000000}, /*00000000,1089,Cutoff,invert=0 */
-	{0x108C, 0x00000000}, /*00000000,108C,Cutoff,invert=0 */
-	{0x1093, 0x00000000}, /*00000000,1093,Cutoff,invert=0 */
-	{0x1098, 0x3F800000}, /*3F800000,1098,0dB,invert=0 */
-	{0x1099, 0x3F800000}, /*3F800000,1099,0dB,invert=0 */
-	{0x109A, 0x3F800000}, /*3F800000,109A,0dB,invert=0 */
-	{0x10A1, 0x3C58B440}, /*3C58B440,10A1,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A2, 0x3C58B440}, /*3C58B440,10A2,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A3, 0x3F793A40}, /*3F793A40,10A3,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A4, 0x3C58B440}, /*3C58B440,10A4,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A5, 0x3C58B440}, /*3C58B440,10A5,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A6, 0x3F793A40}, /*3F793A40,10A6,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x10A7, 0x3F800000}, /*3F800000,10A7,Through,0dB,fs/1,invert=0 */
-	{0x10A8, 0x00000000}, /*00000000,10A8,Through,0dB,fs/1,invert=0 */
-	{0x10A9, 0x00000000}, /*00000000,10A9,Through,0dB,fs/1,invert=0 */
-	{0x10AA, 0x00000000}, /*00000000,10AA,Cutoff,invert=0 */
-	{0x10AB, 0x3BDA2580}, /*3BDA2580,10AB,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x10AC, 0x3BDA2580}, /*3BDA2580,10AC,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x10AD, 0x3F7C9780}, /*3F7C9780,10AD,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x10B0, 0x3DD17800}, /*3DD17800,10B0,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x10B1, 0x3DD17800}, /*3DD17800,10B1,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x10B2, 0x3F4BA200}, /*3F4BA200,10B2,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x10B3, 0x3F800000}, /*3F800000,10B3,0dB,invert=0 */
-	{0x10B4, 0x00000000}, /*00000000,10B4,Cutoff,invert=0 */
-	{0x10B5, 0x00000000}, /*00000000,10B5,Cutoff,invert=0 */
-	{0x10B6, 0x3F353C00}, /*3F353C00,10B6,-3dB,invert=0 */
-	{0x10B8, 0x3F800000}, /*3F800000,10B8,0dB,invert=0 */
-	{0x10B9, 0x00000000}, /*00000000,10B9,Cutoff,invert=0 */
-	{0x10C0,
-	0x3F915680}, /*3F915680,10C0,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x10C1,
-	0xBF8E4100}, /*BF8E4100,10C1,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x10C2,
-	0x3F48E240}, /*3F48E240,10C2,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x10C3,
-	0x3FA04B40}, /*3FA04B40,10C3,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x10C4,
-	0xBF9C0DC0}, /*BF9C0DC0,10C4,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x10C5,
-	0x3F7691C0}, /*3F7691C0,10C5,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x10C6, 0x3D506F00}, /*3D506F00,10C6,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x10C7, 0x3D506F00}, /*3D506F00,10C7,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x10C8, 0x3F65F240}, /*3F65F240,10C8,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x10C9, 0x3C208400}, /*3C208400,10C9,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x10CA, 0x3C208400}, /*3C208400,10CA,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x10CB, 0x3F7FE940}, /*3F7FE940,10CB,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x10CC,
-	0x3E196280}, /*3E196280,10CC,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x10CD,
-	0xBE17BF80}, /*BE17BF80,10CD,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x10CE,
-	0x3F7EF900}, /*3F7EF900,10CE,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x10D0, 0x3FFF64C0}, /*3FFF64C0,10D0,6dB,invert=0 */
-	{0x10D1, 0x00000000}, /*00000000,10D1,Cutoff,invert=0 */
-	{0x10D2, 0x3F800000}, /*3F800000,10D2,0dB,invert=0 */
-	{0x10D3, 0x3F800000}, /*3F800000,10D3,0dB,invert=0 */
-	{0x10D4, 0x3F800000}, /*3F800000,10D4,0dB,invert=0 */
-	{0x10D5, 0x3F800000}, /*3F800000,10D5,0dB,invert=0 */
-	{0x10D7, 0x41618840}, /*41618840,10D7,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x10D8, 0x41618840}, /*41618840,10D8,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x10D9, 0x3DDE3840}, /*3DDE3840,10D9,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x10DA,
-	0x3F672280}, /*3F672280,10DA,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x10DB,
-	0xBFD3E1C0}, /*BFD3E1C0,10DB,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x10DC,
-	0x3FD3E1C0}, /*3FD3E1C0,10DC,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x10DD,
-	0x3F5022C0}, /*3F5022C0,10DD,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x10DE,
-	0xBF374540}, /*BF374540,10DE,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x10E0, 0x3F800000}, /*3F800000,10E0,Through,0dB,fs/1,invert=0 */
-	{0x10E1, 0x00000000}, /*00000000,10E1,Through,0dB,fs/1,invert=0 */
-	{0x10E2, 0x00000000}, /*00000000,10E2,Through,0dB,fs/1,invert=0 */
-	{0x10E3, 0x00000000}, /*00000000,10E3,Through,0dB,fs/1,invert=0 */
-	{0x10E4, 0x00000000}, /*00000000,10E4,Through,0dB,fs/1,invert=0 */
-	{0x10E5, 0x3F800000}, /*3F800000,10E5,0dB,invert=0 */
-	{0x10E8, 0x3F800000}, /*3F800000,10E8,0dB,invert=0 */
-	{0x10E9, 0x00000000}, /*00000000,10E9,Cutoff,invert=0 */
-	{0x10EA, 0x00000000}, /*00000000,10EA,Cutoff,invert=0 */
-	{0x10EB, 0x00000000}, /*00000000,10EB,Cutoff,invert=0 */
-	{0x10F0, 0x3F800000}, /*3F800000,10F0,Through,0dB,fs/1,invert=0 */
-	{0x10F1, 0x00000000}, /*00000000,10F1,Through,0dB,fs/1,invert=0 */
-	{0x10F2, 0x00000000}, /*00000000,10F2,Through,0dB,fs/1,invert=0 */
-	{0x10F3, 0x00000000}, /*00000000,10F3,Through,0dB,fs/1,invert=0 */
-	{0x10F4, 0x00000000}, /*00000000,10F4,Through,0dB,fs/1,invert=0 */
-	{0x10F5, 0x3F800000}, /*3F800000,10F5,Through,0dB,fs/1,invert=0 */
-	{0x10F6, 0x00000000}, /*00000000,10F6,Through,0dB,fs/1,invert=0 */
-	{0x10F7, 0x00000000}, /*00000000,10F7,Through,0dB,fs/1,invert=0 */
-	{0x10F8, 0x00000000}, /*00000000,10F8,Through,0dB,fs/1,invert=0 */
-	{0x10F9, 0x00000000}, /*00000000,10F9,Through,0dB,fs/1,invert=0 */
-	{0x1100, 0x3F800000}, /*3F800000,1100,0dB,invert=0 */
-	{0x1101, 0x3F800000}, /*3F800000,1101,0dB,invert=0 */
-	{0x1102, 0x00000000}, /*00000000,1102,Cutoff,invert=0 */
-	{0x1103, 0x3F800000}, /*3F800000,1103,0dB,invert=0 */
-	{0x1104, 0x3828A700}, /*3828A700,1104,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1105, 0x3828A700}, /*3828A700,1105,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1106, 0x3F7FFAC0}, /*3F7FFAC0,1106,LPF,0.3Hz,0dB,fs/1,invert=0 */
-	{0x1107, 0x3F800000}, /*3F800000,1107,0dB,invert=0 */
-	{0x1108, 0xBF800000}, /*BF800000,1108,0dB,invert=1 */
-	{0x1109, 0x3F800000}, /*3F800000,1109,0dB,invert=0 */
-	{0x110A, 0x3F800000}, /*3F800000,110A,0dB,invert=0 */
-	{0x110B, 0x3F800000}, /*3F800000,110B,0dB,invert=0 */
-	{0x110C, 0x3F800000}, /*3F800000,110C,0dB,invert=0 */
-	{0x110E, 0x3F800000}, /*3F800000,110E,0dB,invert=0 */
-	{0x1110, 0x3DA2AD80}, /*3DA2AD80,1110 */
-	{0x1111, 0x00000000}, /*00000000,1111,Free,fs/1,invert=0 */
-	{0x1112, 0x3F7FFE00}, /*3F7FFE00,1112,Free,fs/1,invert=0 */
-	{0x1113,
-	0x3FB26DC0}, /*3FB26DC0,1113,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1114,
-	0xBFB00DC0}, /*BFB00DC0,1114,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1115,
-	0x3F75E8C0}, /*3F75E8C0,1115,HBF,50Hz,150Hz,3dB,fs/1,invert=0 */
-	{0x1116,
-	0x3F1B2780}, /*3F1B2780,1116,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1117,
-	0xBF1B2400}, /*BF1B2400,1117,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1118,
-	0x3F7FFC80}, /*3F7FFC80,1118,LBF,0.2Hz,0.33Hz,0dB,fs/1,invert=0 */
-	{0x1119, 0x3F800000}, /*3F800000,1119,Through,0dB,fs/1,invert=0 */
-	{0x111A, 0x00000000}, /*00000000,111A,Through,0dB,fs/1,invert=0 */
-	{0x111B, 0x00000000}, /*00000000,111B,Through,0dB,fs/1,invert=0 */
-	{0x111C, 0x3F800000}, /*3F800000,111C,0dB,invert=0 */
-	{0x111D, 0x00000000}, /*00000000,111D,Cutoff,invert=0 */
-	{0x111E, 0x3F800000}, /*3F800000,111E,0dB,invert=0 */
-	{0x1120, 0x3F800000}, /*3F800000,1120,0dB,invert=0 */
-	{0x1121, 0x3F800000}, /*3F800000,1121,0dB,invert=0 */
-	{0x1122, 0x3F800000}, /*3F800000,1122,0dB,invert=0 */
-	{0x1123, 0x3F800000}, /*3F800000,1123,Through,0dB,fs/1,invert=0 */
-	{0x1124, 0x00000000}, /*00000000,1124,Through,0dB,fs/1,invert=0 */
-	{0x1125, 0x00000000}, /*00000000,1125,Through,0dB,fs/1,invert=0 */
-	{0x1126, 0x00000000}, /*00000000,1126,Through,0dB,fs/1,invert=0 */
-	{0x1127, 0x00000000}, /*00000000,1127,Through,0dB,fs/1,invert=0 */
-	{0x1130, 0x3F800000}, /*3F800000,1130,Through,0dB,fs/1,invert=0 */
-	{0x1131, 0x00000000}, /*00000000,1131,Through,0dB,fs/1,invert=0 */
-	{0x1132, 0x00000000}, /*00000000,1132,Through,0dB,fs/1,invert=0 */
-	{0x1133, 0x3F800000}, /*3F800000,1133,Through,0dB,fs/1,invert=0 */
-	{0x1134, 0x00000000}, /*00000000,1134,Through,0dB,fs/1,invert=0 */
-	{0x1135, 0x00000000}, /*00000000,1135,Through,0dB,fs/1,invert=0 */
-	{0x1136, 0x3F800000}, /*3F800000,1136,Through,0dB,fs/1,invert=0 */
-	{0x1137, 0x00000000}, /*00000000,1137,Through,0dB,fs/1,invert=0 */
-	{0x1138, 0x00000000}, /*00000000,1138,Through,0dB,fs/1,invert=0 */
-	{0x1139, 0x3F800000}, /*3F800000,1139,Through,0dB,fs/1,invert=0 */
-	{0x113A, 0x00000000}, /*00000000,113A,Through,0dB,fs/1,invert=0 */
-	{0x113B, 0x00000000}, /*00000000,113B,Through,0dB,fs/1,invert=0 */
-	{0x113C, 0x3F800000}, /*3F800000,113C,Through,0dB,fs/1,invert=0 */
-	{0x113D, 0x00000000}, /*00000000,113D,Through,0dB,fs/1,invert=0 */
-	{0x113E, 0x00000000}, /*00000000,113E,Through,0dB,fs/1,invert=0 */
-	{0x1143, 0x39D2BD40}, /*39D2BD40,1143,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1144, 0x39D2BD40}, /*39D2BD40,1144,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1145, 0x3F7FCB40}, /*3F7FCB40,1145,LPF,3Hz,0dB,fs/1,invert=0 */
-	{0x1146, 0x388C8A40}, /*388C8A40,1146,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1147, 0x388C8A40}, /*388C8A40,1147,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1148, 0x3F7FF740}, /*3F7FF740,1148,LPF,0.5Hz,0dB,fs/1,invert=0 */
-	{0x1149, 0x390C87C0}, /*390C87C0,1149,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x114A, 0x390C87C0}, /*390C87C0,114A,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x114B, 0x3F7FEE80}, /*3F7FEE80,114B,LPF,1Hz,0dB,fs/1,invert=0 */
-	{0x114C, 0x398C8300}, /*398C8300,114C,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x114D, 0x398C8300}, /*398C8300,114D,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x114E, 0x3F7FDCC0}, /*3F7FDCC0,114E,LPF,2Hz,0dB,fs/1,invert=0 */
-	{0x1153, 0x3F800000}, /*3F800000,1153,Through,0dB,fs/1,invert=0 */
-	{0x1154, 0x00000000}, /*00000000,1154,Through,0dB,fs/1,invert=0 */
-	{0x1155, 0x00000000}, /*00000000,1155,Through,0dB,fs/1,invert=0 */
-	{0x1156, 0x3F800000}, /*3F800000,1156,Through,0dB,fs/1,invert=0 */
-	{0x1157, 0x00000000}, /*00000000,1157,Through,0dB,fs/1,invert=0 */
-	{0x1158, 0x00000000}, /*00000000,1158,Through,0dB,fs/1,invert=0 */
-	{0x1159, 0x3F800000}, /*3F800000,1159,Through,0dB,fs/1,invert=0 */
-	{0x115A, 0x00000000}, /*00000000,115A,Through,0dB,fs/1,invert=0 */
-	{0x115B, 0x00000000}, /*00000000,115B,Through,0dB,fs/1,invert=0 */
-	{0x115C, 0x3F800000}, /*3F800000,115C,Through,0dB,fs/1,invert=0 */
-	{0x115D, 0x00000000}, /*00000000,115D,Through,0dB,fs/1,invert=0 */
-	{0x115E, 0x00000000}, /*00000000,115E,Through,0dB,fs/1,invert=0 */
-	{0x1163, 0x3F800000}, /*3F800000,1163,0dB,invert=0 */
-	{0x1166, 0x3F800000}, /*3F800000,1166,0dB,invert=0 */
-	{0x1169, 0x3F800000}, /*3F800000,1169,0dB,invert=0 */
-	{0x116C, 0x3F800000}, /*3F800000,116C,0dB,invert=0 */
-	{0x1173, 0x00000000}, /*00000000,1173,Cutoff,invert=0 */
-	{0x1176, 0x3F800000}, /*3F800000,1176,0dB,invert=0 */
-	{0x1179, 0x3F800000}, /*3F800000,1179,0dB,invert=0 */
-	{0x117C, 0x3F800000}, /*3F800000,117C,0dB,invert=0 */
-	{0x1183, 0x38D1B700}, /*38D1B700,1183,-80dB,invert=0 */
-	{0x1186, 0x00000000}, /*00000000,1186,Cutoff,invert=0 */
-	{0x1189, 0x00000000}, /*00000000,1189,Cutoff,invert=0 */
-	{0x118C, 0x00000000}, /*00000000,118C,Cutoff,invert=0 */
-	{0x1193, 0x00000000}, /*00000000,1193,Cutoff,invert=0 */
-	{0x1198, 0x3F800000}, /*3F800000,1198,0dB,invert=0 */
-	{0x1199, 0x3F800000}, /*3F800000,1199,0dB,invert=0 */
-	{0x119A, 0x3F800000}, /*3F800000,119A,0dB,invert=0 */
-	{0x11A1, 0x3C58B440}, /*3C58B440,11A1,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A2, 0x3C58B440}, /*3C58B440,11A2,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A3, 0x3F793A40}, /*3F793A40,11A3,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A4, 0x3C58B440}, /*3C58B440,11A4,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A5, 0x3C58B440}, /*3C58B440,11A5,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A6, 0x3F793A40}, /*3F793A40,11A6,LPF,100Hz,0dB,fs/1,invert=0 */
-	{0x11A7, 0x3F800000}, /*3F800000,11A7,Through,0dB,fs/1,invert=0 */
-	{0x11A8, 0x00000000}, /*00000000,11A8,Through,0dB,fs/1,invert=0 */
-	{0x11A9, 0x00000000}, /*00000000,11A9,Through,0dB,fs/1,invert=0 */
-	{0x11AA, 0x00000000}, /*00000000,11AA,Cutoff,invert=0 */
-	{0x11AB, 0x3BDA2580}, /*3BDA2580,11AB,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x11AC, 0x3BDA2580}, /*3BDA2580,11AC,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x11AD, 0x3F7C9780}, /*3F7C9780,11AD,LPF,50Hz,0dB,fs/1,invert=0 */
-	{0x11B0, 0x3DD17800}, /*3DD17800,11B0,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x11B1, 0x3DD17800}, /*3DD17800,11B1,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x11B2, 0x3F4BA200}, /*3F4BA200,11B2,LPF,850Hz,0dB,fs/1,invert=0 */
-	{0x11B3, 0x3F800000}, /*3F800000,11B3,0dB,invert=0 */
-	{0x11B4, 0x00000000}, /*00000000,11B4,Cutoff,invert=0 */
-	{0x11B5, 0x00000000}, /*00000000,11B5,Cutoff,invert=0 */
-	{0x11B6, 0x3F353C00}, /*3F353C00,11B6,-3dB,invert=0 */
-	{0x11B8, 0x3F800000}, /*3F800000,11B8,0dB,invert=0 */
-	{0x11B9, 0x00000000}, /*00000000,11B9,Cutoff,invert=0 */
-	{0x11C0,
-	0x3F915680}, /*3F915680,11C0,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x11C1,
-	0xBF8E4100}, /*BF8E4100,11C1,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x11C2,
-	0x3F48E240}, /*3F48E240,11C2,HBF,80Hz,900Hz,2dB,fs/1,invert=0 */
-	{0x11C3,
-	0x3FA04B40}, /*3FA04B40,11C3,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x11C4,
-	0xBF9C0DC0}, /*BF9C0DC0,11C4,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x11C5,
-	0x3F7691C0}, /*3F7691C0,11C5,HBF,100Hz,140Hz,2dB,fs/1,invert=0 */
-	{0x11C6, 0x3D506F00}, /*3D506F00,11C6,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x11C7, 0x3D506F00}, /*3D506F00,11C7,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x11C8, 0x3F65F240}, /*3F65F240,11C8,LPF,400Hz,0dB,fs/1,invert=0 */
-	{0x11C9, 0x3C208400}, /*3C208400,11C9,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x11CA, 0x3C208400}, /*3C208400,11CA,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x11CB, 0x3F7FE940}, /*3F7FE940,11CB,LPF,1.3Hz,35dB,fs/1,invert=0 */
-	{0x11CC,
-	0x3E196280}, /*3E196280,11CC,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x11CD,
-	0xBE17BF80}, /*BE17BF80,11CD,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x11CE,
-	0x3F7EF900}, /*3F7EF900,11CE,LBF,15Hz,40Hz,-8dB,fs/1,invert=0 */
-	{0x11D0, 0x3FFF64C0}, /*3FFF64C0,11D0,6dB,invert=0 */
-	{0x11D1, 0x00000000}, /*00000000,11D1,Cutoff,invert=0 */
-	{0x11D2, 0x3F800000}, /*3F800000,11D2,0dB,invert=0 */
-	{0x11D3, 0x3F800000}, /*3F800000,11D3,0dB,invert=0 */
-	{0x11D4, 0x3F800000}, /*3F800000,11D4,0dB,invert=0 */
-	{0x11D5, 0x3F800000}, /*3F800000,11D5,0dB,invert=0 */
-	{0x11D7, 0x41618840}, /*41618840,11D7,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x11D8, 0x41618840}, /*41618840,11D8,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x11D9, 0x3DDE3840}, /*3DDE3840,11D9,LPF,6000Hz,30dB,fs/1,invert=0 */
-	{0x11DA,
-	0x3F672280}, /*3F672280,11DA,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x11DB,
-	0xBFD3E1C0}, /*BFD3E1C0,11DB,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x11DC,
-	0x3FD3E1C0}, /*3FD3E1C0,11DC,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x11DD,
-	0x3F5022C0}, /*3F5022C0,11DD,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x11DE,
-	0xBF374540}, /*BF374540,11DE,PKF,1000Hz,-10dB,3,fs/1,invert=0 */
-	{0x11E0, 0x3F800000}, /*3F800000,11E0,Through,0dB,fs/1,invert=0 */
-	{0x11E1, 0x00000000}, /*00000000,11E1,Through,0dB,fs/1,invert=0 */
-	{0x11E2, 0x00000000}, /*00000000,11E2,Through,0dB,fs/1,invert=0 */
-	{0x11E3, 0x00000000}, /*00000000,11E3,Through,0dB,fs/1,invert=0 */
-	{0x11E4, 0x00000000}, /*00000000,11E4,Through,0dB,fs/1,invert=0 */
-	{0x11E5, 0x3F800000}, /*3F800000,11E5,0dB,invert=0 */
-	{0x11E8, 0x3F800000}, /*3F800000,11E8,0dB,invert=0 */
-	{0x11E9, 0x00000000}, /*00000000,11E9,Cutoff,invert=0 */
-	{0x11EA, 0x00000000}, /*00000000,11EA,Cutoff,invert=0 */
-	{0x11EB, 0x00000000}, /*00000000,11EB,Cutoff,invert=0 */
-	{0x11F0, 0x3F800000}, /*3F800000,11F0,Through,0dB,fs/1,invert=0 */
-	{0x11F1, 0x00000000}, /*00000000,11F1,Through,0dB,fs/1,invert=0 */
-	{0x11F2, 0x00000000}, /*00000000,11F2,Through,0dB,fs/1,invert=0 */
-	{0x11F3, 0x00000000}, /*00000000,11F3,Through,0dB,fs/1,invert=0 */
-	{0x11F4, 0x00000000}, /*00000000,11F4,Through,0dB,fs/1,invert=0 */
-	{0x11F5, 0x3F800000}, /*3F800000,11F5,Through,0dB,fs/1,invert=0 */
-	{0x11F6, 0x00000000}, /*00000000,11F6,Through,0dB,fs/1,invert=0 */
-	{0x11F7, 0x00000000}, /*00000000,11F7,Through,0dB,fs/1,invert=0 */
-	{0x11F8, 0x00000000}, /*00000000,11F8,Through,0dB,fs/1,invert=0 */
-	{0x11F9, 0x00000000}, /*00000000,11F9,Through,0dB,fs/1,invert=0 */
-	{0x1200, 0x00000000}, /*00000000,1200,Cutoff,invert=0 */
-	{0x1201, 0x3F800000}, /*3F800000,1201,0dB,invert=0 */
-	{0x1202, 0x3F800000}, /*3F800000,1202,0dB,invert=0 */
-	{0x1203, 0x3F800000}, /*3F800000,1203,0dB,invert=0 */
-	{0x1204, 0x3F800000}, /*3F800000,1204,Through,0dB,fs/1,invert=0 */
-	{0x1205, 0x00000000}, /*00000000,1205,Through,0dB,fs/1,invert=0 */
-	{0x1206, 0x00000000}, /*00000000,1206,Through,0dB,fs/1,invert=0 */
-	{0x1207, 0x3F800000}, /*3F800000,1207,Through,0dB,fs/1,invert=0 */
-	{0x1208, 0x00000000}, /*00000000,1208,Through,0dB,fs/1,invert=0 */
-	{0x1209, 0x00000000}, /*00000000,1209,Through,0dB,fs/1,invert=0 */
-	{0x120A, 0x3F800000}, /*3F800000,120A,Through,0dB,fs/1,invert=0 */
-	{0x120B, 0x00000000}, /*00000000,120B,Through,0dB,fs/1,invert=0 */
-	{0x120C, 0x00000000}, /*00000000,120C,Through,0dB,fs/1,invert=0 */
-	{0x120D, 0x3F800000}, /*3F800000,120D,Through,0dB,fs/1,invert=0 */
-	{0x120E, 0x00000000}, /*00000000,120E,Through,0dB,fs/1,invert=0 */
-	{0x120F, 0x00000000}, /*00000000,120F,Through,0dB,fs/1,invert=0 */
-	{0x1210, 0x3F800000}, /*3F800000,1210,Through,0dB,fs/1,invert=0 */
-	{0x1211, 0x00000000}, /*00000000,1211,Through,0dB,fs/1,invert=0 */
-	{0x1212, 0x00000000}, /*00000000,1212,Through,0dB,fs/1,invert=0 */
-	{0x1213, 0x3F800000}, /*3F800000,1213,0dB,invert=0 */
-	{0x1214, 0x3F800000}, /*3F800000,1214,0dB,invert=0 */
-	{0x1215, 0x3F800000}, /*3F800000,1215,0dB,invert=0 */
-	{0x1216, 0x3F800000}, /*3F800000,1216,0dB,invert=0 */
-	{0x1217, 0x3F800000}, /*3F800000,1217,0dB,invert=0 */
-	{0x1218, 0x00000000}, /*00000000,1218,Cutoff,fs/1,invert=0 */
-	{0x1219, 0x00000000}, /*00000000,1219,Cutoff,fs/1,invert=0 */
-	{0x121A, 0x00000000}, /*00000000,121A,Cutoff,fs/1,invert=0 */
-	{0x121B, 0x00000000}, /*00000000,121B,Cutoff,fs/1,invert=0 */
-	{0x121C, 0x00000000}, /*00000000,121C,Cutoff,fs/1,invert=0 */
-	{0x121D, 0x3F800000}, /*3F800000,121D,0dB,invert=0 */
-	{0x121E, 0x3F800000}, /*3F800000,121E,0dB,invert=0 */
-	{0x121F, 0x3F800000}, /*3F800000,121F,0dB,invert=0 */
-	{0x1235, 0x3F800000}, /*3F800000,1235,0dB,invert=0 */
-	{0x1236, 0x3F800000}, /*3F800000,1236,0dB,invert=0 */
-	{0x1237, 0x3F800000}, /*3F800000,1237,0dB,invert=0 */
-	{0x1238, 0x3F800000}, /*3F800000,1238,0dB,invert=0 */
-	{0xFFFF, 0xFFFFFFFF} };
+	{0x1000, 0x3F800000},
+	{0x1001, 0x3F800000},
+	{0x1002, 0x00000000},
+	{0x1003, 0x3F800000},
+	{0x1004, 0x3828A700},
+	{0x1005, 0x3828A700},
+	{0x1006, 0x3F7FFAC0},
+	{0x1007, 0x3F800000},
+	{0x1008, 0xBF800000},
+	{0x1009, 0x00000000},
+	{0x100A, 0x3F800000},
+	{0x100B, 0x3F800000},
+	{0x100C, 0x3F800000},
+	{0x100E, 0x3F800000},
+	{0x1010, 0x3DA2AD80},
+	{0x1011, 0x00000000},
+	{0x1012, 0x3F7FFE00},
+	{0x1013, 0x3FB26DC0},
+	{0x1014, 0xBFB00DC0},
+	{0x1015, 0x3F75E8C0},
+	{0x1016, 0x3F1B2780},
+	{0x1017, 0xBF1B2400},
+	{0x1018, 0x3F7FFC80},
+	{0x1019, 0x3F800000},
+	{0x101A, 0x00000000},
+	{0x101B, 0x00000000},
+	{0x101C, 0x3F800000},
+	{0x101D, 0x00000000},
+	{0x101E, 0x00000000},
+	{0x1020, 0x3F800000},
+	{0x1021, 0x3F800000},
+	{0x1022, 0x3F800000},
+	{0x1023, 0x3F800000},
+	{0x1024, 0x00000000},
+	{0x1025, 0x00000000},
+	{0x1026, 0x00000000},
+	{0x1027, 0x00000000},
+	{0x1030, 0x3F800000},
+	{0x1031, 0x00000000},
+	{0x1032, 0x00000000},
+	{0x1033, 0x3F800000},
+	{0x1034, 0x00000000},
+	{0x1035, 0x00000000},
+	{0x1036, 0x3F800000},
+	{0x1037, 0x00000000},
+	{0x1038, 0x00000000},
+	{0x1039, 0x3F800000},
+	{0x103A, 0x00000000},
+	{0x103B, 0x00000000},
+	{0x103C, 0x3F800000},
+	{0x103D, 0x00000000},
+	{0x103E, 0x00000000},
+	{0x1043, 0x39D2BD40},
+	{0x1044, 0x39D2BD40},
+	{0x1045, 0x3F7FCB40},
+	{0x1046, 0x388C8A40},
+	{0x1047, 0x388C8A40},
+	{0x1048, 0x3F7FF740},
+	{0x1049, 0x390C87C0},
+	{0x104A, 0x390C87C0},
+	{0x104B, 0x3F7FEE80},
+	{0x104C, 0x398C8300},
+	{0x104D, 0x398C8300},
+	{0x104E, 0x3F7FDCC0},
+	{0x1053, 0x3F800000},
+	{0x1054, 0x00000000},
+	{0x1055, 0x00000000},
+	{0x1056, 0x3F800000},
+	{0x1057, 0x00000000},
+	{0x1058, 0x00000000},
+	{0x1059, 0x3F800000},
+	{0x105A, 0x00000000},
+	{0x105B, 0x00000000},
+	{0x105C, 0x3F800000},
+	{0x105D, 0x00000000},
+	{0x105E, 0x00000000},
+	{0x1063, 0x3F800000},
+	{0x1066, 0x3F800000},
+	{0x1069, 0x3F800000},
+	{0x106C, 0x3F800000},
+	{0x1073, 0x00000000},
+	{0x1076, 0x3F800000},
+	{0x1079, 0x3F800000},
+	{0x107C, 0x3F800000},
+	{0x1083, 0x38D1B700},
+	{0x1086, 0x00000000},
+	{0x1089, 0x00000000},
+	{0x108C, 0x00000000},
+	{0x1093, 0x00000000},
+	{0x1098, 0x3F800000},
+	{0x1099, 0x3F800000},
+	{0x109A, 0x3F800000},
+	{0x10A1, 0x3C58B440},
+	{0x10A2, 0x3C58B440},
+	{0x10A3, 0x3F793A40},
+	{0x10A4, 0x3C58B440},
+	{0x10A5, 0x3C58B440},
+	{0x10A6, 0x3F793A40},
+	{0x10A7, 0x3F800000},
+	{0x10A8, 0x00000000},
+	{0x10A9, 0x00000000},
+	{0x10AA, 0x00000000},
+	{0x10AB, 0x3BDA2580},
+	{0x10AC, 0x3BDA2580},
+	{0x10AD, 0x3F7C9780},
+	{0x10B0, 0x3F800000},
+	{0x10B1, 0x00000000},
+	{0x10B2, 0x00000000},
+	{0x10B3, 0x3F800000},
+	{0x10B4, 0x00000000},
+	{0x10B5, 0x00000000},
+	{0x10B6, 0x3F353C00},
+	{0x10B8, 0x3F800000},
+	{0x10B9, 0x00000000},
+	{0x10C0, 0x3F944EC0},
+	{0x10C1, 0xBF925540},
+	{0x10C2, 0x3F5414C0},
+	{0x10C3, 0x3F800000},
+	{0x10C4, 0x00000000},
+	{0x10C5, 0x00000000},
+	{0x10C6, 0x3D506F00},
+	{0x10C7, 0x3D506F00},
+	{0x10C8, 0x3F65F240},
+	{0x10C9, 0x3C208400},
+	{0x10CA, 0x3C208400},
+	{0x10CB, 0x3F7FE940},
+	{0x10CC, 0x3E1D2100},
+	{0x10CD, 0xBE1C0980},
+	{0x10CE, 0x3F7F5080},
+	{0x10D0, 0x3FFF64C0},
+	{0x10D1, 0x00000000},
+	{0x10D2, 0x3F800000},
+	{0x10D3, 0x3F800000},
+	{0x10D4, 0x3F800000},
+	{0x10D5, 0x3F800000},
+	{0x10D7, 0x41FCFB80},
+	{0x10D8, 0x00000000},
+	{0x10D9, 0x00000000},
+	{0x10DA, 0x3F649140},
+	{0x10DB, 0xBFD21D40},
+	{0x10DC, 0x3FD21D40},
+	{0x10DD, 0x3F4F0940},
+	{0x10DE, 0xBF339A80},
+	{0x10E0, 0x3DD17800},
+	{0x10E1, 0x3DD17800},
+	{0x10E2, 0x3F4BA200},
+	{0x10E3, 0x00000000},
+	{0x10E4, 0x00000000},
+	{0x10E5, 0x3F800000},
+	{0x10E8, 0x3F800000},
+	{0x10E9, 0x00000000},
+	{0x10EA, 0x00000000},
+	{0x10EB, 0x00000000},
+	{0x10F0, 0x3F800000},
+	{0x10F1, 0x00000000},
+	{0x10F2, 0x00000000},
+	{0x10F3, 0x00000000},
+	{0x10F4, 0x00000000},
+	{0x10F5, 0x3F800000},
+	{0x10F6, 0x00000000},
+	{0x10F7, 0x00000000},
+	{0x10F8, 0x00000000},
+	{0x10F9, 0x00000000},
+	{0x1200, 0x00000000},
+	{0x1201, 0x3F800000},
+	{0x1202, 0x3F800000},
+	{0x1203, 0x3F800000},
+	{0x1204, 0x3F800000},
+	{0x1205, 0x00000000},
+	{0x1206, 0x00000000},
+	{0x1207, 0x3F800000},
+	{0x1208, 0x00000000},
+	{0x1209, 0x00000000},
+	{0x120A, 0x3F800000},
+	{0x120B, 0x00000000},
+	{0x120C, 0x00000000},
+	{0x120D, 0x3F800000},
+	{0x120E, 0x00000000},
+	{0x120F, 0x00000000},
+	{0x1210, 0x3F800000},
+	{0x1211, 0x00000000},
+	{0x1212, 0x00000000},
+	{0x1213, 0x3F800000},
+	{0x1214, 0x3F800000},
+	{0x1215, 0x3F800000},
+	{0x1216, 0x3F800000},
+	{0x1217, 0x3F800000},
+	{0x1218, 0x00000000},
+	{0x1219, 0x00000000},
+	{0x121A, 0x00000000},
+	{0x121B, 0x00000000},
+	{0x121C, 0x00000000},
+	{0x121D, 0x3F800000},
+	{0x121E, 0x3F800000},
+	{0x121F, 0x3F800000},
+	{0x1235, 0x3F800000},
+	{0x1236, 0x3F800000},
+	{0x1237, 0x3F800000},
+	{0x1238, 0x3F800000},
+	{0xFFFF, 0xFFFFFFFF}
+};
 
 void IniSet(void)
 {
@@ -517,7 +548,17 @@ void IniClk(void)
 #else
 	RegWriteA_LC898122AF(AFPWMDIV, 0x02); /* 0x0213       48MHz/2 = 24MHz */
 #endif
-	RegWriteA_LC898122AF(OPAFDIV, 0x04);  /* 0x0214       48MHz/4 = 12MHz */
+	/*
+	 * OPAFDIV dipende dal modulo: 0x06 (48MHz/6 = 8MHz) contro lo 0x04 di
+	 * ALPS. Due chiamate distinte e non un ternario, perche' la fabbrica
+	 * dirama -- "54000061 b.ne"@0xffffff80087491fc -- invece di fare un
+	 * csel, ed e' quel che clang produce da un if/else con due chiamate
+	 * di cui poi fonde la coda.
+	 */
+	if (g9c96cbc == 2)
+		RegWriteA_LC898122AF(OPAFDIV, 0x06);
+	else
+		RegWriteA_LC898122AF(OPAFDIV, 0x04);
 #endif
 #endif
 }
@@ -689,7 +730,7 @@ void IniSrv(void)
 	RegWriteA_LC898122AF(WH_SMTSRVSMP,
 			     0x06); /* 0x017D 2.7ms=2^06/23.4375kHz */
 	RegWriteA_LC898122AF(WH_SMTTMR,
-			     0x01); /* 0x017E 1.3ms=(1+1)*16/23.4375kHz */
+			     0x0F); /* 0x017E */
 #endif
 
 	RamWrite32A_LC898122AF(sxsmtav, 0xBC800000);
@@ -815,7 +856,7 @@ void IniSrv(void)
 	if (UcCvrCod == CVER122)
 		RegWriteA_LC898122AF(PWMFC, 0x2D);
 	else
-		RegWriteA_LC898122AF(PWMFC, 0x3D);
+		RegWriteA_LC898122AF(PWMFC, 0x1D);
 #endif /* PWM_CAREER_TEST */
 #else
 	RegWriteA_LC898122AF(PWMFC, 0x21);
@@ -906,7 +947,7 @@ void IniSrv(void)
 }
 
 #ifdef GAIN_CONT
-#define TRI_LEVEL 0x3A031280 /* 0.0005 */
+#define TRI_LEVEL 0x3A83126F
 #define TIMELOW 0x50	/* */
 #define TIMEHGH 0x05	/* */
 #ifdef USE_EXTCLK_ALL	/* 24MHz */
@@ -928,6 +969,37 @@ void IniSrv(void)
 
 void IniGyr(void)
 {
+	/*
+	 * IL #ifdef CORRECT_1DEG E' DIVENTATO UNA SCELTA A ESECUZIONE.
+	 *
+	 * Quattro csel in cima -- "9a890156 csel"@0xffffff8008749bc8 e i tre
+	 * che seguono -- sullo stesso g9c96cbc, tutti prima della prima
+	 * chiamata. Quattro locali, per la stessa ragione di S2cPro: usarli
+	 * come macro farebbe rileggere la variabile dopo ogni bl.
+	 *
+	 * E i valori del MODULO 2 sono quelli della colonna CORRECT_1DEG di
+	 * ALPS: 0x40400000 per il limite 4, 0x40000000 e 0x3F800000 per la
+	 * soglia alta e media. Lo stesso vale per MAXLMT in SetH1cMod. La
+	 * fabbrica ha preso una scelta che in ALPS si fa a compilazione e
+	 * l'ha messa sul modulo -- poi ha ritarato l'altra colonna, che
+	 * infatti non coincide con nessuno dei due rami di ALPS.
+	 *
+	 * GYRLMT3 e' l'eccezione: 0x3EE66666 sul modulo 2 contro lo
+	 * 0x3F19999A di CORRECT_1DEG. Ritarato anche quello.
+	 *
+	 * I registri si leggono da dove il valore va a finire, non
+	 * dall'ordine dei csel: x22 in 0x1029/0x102A (limite 3), x21 in
+	 * 0x102B/0x102C (limite 4), x20 in 0x104F, x19 in 0x105F. Attenzione
+	 * che x21 e x22 vengono RIASSEGNATI a meta' funzione con due trucchi
+	 * aritmetici (`add x21, x23, #0xd` e `sub x22, x22, #0x800, lsl #12`)
+	 * per costruire altre costanti: le loro apparizioni dopo quel punto
+	 * non c'entrano con la scelta di modulo.
+	 */
+	unsigned long UlGyrLmt3 = (g9c96cbc == 2) ? 0x3EE66666 : 0x3F0F5C29;
+	unsigned long UlGyrLmt4 = (g9c96cbc == 2) ? 0x40400000 : 0x40333333;
+	unsigned long UlGyrA12H = (g9c96cbc == 2) ? 0x40000000 : 0x401CCCCD;
+	unsigned long UlGyrA12M = (g9c96cbc == 2) ? 0x3F800000 : 0x3FB33333;
+
 
 	/*Gyro Filter Setting */
 	RegWriteA_LC898122AF(WG_EQSW, 0x03);
@@ -952,25 +1024,25 @@ void IniGyr(void)
 	RamWrite32A_LC898122AF(gxlmt1H, GYRLMT1H); /* 0x1028 */
 	RamWrite32A_LC898122AF(gylmt1H, GYRLMT1H); /* 0x1128 */
 
-	RamWrite32A_LC898122AF(gxlmt3HS0, GYRLMT3_S1); /* 0x1029 */
-	RamWrite32A_LC898122AF(gylmt3HS0, GYRLMT3_S1); /* 0x1129 */
+	RamWrite32A_LC898122AF(gxlmt3HS0, UlGyrLmt3); /* 0x1029 */
+	RamWrite32A_LC898122AF(gylmt3HS0, UlGyrLmt3); /* 0x1129 */
 
-	RamWrite32A_LC898122AF(gxlmt3HS1, GYRLMT3_S2); /* 0x102A */
-	RamWrite32A_LC898122AF(gylmt3HS1, GYRLMT3_S2); /* 0x112A */
+	RamWrite32A_LC898122AF(gxlmt3HS1, UlGyrLmt3); /* 0x102A */
+	RamWrite32A_LC898122AF(gylmt3HS1, UlGyrLmt3); /* 0x112A */
 
 	RamWrite32A_LC898122AF(
 		gylmt4HS0,
-		GYRLMT4_S1); /* 0x112B        Y軸Limiter4 High?値0 */
+		UlGyrLmt4); /* 0x112B        Y軸Limiter4 High?値0 */
 	RamWrite32A_LC898122AF(
 		gxlmt4HS0,
-		GYRLMT4_S1); /* 0x102B        X軸Limiter4 High?値0 */
+		UlGyrLmt4); /* 0x102B        X軸Limiter4 High?値0 */
 
 	RamWrite32A_LC898122AF(
 		gxlmt4HS1,
-		GYRLMT4_S2); /* 0x102C        X軸Limiter4 High?値1 */
+		UlGyrLmt4); /* 0x102C        X軸Limiter4 High?値1 */
 	RamWrite32A_LC898122AF(
 		gylmt4HS1,
-		GYRLMT4_S2); /* 0x112C        Y軸Limiter4 High?値1 */
+		UlGyrLmt4); /* 0x112C        Y軸Limiter4 High?値1 */
 
 	/* Pan/Tilt parameter */
 	RegWriteA_LC898122AF(WG_PANADDA,
@@ -982,8 +1054,8 @@ void IniGyr(void)
 	RamWrite32A_LC898122AF(SttxHis, 0x00000000);  /* 0x1226 */
 	RamWrite32A_LC898122AF(SttxaL, 0x00000000);   /* 0x109D */
 	RamWrite32A_LC898122AF(SttxbL, 0x00000000);   /* 0x109E */
-	RamWrite32A_LC898122AF(Sttx12aM, GYRA12_MID); /* 0x104F */
-	RamWrite32A_LC898122AF(Sttx12aH, GYRA12_HGH); /* 0x105F */
+	RamWrite32A_LC898122AF(Sttx12aM, UlGyrA12M); /* 0x104F */
+	RamWrite32A_LC898122AF(Sttx12aH, UlGyrA12H); /* 0x105F */
 	RamWrite32A_LC898122AF(Sttx12bM, GYRB12_MID); /* 0x106F */
 	RamWrite32A_LC898122AF(Sttx12bH, GYRB12_HGH); /* 0x107F */
 	RamWrite32A_LC898122AF(Sttx34aM, GYRA34_MID); /* 0x108F */
@@ -992,8 +1064,8 @@ void IniGyr(void)
 	RamWrite32A_LC898122AF(Sttx34bH, GYRB34_HGH); /* 0x10BF */
 	RamWrite32A_LC898122AF(SttyaL, 0x00000000);   /* 0x119D */
 	RamWrite32A_LC898122AF(SttybL, 0x00000000);   /* 0x119E */
-	RamWrite32A_LC898122AF(Stty12aM, GYRA12_MID); /* 0x114F */
-	RamWrite32A_LC898122AF(Stty12aH, GYRA12_HGH); /* 0x115F */
+	RamWrite32A_LC898122AF(Stty12aM, UlGyrA12M); /* 0x114F */
+	RamWrite32A_LC898122AF(Stty12aH, UlGyrA12H); /* 0x115F */
 	RamWrite32A_LC898122AF(Stty12bM, GYRB12_MID); /* 0x116F */
 	RamWrite32A_LC898122AF(Stty12bH, GYRB12_HGH); /* 0x117F */
 	RamWrite32A_LC898122AF(Stty34aM, GYRA34_MID); /* 0x118F */
@@ -1087,35 +1159,72 @@ void IniGyr(void)
 		(unsigned char)GANADR); /* 0x0128       control address */
 	RegWriteA_LC898122AF(WG_ADJGANGO, 0x00); /* 0x0108       manual off */
 
-	/* exe function */
-	/* AutoGainControlSw( OFF ) ;     */ /* Auto Gain Control Mode OFF */
-	AutoGainControlSw(ON);		     /* Auto Gain Control Mode ON  */
+	/*
+	 * OFF, NON ON -- ed e' esattamente lo scambio che ALPS ha in
+	 * commento. La fabbrica scrive 0xA0 in 0x0129 e 0x012A
+	 * ("52801401 mov"@0xffffff8008749b28 e' 0xA0, non 0xA3), e subito
+	 * dopo le due RamWrite32A del ramo OFF verso 0x100B e 0x110B, che
+	 * sono GANADR e GANADR | 0x0100.
+	 *
+	 * Le avevo prese per due scritture nuove verso gxadj e gyadj: gli
+	 * indirizzi e i valori tornavano, ma la spiegazione era sbagliata.
+	 * Erano gia' dentro AutoGainControlSw, e bastava chiamarlo con
+	 * l'altro argomento.
+	 */
+	AutoGainControlSw(OFF);		     /* Auto Gain Control Mode OFF */
+	/* AutoGainControlSw( ON ) ;      */ /* Auto Gain Control Mode ON  */
 #endif
 }
 
 void IniFil(void)
 {
 	unsigned short UsAryId;
+	/*
+	 * Le due scelte si fanno in cima, una volta sola, come in S2cPro: la
+	 * fabbrica fa i due csel prima del primo ciclo e poi non rilegge piu'.
+	 */
+	const struct STFILREG *CsFilRegSel =
+		(g9c96cbc == 2) ? g8f4c6e8 : CsFilReg;
+	const struct STFILRAM *CsFilRamSel =
+		(g9c96cbc == 2) ? g8f4c708 : CsFilRam;
 
 	/* Filter Registor Parameter Setting */
 	UsAryId = 0;
-	while (CsFilReg[UsAryId].UsRegAdd != 0xFFFF) {
-		RegWriteA_LC898122AF(CsFilReg[UsAryId].UsRegAdd,
-				     CsFilReg[UsAryId].UcRegDat);
+	while (CsFilRegSel[UsAryId].UsRegAdd != 0xFFFF) {
+		RegWriteA_LC898122AF(CsFilRegSel[UsAryId].UsRegAdd,
+				     CsFilRegSel[UsAryId].UcRegDat);
 		UsAryId++;
 	}
 
+	/* 0x018D */
+	RegWriteA_LC898122AF(WC_RAMACCXY, 0x01);
+
 	/* Filter Ram Parameter Setting */
 	UsAryId = 0;
-	while (CsFilRam[UsAryId].UsRamAdd != 0xFFFF) {
-		RamWrite32A_LC898122AF(CsFilRam[UsAryId].UsRamAdd,
-					CsFilRam[UsAryId].UlRamDat);
+	while (CsFilRamSel[UsAryId].UsRamAdd != 0xFFFF) {
+		RamWrite32A_LC898122AF(CsFilRamSel[UsAryId].UsRamAdd,
+					CsFilRamSel[UsAryId].UlRamDat);
 		UsAryId++;
 	}
+
+	RegWriteA_LC898122AF(WC_RAMACCXY, 0x00);
 }
 
 void IniAdj(void)
 {
+	/*
+	 * Due valori per modulo, scelti una volta sola in cima come in
+	 * S2cPro: "1a890153 csel"@0xffffff800874a1d8 per la corrente di
+	 * polarizzazione e "1a8b0194 csel"@0xffffff800874a1dc per il
+	 * guadagno, tutti e due prima della chiamata a IniPtAve.
+	 *
+	 * X e Y prendono lo stesso registro (w20) in tutti e due i rami:
+	 * AMP_GAIN_X e AMP_GAIN_Y restano due macro in ALPS ma qui valgono
+	 * sempre uguale, ed e' per questo che la locale e' una sola.
+	 */
+	unsigned char UcBiasCur = (g9c96cbc == 2) ? 0x44 : BIAS_CUR_OIS;
+	unsigned char UcAmpGain = (g9c96cbc == 2) ? 0x03 : AMP_GAIN_X;
+
 	RegWriteA_LC898122AF(WC_RAMACCXY,
 			     0x00); /* 0x018D       Filter copy off */
 
@@ -1123,11 +1232,11 @@ void IniAdj(void)
 
 	/* OIS */
 	RegWriteA_LC898122AF(CMSDAC0,
-			     BIAS_CUR_OIS); /* 0x0251       Hall Dac電流 */
+			     UcBiasCur); /* 0x0251       Hall Dac電流 */
 	RegWriteA_LC898122AF(OPGSEL0,
-			     AMP_GAIN_X); /* 0x0253       Hall amp Gain X */
+			     UcAmpGain); /* 0x0253       Hall amp Gain X */
 	RegWriteA_LC898122AF(OPGSEL1,
-			     AMP_GAIN_Y); /* 0x0254       Hall amp Gain Y */
+			     UcAmpGain); /* 0x0254       Hall amp Gain Y */
 	/* AF */
 	RegWriteA_LC898122AF(CMSDAC1,
 			     BIAS_CUR_AF); /* 0x0252       Hall Dac電流 */
@@ -1173,6 +1282,15 @@ void IniAdj(void)
 
 	/* Ram Access */
 	RamAccFixMod(OFF); /* 32bit Float mode */
+
+	/*
+	 * L'unica chiamata a SetDOFSTDAF di tutto il binario che non venga da
+	 * SetDOFSTDAF_WT: "97fffb4d bl"@0xffffff800874a304, sotto la guardia
+	 * di g9c96cb8 -- l'altra variabile di modulo, non quella che sceglie
+	 * le costanti qui sopra.
+	 */
+	if (g9c96cb8 == 2)
+		SetDOFSTDAF(0x10);
 
 	RamWrite32A_LC898122AF(
 		gxzoom,
@@ -1226,16 +1344,25 @@ void IniCmd(void)
 void BsyWit(unsigned short UsTrgAdr, unsigned char UcTrgDat)
 {
 	unsigned char UcFlgVal;
+	unsigned char UcCntPla = 0;
 
 	RegWriteA_LC898122AF(UsTrgAdr,
 			     UcTrgDat); /* Trigger Register Setting */
 
-	UcFlgVal = 1;
-
-	while (UcFlgVal) {
+	/*
+	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
+	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
+	 * Il contatore si prova in cima e il valore con un break: e' quella
+	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
+	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 */
+	while (UcCntPla < 60) {
 
 		RegReadA_LC898122AF(UsTrgAdr, &UcFlgVal);
 		UcFlgVal &= (UcTrgDat & 0x0F);
+		if (!UcFlgVal)
+			break;
+		UcCntPla++;
 	};
 }
 
@@ -1271,12 +1398,21 @@ void GyOutSignalCont(void)
 void AccWit(unsigned char UcTrgDat)
 {
 	unsigned char UcFlgVal;
+	unsigned char UcCntPla = 0;
 
-	UcFlgVal = 1;
-
-	while (UcFlgVal) {
+	/*
+	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
+	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
+	 * Il contatore si prova in cima e il valore con un break: e' quella
+	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
+	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 */
+	while (UcCntPla < 60) {
 		RegReadA_LC898122AF(GRACC, &UcFlgVal); /* 0x0282 */
 		UcFlgVal &= UcTrgDat;
+		if (!UcFlgVal)
+			break;
+		UcCntPla++;
 	};
 }
 
@@ -1360,7 +1496,16 @@ void SelectGySleep(unsigned char UcSelMode)
 
 		GyOutSignal(); /* Select Gyro output signal */
 
-		WitTim_LC898122AF(50); /* 50ms wait */
+		/*
+		 * LA FABBRICA NON HA QUESTA ATTESA. Nessuna delle due: in
+		 * tutto SelectGySleep non c'e' un solo `bl` verso WitTim.
+		 * Il nostro build ne mostrava una sola in piu' perche' clang
+		 * fonde le code dei due rami, ma le righe da togliere sono
+		 * due.
+		 *
+		 * Coerente con WitTim svuotata: chi ha tolto il corpo ha
+		 * tolto anche qualche chiamata.
+		 */
 
 		RegWriteA_LC898122AF(
 			WC_EQON, 0x01); /* 0x0101       GYRO Equalizer ON */
@@ -1395,7 +1540,16 @@ void SelectGySleep(unsigned char UcSelMode)
 		AccWit(0x10); /* Digital Gyro busy wait */
 		GyOutSignal(); /* Select Gyro output signal */
 
-		WitTim_LC898122AF(50); /* 50ms wait */
+		/*
+		 * LA FABBRICA NON HA QUESTA ATTESA. Nessuna delle due: in
+		 * tutto SelectGySleep non c'e' un solo `bl` verso WitTim.
+		 * Il nostro build ne mostrava una sola in piu' perche' clang
+		 * fonde le code dei due rami, ma le righe da togliere sono
+		 * due.
+		 *
+		 * Coerente con WitTim svuotata: chi ha tolto il corpo ha
+		 * tolto anche qualche chiamata.
+		 */
 
 		RegWriteA_LC898122AF(
 			WC_EQON, 0x01);    /* 0x0101       GYRO Equalizer ON */
@@ -1430,6 +1584,7 @@ void AutoGainControlSw(unsigned char UcModeSw)
 void ClrGyr(unsigned short UsClrFil, unsigned char UcClrMod)
 {
 	unsigned char UcRamClr;
+	unsigned char UcCntPla = 0;
 
 	/*Select Filter to clear */
 	RegWriteA_LC898122AF(WC_RAMDLYMOD1, (unsigned char)(UsClrFil >> 8));
@@ -1441,10 +1596,20 @@ void ClrGyr(unsigned short UsClrFil, unsigned char UcClrMod)
 			     UcClrMod);
 
 	/*Check RAM Clear complete */
-	do {
+	/*
+	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
+	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
+	 * Il contatore si prova in cima e il valore con un break: e' quella
+	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
+	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 */
+	while (UcCntPla < 60) {
 		RegReadA_LC898122AF(WC_RAMINITON, &UcRamClr);
 		UcRamClr &= UcClrMod;
-	} while (UcRamClr != 0x00);
+		if (UcRamClr == 0x00)
+			break;
+		UcCntPla++;
+	}
 }
 
 void DrvSw(unsigned char UcDrvSw)
@@ -1487,11 +1652,25 @@ void DrvSw(unsigned char UcDrvSw)
 void AfDrvSw(unsigned char UcDrvSw)
 {
 	if (UcDrvSw == ON) {
-#ifdef AF_PWMMODE
-		RegWriteA_LC898122AF(DRVFCAF, 0x00);
-#else
-		RegWriteA_LC898122AF(DRVFCAF, 0x20);
-#endif
+		/*
+		 * Il valore di DRVFCAF dipende dal modulo, come le costanti
+		 * di SetH1cMod -- ma qui la variabile e' g9c96cb8
+		 * ("3972e108 ldrb"@0xffffff800874ad44, spiazzamento 3256 =
+		 * 0xCB8), non g9c96cbc. Sono due variabili distinte e
+		 * SelectModule le scrive tutte e due.
+		 *
+		 * DUE CHIAMATE, NON UN TERNARIO: col ternario clang emette
+		 * un csel e la funzione resta quattro byte corta. La
+		 * fabbrica dirama e poi fonde la coda, che e' quel che
+		 * produce un if/else con due chiamate distinte.
+		 *
+		 * 0x20 e' il valore di ALPS con AF_PWMMODE non definita, ed
+		 * e' il ramo diverso da 2.
+		 */
+		if (g9c96cb8 == 2)
+			RegWriteA_LC898122AF(DRVFCAF, 0x10);
+		else
+			RegWriteA_LC898122AF(DRVFCAF, 0x20);
 		RegWriteA_LC898122AF(CCAAF, 0x80);
 	} else {
 		RegWriteA_LC898122AF(CCAAF, 0x00);
@@ -1513,17 +1692,42 @@ void RamAccFixMod(unsigned char UcAccMod)
 void IniAf(void)
 {
 	unsigned char UcStbb0;
+	/*
+	 * QUI CONVIVONO LE DUE VARIABILI DI MODULO, e non e' un refuso.
+	 * Questi quattro valori si scelgono su g9c96cbc
+	 * ("3972f128 ldrb"@0xffffff800874a450, spiazzamento 3260 = 0xCBC),
+	 * mentre i blocchi if/else piu' sotto si scelgono su g9c96cb8
+	 * ("3972e2e8 ldrb"@0xffffff800874a48c, spiazzamento 3256 = 0xCB8).
+	 * SelectModule le scrive tutte e due, e IniAf le legge tutte e due.
+	 *
+	 * Nessuno dei quattro valori coincide con quelli di ALPS in nessuno
+	 * dei tre rami ACTREG_*: sono stati ritarati e si leggono solo qui.
+	 */
+	unsigned short UsRwexd2 = (g9c96cbc == 2) ? 0x113E : 0x4A02;
+	unsigned short UsRwexd3 = (g9c96cbc == 2) ? 0x7211 : 0x7D62;
+	unsigned char UcFstctime = (g9c96cbc == 2) ? 0xA9 : 0xF9;
+	unsigned char UcFstmode = (g9c96cbc == 2) ? 0x00 : 0x02;
 
 	AfDrvSw(OFF); /* AF Drvier Block Ena=0 */
-#ifdef AF_PWMMODE
-	RegWriteA_LC898122AF(DRVFCAF, 0x00);
-#else
-	RegWriteA_LC898122AF(DRVFCAF, 0x20);
-#endif
-	RegWriteA_LC898122AF(DRVFC3AF, 0x00);
-	RegWriteA_LC898122AF(DRVFC4AF, 0x80); /* 0x0084       DOFSTDAF */
-	RegWriteA_LC898122AF(PWMAAF, 0x00);   /* 0x0090       AF PWM standby */
-	RegWriteA_LC898122AF(AFFC, 0x80);     /* 0x0088       OpenAF/-/- */
+	/*
+	 * Il blocco intero e' duplicato, non e' un valore che cambia: sul
+	 * modulo 2 c'e' una scrittura in piu' verso 0x0380 -- che in
+	 * OisDef.h e' un #define commentato, quindi resta un numero -- e ne
+	 * manca una verso PWMAAF.
+	 */
+	if (g9c96cb8 == 2) {
+		RamWriteA_LC898122AF(0x0380, 0x8000);
+		RegWriteA_LC898122AF(DRVFCAF, 0x10);
+		RegWriteA_LC898122AF(DRVFC3AF, 0x40);
+		RegWriteA_LC898122AF(DRVFC4AF, 0x80); /* 0x0084 DOFSTDAF */
+		RegWriteA_LC898122AF(AFFC, 0x90);     /* 0x0088 */
+	} else {
+		RegWriteA_LC898122AF(DRVFCAF, 0x20);
+		RegWriteA_LC898122AF(DRVFC3AF, 0x00);
+		RegWriteA_LC898122AF(DRVFC4AF, 0x80); /* 0x0084 DOFSTDAF */
+		RegWriteA_LC898122AF(PWMAAF, 0x00);   /* 0x0090 AF standby */
+		RegWriteA_LC898122AF(AFFC, 0x80);     /* 0x0088 */
+	}
 #ifdef AF_PWMMODE
 	RegWriteA_LC898122AF(DRVFC2AF, 0x82); /* 0x0082       AF slope3 */
 	RegWriteA_LC898122AF(DRVCH3SEL,
@@ -1541,7 +1745,10 @@ void IniAf(void)
 	RegWriteA_LC898122AF(PWMPERIODAF,
 			     0x20); /* 0x0099       AF none-synchronism */
 #endif
-	RegWriteA_LC898122AF(CCFCAF, 0x40); /* 0x00A1       GND/- */
+	if (g9c96cb8 == 2)
+		RegWriteA_LC898122AF(CCFCAF, 0x08); /* 0x00A1 */
+	else
+		RegWriteA_LC898122AF(CCFCAF, 0x40); /* 0x00A1 GND/- */
 
 	RegReadA_LC898122AF(STBB0, &UcStbb0);
 
@@ -1550,20 +1757,19 @@ void IniAf(void)
 	RegWriteA_LC898122AF(STBB1, 0x00);    /* 0x0264       All standby */
 
 	/* AF Initial setting */
-	RegWriteA_LC898122AF(FSTMODE, FSTMODE_AF); /* 0x0302 */
+	RegWriteA_LC898122AF(FSTMODE, UcFstmode); /* 0x0302 */
 	RamWriteA_LC898122AF(
 		RWEXD1_L,
 		RWEXD1_L_AF); /* 0x0396 - 0x0397 (Register continuos write) */
-	RamWriteA_LC898122AF(
-		RWEXD2_L,
-		RWEXD2_L_AF); /* 0x0398 - 0x0399 (Register continuos write) */
-	RamWriteA_LC898122AF(
-		RWEXD3_L,
-		RWEXD3_L_AF); /* 0x039A - 0x039B (Register continuos write) */
-	RegWriteA_LC898122AF(FSTCTIME, FSTCTIME_AF); /* 0x0303 */
-	RamWriteA_LC898122AF(
-		TCODEH,
-		0x0000); /* 0x0304 - 0x0305 (Register continuos write) */
+	RamWriteA_LC898122AF(RWEXD2_L, UsRwexd2);   /* 0x0398 - 0x0399 */
+	RamWriteA_LC898122AF(RWEXD3_L, UsRwexd3);   /* 0x039A - 0x039B */
+	RegWriteA_LC898122AF(FSTCTIME, UcFstctime); /* 0x0303 */
+	/*
+	 * RegWriteA, non RamWriteA, e 0x04 al posto di 0x0000: la fabbrica
+	 * chiama l'altra funzione con un altro valore
+	 * ("321e03e1 orr"@0xffffff800874a5cc).
+	 */
+	RegWriteA_LC898122AF(TCODEH, 0x04); /* 0x0304 */
 
 #ifdef AF_PWMMODE
 	RegWriteA_LC898122AF(PWMAAF, 0x80); /* 0x0090       AF PWM enable */
@@ -1616,7 +1822,102 @@ void IniPtMovMod(unsigned char UcPtMod)
 
 void ChkCvr(void)
 {
-	RegReadA_LC898122AF(CVER, &UcCvrCod);  /* 0x027E */
-	RegWriteA_LC898122AF(MDLREG, MDL_VER); /* 0x00FF       Model */
-	RegWriteA_LC898122AF(VRREG, FW_VER);   /* 0x02D0       Version */
+	RegReadA_LC898122AF(CVER, &UcCvrCod); /* 0x027E */
+	/*
+	 * LA SCRITTURA DI MDLREG NON C'E'. Nella ChkCvr di fabbrica ci sono
+	 * due chiamate in tutto, la lettura di 0x027E e la scrittura di
+	 * 0x02D0: verso 0x00FF non va niente.
+	 */
+	RegWriteA_LC898122AF(VRREG, FW_VER); /* 0x02D0       Version */
+}
+
+/*
+ * SetTregAf e RemOff STANNO QUI E NON IN OisCmd.c, e la ragione e' misurabile.
+ *
+ * In stock.map il blocco delle OIS si spezza in due a IniSet
+ * (0xffffff80087490f0), che e' la prima funzione di questo file. Tutto quel
+ * che sta prima -- TneRun, AfMidOffAdj, GetDOFSTDAF, SetDOFSTDAF,
+ * SelectModule -- e' OisCmd.c; tutto quel che sta dopo e' OisIni.c. E
+ * SetTregAf (0xffffff800874ad84) e RemOff (0xffffff800874adb8) stanno DOPO.
+ *
+ * Non e' una questione di ordine estetico. Tenendole in OisCmd.c, clang le
+ * vedeva dalla stessa unita' di traduzione e le INCORPORAVA dentro
+ * AfMidOffAdj e dentro se stesse: AfMidOffAdj misurava +60 e RemOff +4, e in
+ * tutti e due i casi la differenza era una `bl` di fabbrica diventata codice
+ * srotolato da noi. Spostate qui, il compilatore non puo' piu' vederle e
+ * chiama, come fa la fabbrica.
+ *
+ * E' il quarto caso in questo driver in cui la differenza non era il codice
+ * ma CHI PUO' VEDERE CHE COSA.
+ */
+/*
+ * SetTregAf legge il globale che SelectModule scrive
+ * ("3972e108 ldrb"@0xffffff800874ad90 e' [0xffffff8009c96cb8]) e sceglie
+ * quanto spostare: cinque bit se vale 2, sei altrimenti
+ * ("531b6801 lsl"@0xffffff800874ad9c contro "531a6401 lsl"@0xffffff800874ada4).
+ *
+ * E' anche la prova che g9c96cb8 SI LEGGE: finora nessuna funzione lo
+ * rileggeva, ed era il motivo per cui non poteva essere `static`.
+ */
+void SetTregAf(unsigned short UcTregAf)
+{
+	if (g9c96cb8 == 2)
+		RamWriteA_LC898122AF(0x0380, UcTregAf << 5);
+	else
+		RamWriteA_LC898122AF(0x0380, UcTregAf << 6);
+}
+
+/*
+ * Due rami e un'attesa. Il parametro vale 1 o 0; per qualunque altro valore
+ * la funzione non fa niente ("350008a8 cbnz"@0xffffff800874ade0 salta
+ * all'uscita).
+ *
+ * L'ATTESA SCRIVE INDIETRO. "390013e8 strb"@0xffffff800874ae8c rimette in
+ * pila il valore mascherato, e questo dice che il sorgente assegna
+ * (`UcRegDat &= 0x02;`) invece di mascherare dentro la condizione: un
+ * `while (UcRegDat & 0x02)` non avrebbe nessuna scrittura.
+ *
+ * Il conteggio si ferma sopra 0x3b ("7100ed3f cmp"@0xffffff800874ae84,
+ * `b.hi`), e il confronto e' su otto bit
+ * ("12001e69 and"@0xffffff800874ae80): il contatore e' un `unsigned char`.
+ */
+void RemOff(unsigned char UcMod)
+{
+	unsigned char UcRegDat;
+	unsigned char UcCnt;
+
+	switch (UcMod) {
+	case 1:
+		RegWriteA_LC898122AF(0x018F, 0x00);
+		RegWriteA_LC898122AF(0x018E, 0x7F);
+		RegWriteA_LC898122AF(0x0102, 0x02);
+
+		UcCnt = 0;
+		do {
+			RegReadA_LC898122AF(0x0102, &UcRegDat);
+			UcCnt++;
+			UcRegDat &= 0x02;
+		} while (UcRegDat && UcCnt <= 0x3B);
+
+		RegWriteA_LC898122AF(0x018D, 0x01);
+		RamWrite32A_LC898122AF(0x1043, 0x3AAF73C0);
+		RamWrite32A_LC898122AF(0x1044, 0x3AAF73C0);
+		RamWrite32A_LC898122AF(0x1045, 0x3F7F5080);
+		RegWriteA_LC898122AF(0x018D, 0x00);
+
+		SetPanTiltMode(1);
+
+		RegWriteA_LC898122AF(0x010A, 0x44);
+		break;
+
+	case 0:
+		RegWriteA_LC898122AF(0x010A, 0x11);
+		RegWriteA_LC898122AF(0x018D, 0x01);
+		RamWrite32A_LC898122AF(0x1043, 0x39D2BD40);
+		RamWrite32A_LC898122AF(0x1044, 0x39D2BD40);
+		RamWrite32A_LC898122AF(0x1045, 0x3F7FCB40);
+		RegWriteA_LC898122AF(0x018D, 0x00);
+		RegWriteA_LC898122AF(0x010A, 0x00);
+		break;
+	}
 }

@@ -1,0 +1,9 @@
+config WTK_QMCX983
+	bool "QST QMC7983 for MediaTek package (Doogee S88 Pro, dal disassemblato)"
+	default n
+	help
+	  Magnetometro QST QMC7983 ("qmcX983" nei simboli di fabbrica) del
+	  Doogee S88 Pro, ricostruito leggendo il kernel di fabbrica
+	  disassemblato. Il config di fabbrica lo accende
+	  (CONFIG_WTK_QMCX983=y); nessun albero pubblico ha il sorgente.
+	  Vedi docs/bringup/driver-riscritti.md.

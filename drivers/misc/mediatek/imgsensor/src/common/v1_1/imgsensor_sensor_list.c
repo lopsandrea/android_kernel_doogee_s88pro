@@ -24,6 +24,68 @@
  */
 struct IMGSENSOR_SENSOR_LIST
 	gimgsensor_sensor_list[MAX_NUM_OF_SUPPORT_SENSOR] = {
+	/*
+	 * L'ORDINE DI RICERCA DELLA FABBRICA.
+	 *
+	 * Questa non e' una lista di sensori disponibili: e' l'ordine in cui
+	 * `imgsensor_set_driver` li prova, e il primo che si identifica vince.
+	 * Il commento in testa a questo file lo dice gia': "This can avoid I2C
+	 * error during searching sensor".
+	 *
+	 * Nel binario di fabbrica la tabella ha voci da 48 byte con il nome
+	 * scritto dentro invece che puntato, e i sette nomi si leggono in
+	 * quest'ordine:
+	 *
+	 *     0xffffff8009917b7c  imx230_mipi_raw
+	 *     0xffffff8009917bac  imx230xinfengda_mipi_raw
+	 *     0xffffff8009917bdc  imx219_mipi_raw
+	 *     0xffffff8009917c0c  s5k3p3sx_mipi_raw
+	 *     0xffffff8009917c3c  gc0310_mipi_yuv
+	 *     0xffffff8009917c6c  gc8034_mipi_raw
+	 *     0xffffff8009917c9c  gc032a_mipi_yuv
+	 *
+	 * ALPS le teneva sparse per la lista, e nel nostro binario uscivano
+	 * cosi': gc0310, gc032a, gc8034, imx230, xinfengda, imx219, s5k3p3sx.
+	 * Tre accensioni GC prima di arrivare a imx230, sugli stessi pin PDN e
+	 * RST e sugli stessi regolatori -- e la camera posteriore finiva
+	 * identificata da imx230xinfengda invece che da imx230, con il pattern
+	 * Bayer dichiarato R invece di B.
+	 */
+#if defined(IMX230_MIPI_RAW)
+{IMX230_SENSOR_ID, SENSOR_DRVNAME_IMX230_MIPI_RAW, IMX230_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX230XINFENGDA_MIPI_RAW)
+{IMX230_SENSOR_ID, SENSOR_DRVNAME_IMX230XINFENGDA_MIPI_RAW,
+	IMX230XINFENGDA_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX219_MIPI_RAW)
+{IMX219_SENSOR_ID, SENSOR_DRVNAME_IMX219_MIPI_RAW, IMX219_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5K3P3SX_MIPI_RAW)
+{S5K3P3SX_SENSOR_ID, SENSOR_DRVNAME_S5K3P3SX_MIPI_RAW,
+	S5K3P3SX_MIPI_RAW_SensorInit},
+#endif
+/*
+ * GC0310 e' il sensore all'indice 3: e' quel che dicono i suoi `if
+ * (g9c90244 == 3)` in Open e in GetSensorID. Il nome della stringa deve
+ * combaciare con la voce di CONFIG_CUSTOM_KERNEL_IMGSENSOR, perche'
+ * imgsensor_set_driver confronta proprio quella.
+ */
+#if defined(GC0310_MIPI_YUV)
+{GC0310_SENSOR_ID, SENSOR_DRVNAME_GC0310_MIPI_YUV, GC0310_MIPI_YUV_SensorInit},
+#endif
+#if defined(GC8034_MIPI_RAW)
+{GC8034_SENSOR_ID, SENSOR_DRVNAME_GC8034_MIPI_RAW, GC8034_MIPI_RAW_SensorInit},
+#endif
+/*
+ * GC032A c'era come driver e non c'era come voce: si compilava, e
+ * imgsensor_set_driver -- che cerca il nome proprio in questa tabella --
+ * non l'avrebbe trovato mai. Nel binario di fabbrica il suo nome sta
+ * qui in mezzo agli altri sei, a "gc032a_mipi_yuv"@0x1126c16.
+ */
+#if defined(GC032A_MIPI_YUV)
+{GC032A_SENSOR_ID, SENSOR_DRVNAME_GC032A_MIPI_YUV, GC032A_MIPI_YUV_SensorInit},
+#endif
 	/*IMX*/
 #if defined(IMX586_MIPI_RAW)
 {IMX586_SENSOR_ID, SENSOR_DRVNAME_IMX586_MIPI_RAW, IMX586_MIPI_RAW_SensorInit},
@@ -69,14 +131,8 @@ struct IMGSENSOR_SENSOR_LIST
 #if defined(IMX377_MIPI_RAW)
 {IMX377_SENSOR_ID, SENSOR_DRVNAME_IMX377_MIPI_RAW, IMX377_MIPI_RAW_SensorInit},
 #endif
-#if defined(IMX230_MIPI_RAW)
-{IMX230_SENSOR_ID, SENSOR_DRVNAME_IMX230_MIPI_RAW, IMX230_MIPI_RAW_SensorInit},
-#endif
 #if defined(IMX220_MIPI_RAW)
 {IMX220_SENSOR_ID, SENSOR_DRVNAME_IMX220_MIPI_RAW, IMX220_MIPI_RAW_SensorInit},
-#endif
-#if defined(IMX219_MIPI_RAW)
-{IMX219_SENSOR_ID, SENSOR_DRVNAME_IMX219_MIPI_RAW, IMX219_MIPI_RAW_SensorInit},
 #endif
 #if defined(IMX214_MIPI_RAW)
 {IMX214_SENSOR_ID, SENSOR_DRVNAME_IMX214_MIPI_RAW, IMX214_MIPI_RAW_SensorInit},
@@ -290,10 +346,6 @@ struct IMGSENSOR_SENSOR_LIST
 #endif
 #if defined(S5K2P8_MIPI_RAW)
 {S5K2P8_SENSOR_ID, SENSOR_DRVNAME_S5K2P8_MIPI_RAW, S5K2P8_MIPI_RAW_SensorInit},
-#endif
-#if defined(S5K3P3SX_MIPI_RAW)
-{S5K3P3SX_SENSOR_ID, SENSOR_DRVNAME_S5K3P3SX_MIPI_RAW,
-	S5K3P3SX_MIPI_RAW_SensorInit},
 #endif
 #if defined(S5K2X8_MIPI_RAW)
 {S5K2X8_SENSOR_ID, SENSOR_DRVNAME_S5K2X8_MIPI_RAW, S5K2X8_MIPI_RAW_SensorInit},

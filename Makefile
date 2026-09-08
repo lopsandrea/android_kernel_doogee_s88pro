@@ -880,6 +880,41 @@ KBUILD_CFLAGS += $(call cc-disable-warning, pointer-sign)
 # disable stringop warnings in gcc 8+
 KBUILD_CFLAGS += $(call cc-disable-warning, stringop-truncation)
 
+#
+# I warning introdotti DOPO clang-9, spenti per poter compilare questo albero
+# con le toolchain recenti -- LineageOS 21 porta clang-17.
+#
+# cc-disable-warning aggiunge il flag SOLO se il compilatore lo conosce:
+# con il clang-r353983c di fabbrica, che questi warning non li ha, queste
+# righe non fanno nulla e il kernel compila esattamente come prima.
+#
+# I flag finiscono IN FONDO alla riga di compilazione (vedi la coda di
+# c_flags in scripts/Makefile.lib) e non in KBUILD_CFLAGS: 52 Makefile di
+# questo albero -- quasi tutti MediaTek -- aggiungono un -Wall -Werror
+# proprio in ccflags-y, che viene DOPO KBUILD_CFLAGS, e l ultimo flag vince.
+#
+# Non e -Werror spento: sono i singoli warning, e un difetto vero continua a
+# fermare il build. Riguardano tutti costrutti legittimi in gnu89 -- lo
+# standard che questo Makefile chiede a riga 424 -- che gli standard piu
+# recenti hanno deprecato.
+#
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, unused-but-set-variable)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, void-pointer-to-enum-cast)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, deprecated-non-prototype)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, strict-prototypes)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, single-bit-bitfield-constant-conversion)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, enum-conversion)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, sometimes-uninitialized)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, misleading-indentation)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, bool-operation)
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, gnu-variable-sized-type-not-at-end)
+# clang-17 puo trasformare una strcpy() in stpcpy(), che questo kernel non
+# implementa: il collegamento di vmlinux muore con "undefined symbol:
+# stpcpy". -fno-builtin-stpcpy glielo impedisce.
+KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-option, -fno-builtin-stpcpy)
+
+export KBUILD_CFLAGS_TOOLCHAIN_COMPAT
+
 # disable invalid "can't wrap" optimizations for signed / pointers
 KBUILD_CFLAGS	+= $(call cc-option,-fno-strict-overflow)
 

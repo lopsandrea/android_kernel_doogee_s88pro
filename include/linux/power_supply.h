@@ -176,7 +176,17 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_PD,		/* Power Delivery Port */
 	POWER_SUPPLY_TYPE_USB_PD_DRP,		/* PD Dual Role Port */
 	POWER_SUPPLY_TYPE_APPLE_BRICK_ID,	/* Apple Charging Method */
-	POWER_SUPPLY_TYPE_WIRELESS,		/* Wireless Charger */
+	POWER_SUPPLY_TYPE_WIRELESS,
+	/*
+	 * IL TREDICESIMO VALORE, aggiunto da Wingtech. Che esista e' MISURATO:
+	 * `mt_charger_probe` scrive 13 nel campo `type` del descrittore
+	 * dell'alimentazione inversa ("528001a9 mov"@0xffffff8008ac1ee4 = 0xd,
+	 * poi "b9020809 str"@0xffffff8008ac1f04 a +520), e l'enum di ALPS si
+	 * ferma a 12.
+	 * IL NOME `POWER_SUPPLY_TYPE_REVERSE` E' SCELTO: il binario da' il
+	 * valore, non la costante.
+	 */
+	POWER_SUPPLY_TYPE_REVERSE,		/* Wireless Charger */
 };
 
 enum power_supply_notifier_events {

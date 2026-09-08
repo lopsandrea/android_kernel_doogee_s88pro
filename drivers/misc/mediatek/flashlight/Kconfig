@@ -188,3 +188,35 @@ config MTK_FLASHLIGHT_DLPT
 	  the current of battary dynamicly. It will start by request
 	  and notice user by kernel notifier.
 
+#
+# LE OPZIONI DI FABBRICA CHE MANCAVANO, dichiarate il 2026-08-26.
+#
+# Il .config di fabbrica le ha tutte a =y e il nostro albero non le
+# dichiarava affatto: `olddefconfig` scarta un simbolo che nessun Kconfig
+# definisce, quindi non c'era modo di accenderle.
+#
+# ATTENZIONE, e va detto prima di leggerle come «funzioni aggiunte»:
+# **nessuna di queste guardia protegge codice che esista in questo albero.**
+# Accenderle allinea il .config al kernel di fabbrica e non cambia un byte
+# del binario. Servono a due cose:
+#
+#   1. togliere quindici differenze dal confronto dei config, che e' una
+#      delle tre misure del progetto;
+#   2. dare un posto dove attaccare il codice quando lo si scrivera'.
+#
+# Il posto in cui stanno lo abbiamo scelto noi, per sottosistema: il Kconfig
+# di fabbrica non e' fra i file recuperati, e dedurlo dal binario non si puo'
+# -- un simbolo di Kconfig non lascia traccia nel codice compilato.
+#
+
+config WTK_MAIN_FLASHLIGHT_CH0
+	bool "canale 0 del flash principale (nome di fabbrica)"
+	default y
+	help
+	  Il .config di fabbrica ha CONFIG_WTK_MAIN_FLASHLIGHT_CH0=y.
+
+	  In questo albero il nome compare in quattro file -- flashlight-device.c,
+	  flashlights-mt6370.c e mt6370_pmu_charger.c -- ma SOLO NEI COMMENTI:
+	  nessun #ifdef lo prova. Il blocco flashlight misura comunque 90
+	  funzioni su 90 uguali alla fabbrica, quindi finora non e' mancato
+	  niente, e accendere questa voce non cambia il codice generato.

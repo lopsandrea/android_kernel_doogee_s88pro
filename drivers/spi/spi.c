@@ -29,6 +29,8 @@
 #include <linux/mod_devicetable.h>
 #include <linux/spi/spi.h>
 #include <linux/of_gpio.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/pm_runtime.h>
 #include <linux/pm_domain.h>
 #include <linux/property.h>
@@ -3334,6 +3336,56 @@ int spi_write_then_read(struct spi_device *spi,
 }
 EXPORT_SYMBOL_GPL(spi_write_then_read);
 
+/*
+ * IL NODO /proc/wtk_fingerInfo -- AGGIUNTA DI FABBRICA in QUESTO file, non
+ * nel driver di impronte. Lo dice l'adiacenza degli indirizzi:
+ *   wtk_creat_proc_finger_info @0xffffff800898dac8, subito dopo
+ *     spi_write_then_read (0xffffff800898d8e0)
+ *   wtk_finger_info_open       @0xffffff800898ff48
+ *   wtk_finger_info_show       @0xffffff800898ff6c
+ *
+ * IL NOME DEL BUFFER E' SCELTO, non misurato: l'oracolo non ha simboli di
+ * dato, quindi si usa il suo indirizzo. Il contenuto iniziale invece e'
+ * letto dall'immagine -- "unknow" (senza la n finale, refuso di fabbrica) a
+ * 0xffffff800995afd0.
+ *
+ * ANCHE LA DIMENSIONE E' UNA SCELTA. Cio' che e' misurato e' il limite
+ * superiore: il primo dato non nullo che segue sta a 0xffffff800995b008,
+ * quindi il vettore sta in [0xfd0, 0x008) della pagina dopo ed e' al piu' di
+ * 56 byte. Scelto 56, il massimo compatibile con la misura.
+ *
+ * DIFETTO DI FABBRICA, RIPRODOTTO: nessuno scrive questo buffer. Cercato in
+ * tutta l'immagine chi tocchi 0xffffff800995afd0 e l'unica funzione e' la
+ * show qui sotto. /proc/wtk_fingerInfo di fabbrica stampa sempre "unknow".
+ */
+static char g995afd0[56] = "unknow";
+
+static int wtk_finger_info_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "finger ic:%s\n", g995afd0);
+	return 0;
+}
+
+static int wtk_finger_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, wtk_finger_info_show, NULL);
+}
+
+static const struct file_operations wtk_finger_info_fops = {
+	.open = wtk_finger_info_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+int wtk_creat_proc_finger_info(void)
+{
+	if (!proc_create("wtk_fingerInfo", 0444, NULL, &wtk_finger_info_fops))
+		printk("create /proc/finger_info_entry fail\n");
+
+	return 0;
+}
+
 /*-------------------------------------------------------------------------*/
 
 #if IS_ENABLED(CONFIG_OF_DYNAMIC)
@@ -3506,6 +3558,11 @@ extern struct notifier_block spi_acpi_notifier;
 static int __init spi_init(void)
 {
 	int	status;
+
+	/* IN CIMA, prima della kmalloc: la fabbrica ha
+	 * "97e59e5b bl"@0xffffff800898dae8 verso proc_create come prima
+	 * chiamata di spi_init, e solo dopo la kmem_cache_alloc_trace. */
+	wtk_creat_proc_finger_info();
 
 	buf = kmalloc(SPI_BUFSIZ, GFP_KERNEL);
 	if (!buf) {

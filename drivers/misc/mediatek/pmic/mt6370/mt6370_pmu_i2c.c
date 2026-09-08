@@ -262,6 +262,9 @@ static int mt6370_pmu_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(mt6370_pmu_pm_ops, mt6370_pmu_suspend,
 	mt6370_pmu_resume);
 
+struct mt6370_pmu_chip *g9b2c548;
+EXPORT_SYMBOL(g9b2c548);
+
 static int mt6370_pmu_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
@@ -304,6 +307,16 @@ static int mt6370_pmu_probe(struct i2c_client *i2c,
 	i2c_set_clientdata(i2c, chip);
 
 	pm_runtime_set_active(&i2c->dev);
+	/*
+	 * IL PUNTATORE GLOBALE AL PMIC, aggiunta di fabbrica: serve al driver
+	 * del pannello, che accende e spegne VPOS e VNEG scrivendo i registri
+	 * 0xb1/0xb3/0xb4 con mt6370_pmu_reg_write. Lo scrive qui, subito prima
+	 * della regmap_register: "f902a518 str"@0xffffff80085cac64 mette x24
+	 * (chip) a [x8,#1352] della pagina 0xffffff8009b2c000.
+	 *
+	 * IL NOME E' L'INDIRIZZO (regola 5): il binario non nomina i dati.
+	 */
+	g9b2c548 = chip;
 	ret = mt6370_pmu_regmap_register(chip, &mt6370_regmap_fops);
 	if (ret < 0)
 		goto out_regmap;

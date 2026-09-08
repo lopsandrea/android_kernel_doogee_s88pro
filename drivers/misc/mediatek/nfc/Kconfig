@@ -1,0 +1,37 @@
+#
+# Chip NFC STMicroelectronics ST21NFC / ST54 (canale SPI del secure element).
+#
+# Corrisponde a CONFIG_NFC_CHIP_SUPPORT=y e CONFIG_NFC_ST54_SPI=y nel config di
+# fabbrica (e977_dg_m13_71_q0.config, righe 1976 e 1977). Le due righe stanno
+# subito dopo CONFIG_MTK_TINYSYS_MCUPM_PLT_SUPPORT, che e' l'ultima "source"
+# di drivers/misc/mediatek/Kconfig: e' per questo che il file viene sorgentato
+# li' in fondo, e non altrove -- l'ordine delle opzioni in un .config espanso e'
+# l'ordine di attraversamento del Kconfig.
+#
+# Le due opzioni sono un solo blocco di simboli nel kernel di fabbrica:
+# NFC_CHIP_SUPPORT contiene per intero NFC_ST54_SPI (31 funzioni contigue in
+# stock.map, 17 di st21nfc.c e 14 di st54spi.c). Restano due unita' di
+# traduzione, e il .ddebug di fabbrica lo dice con i KBUILD_MODNAME 'st21nfc' e
+# 'st54spi'.
+#
+config NFC_CHIP_SUPPORT
+	bool "ST21NFC NFC controller (I2C/NCI)"
+	depends on I2C
+	default n
+	help
+	  Driver NFC STMicroelectronics ST21NFC: carattere /dev/st21nfc,
+	  lettura/scrittura I2C verso il controller NCI, GPIO di reset e di
+	  IRQ, ioctl di polarita' e di reset. Ricostruito leggendo il kernel
+	  di fabbrica del Doogee S88 Pro disassemblato -- vedi
+	  docs/bringup/driver-riscritti.md.
+
+config NFC_ST54_SPI
+	bool "ST54 secure element SPI channel"
+	depends on SPI && NFC_CHIP_SUPPORT
+	default n
+	help
+	  Canale SPI verso il secure element ST54, con gestione
+	  dell'alimentazione e una richiamata registrata sul driver ST21NFC
+	  (st21nfc_register_st54spi_cb). Ricostruito esclusivamente leggendo il
+	  driver nell'oracolo stock; non deriva da sorgenti spidev o da driver
+	  di altri telefoni.

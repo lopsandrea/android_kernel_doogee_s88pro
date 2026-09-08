@@ -26,6 +26,7 @@
 #include <linux/platform_data/spi-mt65xx.h>
 #include <linux/pm_runtime.h>
 #include <linux/spi/spi.h>
+#include <linux/tee_clkmgr.h>
 #include <linux/dma-mapping.h>
 
 
@@ -948,6 +949,42 @@ static int mtk_spi_probe(struct platform_device *pdev)
 	}
 
 	clk_disable_unprepare(mdata->spi_clk);
+
+	/*
+	 * IL CLOCK SPI, REGISTRATO PRESSO IL TEE.
+	 *
+	 * Senza questa riga il trusted OS non riesce ad accendere il clock e
+	 * riempie il registro di errori, 32 per ogni avvio:
+	 *
+	 *     ERR TKCore:enable_clk:25: Failed to enable clk0:0 with 0xffff0008
+	 *     ERR TKCore:disable_clk:48: Failed to disable clock0:0 with 0xffff0008
+	 *
+	 * `clk0:0` e' il tipo 0 della lista di tee_clkmgr.c -- "spi" -- con id
+	 * 0. Nel nostro albero tee_clkmgr_register era EXPORT_SYMBOL e non la
+	 * chiamava nessuno; nel binario di fabbrica il suo unico chiamante e'
+	 * proprio qui:
+	 *
+	 *     "97f875a6 bl"@0xffffff80089900fc  in mtk_spi_probe
+	 *
+	 * I parametri si leggono dalle istruzioni che la precedono:
+	 *
+	 *     x0 = "spi"@0xffffff800922621d
+	 *     w1 = 0                              ("2a1f03e1 mov w1, wzr")
+	 *     x2 = clk_prepare_enable             (0xffffff8008990ff4)
+	 *     x3 = clk_disable_unprepare          (0xffffff8008991038)
+	 *     x4 = [x24,#48] = mdata->spi_clk     ("f9401b04 ldr x4, [x24,#48]")
+	 *     x5 = x6 = NULL, w7 = 1
+	 *
+	 * L'offset 48 e' spi_clk contando i campi di struct mtk_spi: base 0,
+	 * peri_regs 8, state 16, pad_num 20, pad_sel 24, parent_clk 32,
+	 * sel_clk 40, spi_clk 48.
+	 *
+	 * Il punto di innesto e' quello di fabbrica: la bl e' seguita da
+	 * "f9403308 ldr x8, [x24,#96]" + "39400108 ldrb w8, [x8]" + cbz, cioe'
+	 * dall'if su mdata->dev_comp->need_pad_sel che comincia qui sotto.
+	 */
+	tee_clkmgr_register("spi", 0, clk_prepare_enable, clk_disable_unprepare,
+			    mdata->spi_clk, NULL, NULL, 1);
 
 	if (mdata->dev_comp->need_pad_sel) {
 		if (mdata->pad_num != master->num_chipselect) {

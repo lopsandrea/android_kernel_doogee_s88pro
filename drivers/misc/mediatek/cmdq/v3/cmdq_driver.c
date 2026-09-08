@@ -1067,16 +1067,39 @@ static long cmdq_ioctl(struct file *pf, unsigned int code,
 
 	CMDQ_VERBOSE("%s code:0x%08x f:0x%p\n", __func__, code, pf);
 
+/*
+ * I SEI CASI CHE ALPS SPEGNE E LA FABBRICA TIENE ACCESI.
+ *
+ * Qui c'erano due `#if 0` che escludevano EXEC_COMMAND, ASYNC_JOB_EXEC,
+ * ASYNC_JOB_WAIT_AND_CLOSE, ALLOC_WRITE_ADDRESS, FREE_WRITE_ADDRESS e
+ * READ_ADDRESS_VALUE. Le funzioni restavano compilate -- si vedono nella
+ * mappa come simboli globali -- e nessuno le chiamava.
+ *
+ * Il servizio della fotocamera di questo telefono le usa. Col nostro kernel
+ * il suo ioctl finiva nel ramo di ripiego, quarantasette volte per ogni
+ * apertura:
+ *
+ *   [CMDQ][ERR]unrecognized ioctl 0x40087807
+ *
+ * e lo stesso log col kernel di fabbrica ne conta ZERO.
+ *
+ * Che 0x40087807 sia proprio ALLOC_WRITE_ADDRESS non e' dedotto dal numero:
+ * nel binario di fabbrica quel confronto
+ * ("528f00e8 mov"@0xffffff80087cf740 con "72a80108 movk"@0xffffff80087cf744)
+ * salta a un ramo che chiama `cmdqCoreAllocWriteAddress`
+ * ("94006f9c bl"@0xffffff80087cfa84).
+ *
+ * La fabbrica confronta 0x40087806, 0x40087807 e 0x40087808; il nostro
+ * binario non conteneva nessuno dei tre -- verificato cercando `0x7807` in
+ * tutta la zona CMDQ e trovando zero occorrenze.
+ */
 	switch (code) {
-#if 0
 	case CMDQ_IOCTL_EXEC_COMMAND:
 		status = cmdq_driver_ioctl_exec_command(pf, param);
 		break;
-#endif
 	case CMDQ_IOCTL_QUERY_USAGE:
 		status = cmdq_driver_ioctl_query_usage(pf, param);
 		break;
-#if 0
 	case CMDQ_IOCTL_ASYNC_JOB_EXEC:
 		CMDQ_SYSTRACE_BEGIN("%s_async_job_exec\n", __func__);
 		status = cmdq_driver_ioctl_async_job_exec(pf, param);
@@ -1096,7 +1119,6 @@ static long cmdq_ioctl(struct file *pf, unsigned int code,
 	case CMDQ_IOCTL_READ_ADDRESS_VALUE:
 		status = cmdq_driver_ioctl_read_address_value(param);
 		break;
-#endif
 	case CMDQ_IOCTL_QUERY_CAP_BITS:
 		status = cmdq_driver_ioctl_query_cap_bits(param);
 		break;

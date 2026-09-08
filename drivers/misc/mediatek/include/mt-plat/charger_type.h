@@ -24,6 +24,16 @@ enum charger_type {
 	APPLE_1_0A_CHARGER, /* 1A apple charger */
 	APPLE_0_5A_CHARGER, /* 0.5A apple charger */
 	WIRELESS_CHARGER,
+	/*
+	 * IL DECIMO VALORE, aggiunto da Wingtech. Che esista e' MISURATO:
+	 * `dump_charger_name`, incorporata in `mt_wls_set_property`, confronta
+	 * con 9 e non con 7 ("7100245f cmp"@0xffffff8008ac26e4), e la tavola
+	 * dei nomi di fabbrica ha una decima voce, "Reverse Charger" a
+	 * 0xffffff80092614f0, che ALPS non ha.
+	 * IL NOME `REVERSE_CHARGER` E' SCELTO, non misurato: il binario nomina
+	 * la STRINGA, non la costante dell'enum.
+	 */
+	REVERSE_CHARGER,
 };
 
 #if defined(CONFIG_USB_MTK_HDRC) || defined(CONFIG_USB_MU3D_DRV) \

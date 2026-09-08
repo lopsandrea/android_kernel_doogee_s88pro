@@ -347,7 +347,6 @@ int fscrypt_set_bio_ctx(struct inode *inode, struct bio *bio)
 		bio->bi_crypt_ctx.bc_info =
 			fscrypt_crypt_info_act(
 			ci, BIO_BC_INFO_GET);
-		bio->bi_crypt_ctx.hashed_info = ci->ci_hashed_info;
 
 		WARN_ON(!bio->bi_crypt_ctx.bc_info);
 
