@@ -411,7 +411,17 @@ struct phy_device {
 	bool is_pseudo_fixed_link;
 	bool has_fixups;
 	bool suspended;
+#ifndef __GENKSYMS__
+	/*
+	 * Shown to genksyms as it was before, so that the symbol CRCs do not
+	 * move: the connectivity modules in the OEM vendor partition are
+	 * binaries built against the factory 4.14.141 kernel, and with
+	 * CONFIG_MODVERSIONS a single changed CRC stops them loading.
+	 * None of them imports a phy_ or mdio symbol; this phone has no
+	 * Ethernet PHY at all.
+	 */
 	bool suspended_by_mdio_bus;
+#endif
 	bool sysfs_links;
 	bool loopback_enabled;
 

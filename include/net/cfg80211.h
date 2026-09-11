@@ -2875,9 +2875,6 @@ struct cfg80211_external_auth_params {
  *
  * @start_radar_detection: Start radar detection in the driver.
  *
- * @end_cac: End running CAC, probably because a related CAC
- *	was finished on another phy.
- *
  * @update_ft_ies: Provide updated Fast BSS Transition information to the
  *	driver. If the SME is in the driver/firmware, this information can be
  *	used in building Authentication and Reassociation Request frames.
@@ -3186,8 +3183,26 @@ struct cfg80211_ops {
 					 struct net_device *dev,
 					 struct cfg80211_chan_def *chandef,
 					 u32 cac_time_ms);
-	void	(*end_cac)(struct wiphy *wiphy,
-				struct net_device *dev);
+	/*
+	 * No end_cac() here. Upstream 2dbb6faebb94 ("cfg80211: Fix radar
+	 * event during another phy CAC") adds one right below, and it is
+	 * deliberately left out.
+	 *
+	 * The prebuilt WiFi driver in the OEM vendor partition fills in its
+	 * own struct cfg80211_ops, built against the factory 4.14.141
+	 * layout. A member added in the middle shifts every one after it,
+	 * and the kernel would read each callback at the wrong offset --
+	 * calling, say, set_wiphy_params() where it meant join_ibss().
+	 * Moving it to the end of the struct would not do either: the
+	 * module's object is then shorter than the kernel expects, and
+	 * rdev_end_cac() would dereference eight bytes past it.
+	 *
+	 * What the commit fixes needs two phys doing CAC on the same
+	 * channel, so that finishing on one cancels the other. This device
+	 * has a single phy, and the prebuilt driver predates the callback
+	 * and never implements it, so there is nothing to cancel and
+	 * nothing to lose.
+	 */
 	int	(*update_ft_ies)(struct wiphy *wiphy, struct net_device *dev,
 				 struct cfg80211_update_ft_ies_params *ftie);
 	int	(*crit_proto_start)(struct wiphy *wiphy,

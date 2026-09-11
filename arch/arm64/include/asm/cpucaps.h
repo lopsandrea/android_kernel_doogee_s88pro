@@ -42,10 +42,22 @@
 #define ARM64_HAS_DCPOP				21
 #define ARM64_UNMAP_KERNEL_AT_EL0		23
 #define ARM64_HARDEN_BRANCH_PREDICTOR		24
-#define ARM64_SSBD				25
-#define ARM64_MISMATCHED_CACHE_TYPE		26
-#define ARM64_SSBS				27
+/*
+ * Slot 25 held ARM64_HARDEN_BP_POST_GUEST_EXIT, which upstream b65b0eb466bc
+ * ("arm64: Get rid of __smccc_workaround_1_hvc_*") removed, renumbering
+ * everything below it. We keep the hole instead.
+ *
+ * These numbers are ABI towards the prebuilt modules in the OEM vendor
+ * partition: cpus_have_const_cap() compiles the capability NUMBER into the
+ * caller, which then indexes cpu_hwcap_keys with it. Renumbering would make
+ * those modules test the wrong capability. ARM64_NCAPS sizes the cpu_hwcaps
+ * bitmap, so moving it also changes the symbol CRC and stops them loading
+ * outright. Nothing references slot 25; the hole costs nothing.
+ */
+#define ARM64_SSBD				26
+#define ARM64_MISMATCHED_CACHE_TYPE		27
+#define ARM64_SSBS				28
 
-#define ARM64_NCAPS				28
+#define ARM64_NCAPS				29
 
 #endif /* __ASM_CPUCAPS_H */

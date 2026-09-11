@@ -26,9 +26,25 @@ struct dst_ops {
 					  struct net_device *dev, int how);
 	struct dst_entry *	(*negative_advice)(struct dst_entry *);
 	void			(*link_failure)(struct sk_buff *);
+	/*
+	 * update_pmtu() gained confirm_neigh in upstream b3d7dc1414fd
+	 * ("net: dst: Force 4-byte alignment..." series). A function
+	 * pointer is a function pointer: the layout does not move, only
+	 * the text genksyms hashes.
+	 *
+	 * Shown to genksyms as it was before, so that the symbol CRCs do not
+	 * move: the connectivity modules in the OEM vendor partition are
+	 * binaries built against the factory 4.14.141 kernel, and with
+	 * CONFIG_MODVERSIONS a single changed CRC stops them loading.
+	 */
+#ifdef __GENKSYMS__
+	void			(*update_pmtu)(struct dst_entry *dst, struct sock *sk,
+					       struct sk_buff *skb, u32 mtu);
+#else
 	void			(*update_pmtu)(struct dst_entry *dst, struct sock *sk,
 					       struct sk_buff *skb, u32 mtu,
 					       bool confirm_neigh);
+#endif
 	void			(*redirect)(struct dst_entry *dst, struct sock *sk,
 					    struct sk_buff *skb);
 	int			(*local_out)(struct net *net, struct sock *sk, struct sk_buff *skb);

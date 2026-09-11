@@ -1065,8 +1065,10 @@ struct task_struct {
 	struct seccomp			seccomp;
 
 	/* Thread group tracking: */
-	u64				parent_exec_id;
-	u64				self_exec_id;
+#ifdef __GENKSYMS__
+	u32				parent_exec_id;
+	u32				self_exec_id;
+#endif
 
 	/* Protection against (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed, mempolicy: */
 	spinlock_t			alloc_lock;
@@ -1189,8 +1191,6 @@ struct task_struct {
 #endif
 	struct list_head		pi_state_list;
 	struct futex_pi_state		*pi_state_cache;
-	struct mutex			futex_exit_mutex;
-	unsigned int			futex_state;
 #endif
 #ifdef CONFIG_PERF_EVENTS
 	struct perf_event_context	*perf_event_ctxp[perf_nr_task_contexts];
@@ -1378,6 +1378,23 @@ struct task_struct {
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
 	 */
+#ifndef __GENKSYMS__
+	/*
+	 * Moved down here, and hidden from genksyms, on purpose: see the
+	 * comment on BITS_TO_LONGS in include/linux/bitops.h. Adding a field
+	 * in the middle shifts every field after it, and the connectivity
+	 * modules in the OEM vendor partition are binaries built against the
+	 * factory 4.14.141 layout. At the end of the struct nothing moves,
+	 * and behind __GENKSYMS__ the symbol CRCs do not change either.
+	 */
+	u64				parent_exec_id;
+	u64				self_exec_id;
+#ifdef CONFIG_FUTEX
+	struct mutex			futex_exit_mutex;
+	unsigned int			futex_state;
+#endif
+#endif
+
 	randomized_struct_fields_end
 
 	/* CPU-specific state of this task: */

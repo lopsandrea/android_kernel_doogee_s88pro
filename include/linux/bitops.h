@@ -5,7 +5,17 @@
 #include <linux/bits.h>
 
 #define BITS_PER_TYPE(type) (sizeof(type) * BITS_PER_BYTE)
-#define BITS_TO_LONGS(nr)	DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
+/*
+ * Deliberately not BITS_PER_TYPE(long), which is what upstream
+ * 04fb39b7539f ("include/linux/bitops.h: introduce BITS_PER_TYPE")
+ * writes here. That commit only swaps the operands -- the value is
+ * the same -- but genksyms hashes the TEXT of the expanded types, so
+ * every structure holding a bitmap (cpumask, nodemask_t, and through
+ * them task_struct and most of the kernel) would come out with a
+ * different CRC, and the binary modules in the OEM vendor partition
+ * would stop loading over a difference that does not exist.
+ */
+#define BITS_TO_LONGS(nr)	DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(long))
 
 extern unsigned int __sw_hweight8(unsigned int w);
 extern unsigned int __sw_hweight16(unsigned int w);

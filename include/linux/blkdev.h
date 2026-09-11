@@ -343,7 +343,22 @@ struct queue_limits {
 	unsigned int		max_sectors;
 	unsigned int		max_segment_size;
 	unsigned int		physical_block_size;
+#ifndef __GENKSYMS__
+	/*
+	 * Upstream 0c7a7d8e62bd ("block: fix an integer overflow in
+	 * logical block size") widens this field, so that a 64k block
+	 * size fits. The fix stays; only its text is hidden.
+	 *
+	 * Shown to genksyms as it was before, so that the symbol CRCs do not
+	 * move: the connectivity modules in the OEM vendor partition are
+	 * binaries built against the factory 4.14.141 kernel, and with
+	 * CONFIG_MODVERSIONS a single changed CRC stops them loading.
+	 * None of them touches the block layer at all -- the only
+	 * symbols that looked like it were queue_work_on() and
+	 * queue_delayed_work_on(), which are workqueues.
+	 */
 	unsigned int		logical_block_size;
+#endif
 	unsigned int		alignment_offset;
 	unsigned int		io_min;
 	unsigned int		io_opt;
@@ -354,6 +369,14 @@ struct queue_limits {
 	unsigned int		discard_granularity;
 	unsigned int		discard_alignment;
 
+#ifdef __GENKSYMS__
+	/*
+	 * Where the field used to sit, and where genksyms has to
+	 * keep seeing it: the CRC depends on the order too, not
+	 * just on the type.
+	 */
+	unsigned short		logical_block_size;
+#endif
 	unsigned short		max_segments;
 	unsigned short		max_integrity_segments;
 	unsigned short		max_discard_segments;

@@ -646,7 +646,6 @@ struct inode {
 		struct rcu_head		i_rcu;
 	};
 	u64			i_version;
-	atomic64_t		i_sequence; /* see futex */
 	atomic_t		i_count;
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;
@@ -677,6 +676,18 @@ struct inode {
 #endif
 
 	void			*i_private; /* fs or device private pointer */
+
+#ifndef __GENKSYMS__
+	/*
+	 * Moved down here, and hidden from genksyms, on purpose: see the
+	 * comment on BITS_TO_LONGS in include/linux/bitops.h. Adding a field
+	 * in the middle shifts every field after it, and the connectivity
+	 * modules in the OEM vendor partition are binaries built against the
+	 * factory 4.14.141 layout. At the end of the struct nothing moves,
+	 * and behind __GENKSYMS__ the symbol CRCs do not change either.
+	 */
+	atomic64_t		i_sequence; /* see futex */
+#endif
 } __randomize_layout;
 
 static inline unsigned int i_blocksize(const struct inode *node)

@@ -186,7 +186,6 @@ struct kernfs_root {
 
 	/* private fields, do not use outside kernfs proper */
 	struct idr		ino_idr;
-	u32			last_ino;
 	u32			next_generation;
 	struct kernfs_syscall_ops *syscall_ops;
 
@@ -194,6 +193,18 @@ struct kernfs_root {
 	struct list_head	supers;
 
 	wait_queue_head_t	deactivate_waitq;
+
+#ifndef __GENKSYMS__
+	/*
+	 * Moved down here, and hidden from genksyms, on purpose: see the
+	 * comment on BITS_TO_LONGS in include/linux/bitops.h. Adding a field
+	 * in the middle shifts every field after it, and the connectivity
+	 * modules in the OEM vendor partition are binaries built against the
+	 * factory 4.14.141 layout. At the end of the struct nothing moves,
+	 * and behind __GENKSYMS__ the symbol CRCs do not change either.
+	 */
+	u32			last_ino;
+#endif
 };
 
 struct kernfs_open_file {

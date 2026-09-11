@@ -114,10 +114,23 @@ struct inet_bind_hashbucket {
 #define LISTENING_NULLS_BASE (1U << 29)
 struct inet_listen_hashbucket {
 	spinlock_t		lock;
+	/*
+	 * The union holds a single pointer either way, so this is the
+	 * same object it was before: only the text changes.
+	 *
+	 * Shown to genksyms as it was before, so that the symbol CRCs do not
+	 * move: the connectivity modules in the OEM vendor partition are
+	 * binaries built against the factory 4.14.141 kernel, and with
+	 * CONFIG_MODVERSIONS a single changed CRC stops them loading.
+	 */
+#ifdef __GENKSYMS__
+	struct hlist_head	head;
+#else
 	union {
 		struct hlist_head	head;
 		struct hlist_nulls_head	nulls_head;
 	};
+#endif
 };
 
 /* This is for listening sockets, thus all sockets which possess wildcards. */
