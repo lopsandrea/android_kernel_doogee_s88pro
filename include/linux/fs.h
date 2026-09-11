@@ -687,6 +687,14 @@ struct inode {
 	 * and behind __GENKSYMS__ the symbol CRCs do not change either.
 	 */
 	atomic64_t		i_sequence; /* see futex */
+#ifdef CONFIG_FS_VERITY
+	/*
+	 * android-4.14 declares this one up among the other optional fields;
+	 * down here it costs no offset. fs/verity only ever reaches it
+	 * through the inode pointer it is handed.
+	 */
+	struct fsverity_info	*i_verity_info;
+#endif
 #endif
 } __randomize_layout;
 
