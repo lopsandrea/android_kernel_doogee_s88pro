@@ -1,10 +1,10 @@
 /*
- * GC0310 MIPI YUV -- le misure, ricavate dal binario.
+ * GC0310 MIPI YUV -- the sizes, read off the binary.
  *
- * Le sei mezze parole che GC0310MIPIGetResolution scrive sono tutte 632x474:
- * "mov x8, #0x278"@0xffffff80087173e8 costruisce 0x01DA_0278_01DA_0278, che
- * letto come quattro u16 e' 632, 474, 632, 474, e il w9 che segue ne aggiunge
- * altre due uguali.
+ * The six half-words GC0310MIPIGetResolution writes are all 632x474:
+ * "mov x8, #0x278"@0xffffff80087173e8 builds 0x01DA_0278_01DA_0278, which
+ * read as four u16 is 632, 474, 632, 474, and the w9 that follows adds two
+ * more of the same.
  */
 #ifndef _GC0310MIPI_SENSOR_H
 #define _GC0310MIPI_SENSOR_H

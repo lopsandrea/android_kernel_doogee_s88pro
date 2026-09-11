@@ -186,9 +186,9 @@ int iBurstWriteReg_multi(
 
 
 /*
- * kdSetI2CSpeed sta nel binario di fabbrica a 0xffffff8008704ce8 e la usa
- * read_3P3_eeprom. Gli altri driver RAW dell albero la dichiarano nel loro
- * header allo stesso modo.
+ * kdSetI2CSpeed sits in the factory binary at 0xffffff8008704ce8 and
+ * read_3P3_eeprom uses it. The other RAW drivers in the tree declare it in
+ * their own header the same way.
  */
 extern void kdSetI2CSpeed(u16 i2cSpeed);
 

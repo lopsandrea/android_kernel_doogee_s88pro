@@ -1,125 +1,107 @@
 # WTK_GT917S_E977 -- Goodix `gt1x_*`, Doogee S88 Pro (MT6771).
 #
-# NEL KERNEL VA IN `drivers/input/touchscreen/mediatek/GT917S/`, che e' una
-# directory NUOVA: la fabbrica accende `CONFIG_WTK_GT917S_E977` e tiene spente
-# `CONFIG_TOUCHSCREEN_MTK_GT1151` e `CONFIG_TOUCHSCREEN_MTK_GT5688`
-#   $ grep -nE "GT1151|GT5688|GT917S" /mnt/s88pro/kernel-work/e977_dg_m13_71_q0.config
-#   2210:# CONFIG_TOUCHSCREEN_MTK_GT1151 is not set
-#   2216:# CONFIG_TOUCHSCREEN_MTK_GT5688 is not set
-#   2220:CONFIG_WTK_GT917S_E977=y
-# quindi il codice di fabbrica NON e' quello delle due directory ALPS. Qui
-# dentro c'e' solo il SOTTO-LOTTO che ALPS non puo' dare (vedi il cappello di
-# gt1x_wtk.c): quattro funzioni su 87.
+# It goes into `drivers/input/touchscreen/mediatek/GT917S/`, a NEW directory:
+# the factory turns on `CONFIG_WTK_GT917S_E977` and leaves
+# `CONFIG_TOUCHSCREEN_MTK_GT1151` and `CONFIG_TOUCHSCREEN_MTK_GT5688` off, so
+# the factory code is not that of the two ALPS directories. What lives here is
+# only the declared sub-batch ALPS cannot give: four functions out of 87.
 #
-# `obj-y` e non `obj-$(CONFIG_WTK_GT917S_E977)` per la stessa ragione delle
-# altre directory ricostruite: la voce Kconfig non esiste ancora nell'albero
-# ALPS, e inventarne una qui senza agganciarla al Kconfig padre darebbe una
-# directory che non si compila mai. L'aggancio -- Kconfig padre + una riga nel
-# Makefile padre -- e' lavoro del lotto di merge.
+# `obj-y` and not `obj-$(CONFIG_WTK_GT917S_E977)` because the Kconfig entry does
+# not exist in the ALPS tree yet; hooking it up -- parent Kconfig plus a line in
+# the parent Makefile -- is the merge batch's job.
 #
-# `ccflags-y` DEL MAKEFILE PADRE NON SI PROPAGA alle sottodirectory (solo
-# `subdir-ccflags-y` lo fa) e questo file usa i tipi del padre: le -I vanno
-# ripetute qui.
+# `ccflags-y` from the parent Makefile does NOT propagate into subdirectories
+# (only `subdir-ccflags-y` does), so the -I flags are repeated here.
 #
-# IL `-Werror` QUI ARRIVA DAVVERO, e non e' quello del padre: e' questa riga.
-# La differenza si vede nel comando che kbuild registra, confrontando il
-# NOSTRO oggetto con quello di ALPS compilato nello stesso giro:
-#   $ tr ' ' '\n' < out-gt917s/.../GT917S/.gt1x_wtk.o.cmd     | grep -cx -- -Werror
-#   1
-#   $ tr ' ' '\n' < out-gt917s/.../GT5688/.gt1x_generic.o.cmd | grep -cx -- -Werror
-#   0
-# e l'oggetto nostro compila senza una riga di error o warning. Quello di ALPS
-# NO: con `-Werror` imposto a tutto l'albero (`KCFLAGS=-Werror`) si ferma su
-#   gt1x_generic.c:489:13: error: unused function 'gt1x_sensor_id_check'
-#       [-Werror,-Wunused-function]
-# che e' il delta di header D6 del cappello di gt1x_wtk.c. Per questo la
-# MISURA del blocco -- che compila anche `GT5688/` -- non usa `KCFLAGS`: il
-# `-Werror` sta solo qui, dove il codice e' nostro.
+# The working notes -- the measurements against the factory binary, the
+# batch-by-batch record and the reasoning behind each choice -- are in
+# docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_Makefile.md
+# in the oracolo repository. They are kept in Italian, as the project's
+# internal record.
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/GT917S/include
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/GT917S/include/config_1080p
-# IL -Werror E' RISTRETTO AL FILE NOSTRO. Le cinque unita' qui accanto sono
-# la copia di partenza presa da GT5688/ e non lo reggono ancora:
-# gt1x_generic.c si ferma su
+# THE -Werror IS RESTRICTED TO OUR OWN FILE. The five units next door are
+# the starting copy taken from GT5688/ and do not stand it yet:
+# gt1x_generic.c stops on
 #   gt1x_generic.c:489:13: error: unused function 'gt1x_sensor_id_check'
-# che NON e' rumore -- di fabbrica gt1x_init misura 1528 byte contro i 980
-# di ALPS, e una funzione che qui nessuno chiama e' il primo posto dove
-# guardare. Ogni unita' riprende -Werror quando il lotto che la corregge la
-# porta a combaciare.
+# which is NOT noise -- in the factory build gt1x_init measures 1528 bytes against
+# ALPS's 980, and a function nobody calls here is the first place to look.
+# Each unit takes -Werror back when the batch that corrects it brings it into
+# agreement.
 CFLAGS_gt1x_wtk.o += -Werror
-# gt1x_extents.c ha ripreso il -Werror il 2026-08-22, quando l'unita' e'
-# arrivata a 11 funzioni su 11 identiche al byte contro l'oracolo
-# (blocco [0xffffff8008a7221c, 0xffffff8008a73854), 5556 byte).
+# gt1x_extents.c took -Werror back on 2026-08-22, when the unit reached
+# 11 functions out of 11 byte-identical against the oracle
+# (block [0xffffff8008a7221c, 0xffffff8008a73854), 5556 bytes).
 CFLAGS_gt1x_extents.o += -Werror
-# gt1x_tools.c ha ripreso il -Werror il 2026-08-22, quando l'unita' e'
-# arrivata a 7 funzioni su 7 identiche al byte contro l'oracolo
-# (blocco [0xffffff8008a761a4, 0xffffff8008a76ca8), 2820 byte) e a
-# RESIDUO ZERO nel confronto per codifica su tutte e sette.
+# gt1x_tools.c took -Werror back on 2026-08-22, when the unit reached
+# 7 functions out of 7 byte-identical against the oracle
+# (block [0xffffff8008a761a4, 0xffffff8008a76ca8), 2820 bytes) and
+# ZERO RESIDUE in the encoding comparison on all seven.
 CFLAGS_gt1x_tools.o += -Werror
-# gt1x_generic.c ha ripreso il -Werror il 2026-08-22, quando l'unita' e'
-# arrivata a 20 funzioni su 21 identiche al byte contro l'oracolo
-# (blocco [0xffffff8008a73854, 0xffffff8008a761a4), 10576 byte).  Per
-# arrivarci e' stata TOLTA `gt1x_sensor_id_check`, che nel binario di
-# fabbrica non ha nessun chiamante: la rimozione e' una scelta dichiarata,
-# e il cappello della funzione la spiega.
+# gt1x_generic.c took -Werror back on 2026-08-22, when the unit reached
+# 20 functions out of 21 byte-identical against the oracle
+# (block [0xffffff8008a73854, 0xffffff8008a761a4), 10576 bytes). To get
+# there `gt1x_sensor_id_check` was REMOVED; it has no caller in the factory
+# binary. The removal is a declared choice, and the function header
+# explains it.
 CFLAGS_gt1x_generic.o += -Werror
-# gt1x_update.c ha ripreso il -Werror il 2026-08-23, quando l'unita' e'
-# arrivata a 24 funzioni su 24 identiche al byte contro l'oracolo (blocco
-# [0xffffff8008a7839c, 0xffffff8008a7b600) meno dump_to_file, 12540 byte) e a
-# RESIDUO ZERO nel confronto per codifica su tutte e ventiquattro.  Per
-# arrivarci e' stata TOLTA `read_reg`, che nel binario di fabbrica non c'e'
-# ne' separata ne' incorporata: la nota (13) in coda al file lo misura.
+# gt1x_update.c took -Werror back on 2026-08-23, when the unit reached
+# 24 functions out of 24 byte-identical against the oracle (block
+# [0xffffff8008a7839c, 0xffffff8008a7b600) minus dump_to_file, 12540 bytes) and
+# ZERO RESIDUE in the encoding comparison on all twenty-four. To get
+# there `read_reg` was REMOVED; it is in the factory binary neither
+# separately nor inlined: note (13) at the end of the file measures that.
 CFLAGS_gt1x_update.o += -Werror
-# gt1x_tpd.c ha ripreso il -Werror il 2026-08-23, quando l'unita' e'
-# arrivata a 19 funzioni su 19 identiche al byte contro l'oracolo (blocco
-# [0xffffff8008a76cf4, 0xffffff8008a7839c), 5800 byte) e a RESIDUO ZERO nel
-# confronto per codifica su tutte e diciannove.
+# gt1x_tpd.c took -Werror back on 2026-08-23, when the unit reached
+# 19 functions out of 19 byte-identical against the oracle (block
+# [0xffffff8008a76cf4, 0xffffff8008a7839c), 5800 bytes) and ZERO RESIDUE in the
+# encoding comparison on all nineteen.
 #
-# IL "RESIDUO ZERO" NON ERA VERO QUANDO E' STATO SCRITTO, e va detto.  Sette
-# funzioni su diciannove avevano posizioni non classificate, 39 in tutto
+# THE "ZERO RESIDUE" WAS NOT TRUE WHEN IT WAS WRITTEN, and that has to be said.
+# Seven functions out of nineteen had unclassified positions, 39 in all
 # (gt1x_power_switch 5, gt1x_debug_proc 5, tpd_on 7, tpd_local_init 6,
-# tpd_i2c_probe 4, tpd_registration 7, tpd_event_handler 5), TUTTE valori di
-# __LINE__: il file non aveva nessuna direttiva #line e le note in testa
-# spostano le righe rispetto alla fabbrica.  Era lo stesso debito che quella
-# notte era stato chiuso su ILITEK/ltr2568/qmcx983 e che qui era rimasto
-# aperto -- e la dimensione uguale non lo poteva denunciare.
+# tpd_i2c_probe 4, tpd_registration 7, tpd_event_handler 5), ALL of them __LINE__
+# values: the file had no #line directives and the notes at the top shift the
+# lines relative to the factory. It was the same debt that had been closed that
+# night on ILITEK/ltr2568/qmcx983 and had stayed open here -- and an equal size
+# could not reveal it.
 #
-# Oggi il residuo e' zero davvero: tools/derivaline.py ricava le #line dal
-# formato che printk riceve, e gt1x_tpd.o misura 1143 istruzioni uguali su
-# 1267 con ZERO posizioni da leggere a mano.  Per arrivarci sono state
-# TOLTE sei funzioni globali (gt1x_is_tpd_halt, gt1x_auto_update_done,
-# gt1x_pm_notifier, tpd_reregister_from_tui, tpd_enter_tui, tpd_exit_tui) e
-# le cinque variabili che solo loro usavano: nessuna delle sei compare in
-# stock.map dentro il blocco, e una funzione GLOBALE che esistesse di
-# fabbrica ci sarebbe per forza.  Il cappello del file lo dichiara.
+# Today the residue really is zero: tools/derivaline.py derives the #line
+# directives from the format printk receives, and gt1x_tpd.o measures 1143 equal
+# instructions out of 1267 with ZERO positions left to read by hand. To get
+# there six global functions were REMOVED (gt1x_is_tpd_halt, gt1x_auto_update_done,
+# gt1x_pm_notifier, tpd_reregister_from_tui, tpd_enter_tui, tpd_exit_tui) and
+# the five variables only they used: none of the six appears in stock.map inside
+# the block, and a GLOBAL function that existed in the factory build would
+# necessarily be there. The file header declares it.
 CFLAGS_gt1x_tpd.o += -Werror
 
-# UNA sola unita' di traduzione, e NON e' una misura della partizione di
-# fabbrica: le quattro funzioni che contiene, di fabbrica, stanno in file
-# diversi. Per adiacenza nell'ordine della mappa (scout-gt917s/elenco.txt):
-#   gt1x_gesture_debug  fra gesture_clear_wakeup_data e gt1x_init_node
-#                       -> gt1x_extents.c, e i due vicini concordano;
-#   dump_to_file        fra gt1x_error_erase e gt1x_hold_ss51_dsp_no_reset
-#                       -> gt1x_update.c, e i due vicini concordano;
-#   tpd_driver_exit     e' in .exit.text e la mappa non la contiene affatto;
-#                       la sua unita' la da' il `tpd_driver_t` che passa,
-#                       che di fabbrica sta con tpd_local_init/suspend/resume
+# A SINGLE translation unit, and it is NOT a measurement of the factory
+# partition: the four functions it holds live in different files in the factory
+# build. By adjacency in map order (scout-gt917s/elenco.txt):
+#   gt1x_gesture_debug  between gesture_clear_wakeup_data and gt1x_init_node
+#                       -> gt1x_extents.c, and the two neighbours agree;
+#   dump_to_file        between gt1x_error_erase and gt1x_hold_ss51_dsp_no_reset
+#                       -> gt1x_update.c, and the two neighbours agree;
+#   tpd_driver_exit     lives in .exit.text and the map does not hold it at all;
+#                       its unit is given by the `tpd_driver_t` it passes,
+#                       which in the factory build sits with tpd_local_init/suspend/resume
 #                       -> gt1x_tpd.c;
-#   get_module_name     NON SI DECIDE per adiacenza, ed e' l'unica delle
-#                       quattro: sta esattamente sulla cucitura, preceduta da
-#                       `comfirm` (che in ALPS e' gt1x_tools.c) e seguita da
-#                       `gt1x_i2c_read` (che in ALPS e' gt1x_tpd.c). O e'
-#                       l'ultima dell'una o la prima dell'altra, e da qui non
-#                       si sa quale. Dichiarato invece che scelto.
-# Stanno insieme qui
-# perche' questo file e' il residuo dichiarato di un lotto, non un'unita' di
-# fabbrica ricostruita; e il rischio noto e' quello del cappello del ft8719
-# (clang puo' incorporare fra loro funzioni che di fabbrica stanno in oggetti
-# distinti). Qui non si e' presentato -- le quattro misurano tutte esattamente
-# come di fabbrica -- ma il giorno in cui questa directory crescera' andra'
-# ripartita per unita' vere.
+#   get_module_name     CANNOT BE DECIDED by adjacency, and it is the only one of
+#                       the four: it sits exactly on the seam, preceded by
+#                       `comfirm` (which in ALPS is gt1x_tools.c) and followed by
+#                       `gt1x_i2c_read` (which in ALPS is gt1x_tpd.c). It is
+#                       either the last of one or the first of the other, and from
+#                       here there is no telling. Declared rather than chosen.
+# They sit together here because this file is the declared remainder of a batch,
+# not a reconstructed factory unit; and the known risk is the one in the ft8719
+# header (clang may inline into one another functions that in the factory build
+# live in distinct objects). It has not shown up here -- all four measure exactly
+# as in the factory -- but the day this directory grows it will have to be
+# split into real units.
 obj-y += gt1x_wtk.o
 obj-y += gt1x_extents.o
 obj-y += gt1x_generic.o
@@ -128,29 +110,29 @@ obj-y += gt1x_tpd.o
 obj-y += gt1x_update.o
 
 # ---------------------------------------------------------------------------
-# GLI 86 SIMBOLI IRRISOLTI: COSA E' STATO MISURATO E COSA NO -- 2026-08-23
+# THE 86 UNRESOLVED SYMBOLS: WHAT WAS MEASURED AND WHAT WAS NOT -- 2026-08-23
 # ---------------------------------------------------------------------------
-# Il commit 0678283 scriveva: "Sull'archivio dei sei oggetti: definiti 168,
-# citati U 145, irrisolti 86 -- e ZERO di essi e' una funzione del blocco
-# GT917S.  Gli 86 sono simboli del nucleo e del quadro tpd che il link del
-# kernel risolve."
+# Commit 0678283 said: "On the archive of the six objects: 168 defined,
+# 145 cited U, 86 unresolved -- and NONE of them is a function of the GT917S
+# block. The 86 are core and tpd framework symbols that the kernel link
+# resolves."
 #
-# LA PRIMA META' REGGE, LA SECONDA NO.  I tre numeri si riproducono, e
-# l'intersezione fra gli 86 e gli 85 nomi del blocco e' davvero vuota: non
-# manca niente che vada ancora ricostruito.  Ma CINQUE degli 86 nessun link di
-# kernel li risolve, e sono questi:
+# THE FIRST HALF HOLDS, THE SECOND DOES NOT. The three numbers reproduce, and
+# the intersection between the 86 and the 85 names of the block really is empty:
+# nothing is missing that still has to be reconstructed. But FIVE of the 86 are
+# resolved by no kernel link, and they are these:
 #
-#   fix_tp_proc_info    esiste nella fabbrica (stock.map, 0xffffff8008a5151c)
-#                       e in nessun sorgente dell'albero ALPS.  La aggiunge
-#                       patches/kernel-stock/mtk-tpd-wtk-tp-info.patch, che
-#                       NON e' applicata all'albero.
-#   g0fc0b8             nome derivato da un indirizzo, non esiste da nessuna
-#                       parte -- e questo file lo dichiara gia' IRRISOLTO.
-#   gt1x_tpd_driver     citata da gt1x_wtk.c:364 e :856, definita da nessuno.
-#   gt1x_patch_jump_fw  citate senza guardia da gt1x_extents.c:670-683, e
-#   hotknot_auth_fw     definite solo sotto CONFIG_GTP_REQUEST_FW_UPDATE, che
-#                       nel .config in uso e' "is not set" -- e comunque solo
-#                       dentro GT5688/ e GT1151/, che sono spente.
+#   fix_tp_proc_info    exists in the factory build (stock.map, 0xffffff8008a5151c)
+#                       and in no ALPS tree source. It is added by
+#                       patches/kernel-stock/mtk-tpd-wtk-tp-info.patch, which
+#                       is NOT applied to the tree.
+#   g0fc0b8             a name derived from an address, it exists nowhere --
+#                       and this file already declares it UNRESOLVED.
+#   gt1x_tpd_driver     cited by gt1x_wtk.c:364 and :856, defined by nobody.
+#   gt1x_patch_jump_fw  cited without a guard by gt1x_extents.c:670-683, and
+#   hotknot_auth_fw     defined only under CONFIG_GTP_REQUEST_FW_UPDATE, which
+#                       in the .config in use is "is not set" -- and in any case
+#                       only inside GT5688/ and GT1151/, which are off.
 #
-# La differenza fra insiemi dice "non manca niente da ricostruire".  Non dice
-# "si linka": vedi la ritrattazione in HANDOFF.md.
+# The difference between the sets says "nothing is missing to reconstruct". It
+# does not say "it links": see the retraction in HANDOFF.md.

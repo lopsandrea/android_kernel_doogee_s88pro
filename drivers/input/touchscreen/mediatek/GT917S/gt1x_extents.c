@@ -19,271 +19,23 @@
  *
  */
 
-/* ======================================================================
- * LOTTO "extents" -- 2026-08-22.  Correzione di gt1x_extents.c contro
- * l'oracolo, NON riscrittura: il file di partenza era la copia dell'albero
- * ALPS (drivers/input/touchscreen/mediatek/GT5688/), portata dentro da un
- * lotto di ricognizione.
+/*
+ * Goodix GT917S touch panel, Doogee S88 Pro -- the "extents" block.
  *
- * Blocco di fabbrica: [0xffffff8008a7221c, 0xffffff8008a73854) meno
- * gt1x_gesture_debug (che sta in gt1x_wtk.c) = 5556 byte, 11 funzioni.
- * Misurato col compilatore DI FABBRICA (clang r353983c, LLVM 9.0.3):
- * 11 funzioni su 11 identiche al byte, 5556 su 5556.
+ * This is a correction against the factory binary, not a rewrite: the
+ * starting point was the ALPS copy
+ * (drivers/input/touchscreen/mediatek/GT5688/), brought in by an earlier
+ * survey. Factory block: [0xffffff8008a7221c, 0xffffff8008a73854) minus
+ * gt1x_gesture_debug (which lives in gt1x_wtk.c) = 5556 bytes, 11 functions,
+ * measured with the factory compiler (clang r353983c, LLVM 9.0.3).
  *
- * QUEL CHE LA MISURA DI DIMENSIONE NON DENUNCIAVA, e che il confronto per
- * codifica ha trovato: gesture_enter_doze misurava 236 su 236 fin dal
- * principio, ma faceva `msleep(20)` dove la fabbrica fa `msleep(10)`
- * ("52800140 mov"@0xffffff8008a7224c, w0=10; il ciclo e' srotolato cinque
- * volte, cinque occorrenze). Stessa dimensione, costante sbagliata.
- * Nella stessa funzione tre letterali erano diversi ("entering doze
- * mode...", "GTP has been working in doze mode!", "GTP send doze cmd
- * failed.") e in hotknot_open/hotknot_release altri due; anche loro non
- * cambiano un byte di codice.
- *
- * ---------------------------------------------------------------------
- * 1. LE DIVERGENZE CORRETTE, E LA PROVA DI CIASCUNA
- * ---------------------------------------------------------------------
- *
- * gt1x_compat_ioctl  408 -> 56.  Vedi il cappello sulla funzione: di
- *   fabbrica e' un rinvio secco, senza switch e senza log.
- *
- * gt1x_gesture_data_read  248 -> 244.  Il formato di fabbrica NOMINA la
- *   funzione dentro il letterale invece di passarla come %s:
- *   "<<GTP-DBG>>[%s:%d]visit gt1x_gesture_data_read. ppos:%d\n"@0xffffff800924a5b9 -- un
- *   argomento in meno, una `mov` in meno.
- *   La dimensione della struttura la da' "52802ba4 mov"@0xffffff8008a72c9c
- *   (w4 = 349 = 6 + 4 + (3 + 64*4 + 80)): il `#pragma pack(1)` e il
- *   GESTURE_MAX_POINT_COUNT = 64 della copia sono giusti.
- *
- * gt1x_init_node  240 -> 272.  Tre correzioni:
- *   - gestures_flag e' azzerato a 0xFF, non a 0:
- *     "92800009 mov"@0xffffff8008a72aec  (x9 = -1) seguito da
- *     "a9012509 stp"@0xffffff8008a72afc e "a9002509 stp"@0xffffff8008a72b00
- *     (32 byte di 0xFF). Con memset(...,0,...) le due `stp` sarebbero di
- *     `xzr`, come in gt1x_gesture_debug.
- *   - i permessi del nodo proc sono 0666, non 0644:
- *     "528036c1 mov"@0xffffff8008a72b18  (w1 = 438 = 0666).
- *   - i quattro messaggi sono quelli piu' vecchi di Goodix e portano
- *     GESTURE_NODE come argomento %s:
- *     "<<GTP-ERR>>[%s:%d] CAN't create proc entry /proc/%s.\n"@0xffffff800924a4cc
- *     "<<GTP-INF>>[%s:%d] Created proc entry /proc/%s.\n"@0xffffff800924a511
- *     "<<GTP-ERR>>[%s:%d] CAN't create misc device in /dev/hotknot.\n"@0xffffff800924a542
- *     "<<GTP-INF>>[%s:%d] Created misc device in /dev/hotknot.\n"@0xffffff800924a580
- *   Il nome del mutex lo stringa la macro `mutex_init` (eccezione alla
- *   regola dei nomi inventati): "&gesture_data_mutex"@0xffffff800924a4a9.
- *
- * gt1x_ioctl  3460 -> 2524.  La copia ALPS aveva, e la fabbrica non ha:
- *   - GTP_DEBUG("IOCTL CMD:%x", cmd) in testa: nel blocco non esiste ne'
- *     il letterale ne' la printk fra il ciclo di attesa e la `and` della
- *     maschera ("120246a8 and"@0xffffff8008a72ec8, w8 = cmd & 0xc000ffff);
- *   - la `static struct ratelimit_state ratelimit` e le due
- *     `gt1x_is_tpd_halt()` che la usavano: nessuna `bl` a __ratelimit nel
- *     blocco, e il .data dell'oggetto di fabbrica non ha spazio per essa
- *     (vedi punto 4);
- *   - i controlli `if (data != NULL)` su IO_IIC_READ/IO_IIC_WRITE: i due
- *     rami entrano dritti nel corpo incorporato;
- *   - il confronto `data_length + CMD_HEAD_LENGTH > buf_size` dentro
- *     io_iic_read e le due GTP_DEBUG finali di io_iic_read/io_iic_write;
- *   - i due `clamp` su gesture_data.data[1] e [3] in GESTURE_DATA_OBTAIN:
- *     al loro posto c'e' solo il controllo che il compilatore genera da
- *     solo per copy_to_user ("f10552bf cmp"@0xffffff8008a73348, x21 contro
- *     340, cioe' > 339 = sizeof(gesture_data.data), e la chiamata a
- *     warn_slowpath_fmt con "Buffer overflow detected (%d < %lu)!\n").
- *   La copia ALPS non aveva, e la fabbrica ha:
- *   - un comando che ALPS non conosce, _IOR('G',28) & NEGLECT_SIZE_MASK =
- *     0x8000471c ("5288e389 mov"@0xffffff8008a72f50 +
- *     "72b00009 movk"@0xffffff8008a72f54), che risponde con
- *     "GOODIX,GT1X"@0xffffff800924a838, 12 byte NUL compreso
- *     ("321e07f5 orr"@0xffffff8008a72f6c). Il NUMERO e' misurato, il NOME
- *     di fabbrica no: qui si chiama IO_NR28 e il commento dice perche'.
- *   - gt1x_irq_disable()/gt1x_irq_enable() intorno a gt1x_reset_guitar()
- *     su IO_RESET_GUITAR;
- *   - mutex_unlock DOPO l'if/else di GESTURE_DATA_OBTAIN, non prima.
- *   Cambia inoltre IO_VERSION: "V1.3-20150420"@0xffffff800924a6db, 14 byte
- *   ("321f0bf5 orr"@0xffffff8008a73030), non "V1.0-20140709".
- *   E i quattro messaggi dei gesti: "<<GTP-DBG>>[%s:%d]Gesture switch ON.\n"@0xffffff800924a700,
- *   "<<GTP-DBG>>[%s:%d]Gesture switch OFF.\n"@0xffffff800924a726,
- *   "<<GTP-DBG>>[%s:%d]Gesture flag: 0x%02X enabled.\n"@0xffffff800924a74d,
- *   "<<GTP-DBG>>[%s:%d]Gesture flag: 0x%02X disabled.\n"@0xffffff800924a77e.
- *   GESTURE_ENABLE_PARTLY di fabbrica NON scrive gesture_enabled, e
- *   GESTURE_DISABLE_PARTLY non fa ne' QUERYBIT ne' is_all_dead: c'e' solo
- *   SETBIT ("d3431c68 ubfx"@0xffffff8008a730f0, indice = (u8)value >> 3) e
- *   CLEARBIT ("0a2b014a bic"@0xffffff8008a73144).
- *   La tabella di salto e' a BYTE ("3869690b ldrb"@0xffffff8008a72ef4) e
- *   copre nr 1..104; nr 23..27 e 29 vi puntano al ramo `default`, che e'
- *   la prova che CONFIG_HOTKNOT_BLOCK_RW e' SPENTO di fabbrica.
- *   `cnt = 30` e `ssleep(1)` restano: "321b73f6 orr"@0xffffff8008a72e10
- *   (w22 parte da -29 e sale a zero: trenta giri) e
- *   "52807d00 mov"@0xffffff8008a72e14 (msleep di 1000 ms).
- *
- * gesture_event_handler  712 -> 1780.  E' una revisione piu' recente del
- *   codice Goodix, non quella di ALPS, e la fabbrica ci ha aggiunto la
- *   traduzione gesto -> tasto. Quel che il binario prova:
- *   - il registro dell'intestazione e' 0x814C
- *     ("52902980 mov"@0xffffff8008a72350), i dati extra stanno a 0x8150
- *     ("52902a00 mov"@0xffffff8008a72408), le coordinate a 0xA2A0
- *     ("52945400 mov"@0xffffff8008a724fc) e due byte in coda a 0x819F
- *     ("529033e0 mov"@0xffffff8008a72514);
- *   - i due limiti sono 64 e 32, non 64 e 80:
- *     "710106df cmp"@0xffffff8008a7239c (w22 contro 0x41) e
- *     "710086ff cmp"@0xffffff8008a723c4 (w23 contro 0x21);
- *   - il buffer dei dati extra e' un array a lunghezza variabile di
- *     extra_len+1 byte: "110042e8 add"@0xffffff8008a723ec e
- *     "927c1108 and"@0xffffff8008a723f0 arrotondano a multipli di 16, e
- *     "9100033f mov"@0xffffff8008a72404 sposta sp;
- *   - il bit 7 di doze_buf[2] accende il controllo di checksum
- *     ("363802b8 tbz"@0xffffff8008a72420), la somma e' a otto bit
- *     ("12001d08 and"@0xffffff8008a72460);
- *   - gesture_data.data[2] prende doze_buf[2] mascherato con 0x7f
- *     ("12001908 and"@0xffffff8008a72578);
- *   - lo `switch` finale sottrae 0x5e e ha 111 voci
- *     ("51017908 sub"@0xffffff8008a725b4 e
- *     "7101b91f cmp"@0xffffff8008a725b8), con quattordici casi vivi. Il
- *     primo e' 0x5e -> KEY_POWER ("52800e82 mov"@0xffffff8008a725dc,
- *     w2 = 116);
- *   - a fine funzione la fabbrica NON manda KEY_GESTURE e NON ritorna 1:
- *     ritorna `ret`, che li' vale zero.
- *
- * ---------------------------------------------------------------------
- * 2. LA VARIABILE CHE IL BINARIO NON NOMINA
- * ---------------------------------------------------------------------
- * `c6fc` -- il nome viene dall'indirizzo, 0xffffff800a1006fc, secondo la
- * convenzione del progetto per cio' che il binario non nomina. Di essa e'
- * MISURATO: che e' larga un byte, che viene letta con
- * "395bf109 ldrb"@0xffffff8008a729d4 e provata con
- * "360000a9 tbz"@0xffffff8008a729d8 (solo il bit 0), che viene scritta con
- * 0 ("391bf11f strb"@0xffffff8008a729dc, e ancora sul cammino in cui il
- * checksum torna) e con 1 ("391bf109 strb"@0xffffff8008a729f0); e che il
- * suo RUOLO, che il codice prova, e' "il checksum del gesto e' gia'
- * fallito una volta": al primo fallimento si mette a 1 e si esce senza
- * toccare il registro, al secondo si rimette a 0 e il registro viene
- * pulito.  Non e' misurato il suo nome, e non e' misurato se sia `static`:
- * `ldrb` + `tbz #0` esce da una `static u8` (clang conosce tutti gli
- * scritti); una `u8` non statica darebbe `cbz`, una `bool` non statica pure,
- * una `static bool` darebbe `cmp #1`. Vedi il residuo al punto 5.
- *
- * ---------------------------------------------------------------------
- * 3. LA MAPPA DELLE RIGHE, CHE E' UNA MISURA
- * ---------------------------------------------------------------------
- * Le macro di log incollano __LINE__ nella printk, quindi il binario
- * misura la POSIZIONE di ogni chiamata nel file di fabbrica. Le 46
- * costanti emesse danno 45 distanze fra ancore consecutive; 27 di esse
- * combaciano gia'. Le distanze sono servite da prova, non da decorazione:
- *   - fra "hotknot load jump code." (riga 504) e "Load jump code fail!"
- *     (507) di fabbrica ci sono TRE righe. Nella copia ALPS ce n'erano 19,
- *     per via del blocco #ifdef CONFIG_GTP_REQUEST_FW_UPDATE. Tolto quel
- *     blocco (e i suoi due gemelli), le otto distanze da 499 a 536 tornano
- *     tutte esatte.
- *   - fra "ERASE_GESTURE_DATA" (883) e "Unknown cmd." (944) di fabbrica ci
- *     sono 61 righe. Avendo io tolto i casi HOTKNOT_DEVICES_PAIRED..
- *     HOTKNOT_WAKEUP_BLOCK (che stanno sotto #ifdef CONFIG_HOTKNOT_BLOCK_RW
- *     e quindi non entrano nel binario), ne restavano 20: rimessi, sono 52.
- *     Il rimetterli e' quindi sostenuto dalla misura, non dal gusto.
- *   - fra "Can't access the memory." di gt1x_ioctl (795) e
- *     "Obtain gesture data." (870) le sette distanze sono tutte esatte: la
- *     fabbrica NON ha, li' dentro, i blocchi #ifdef CONFIG_GTP_ESD_PROTECT
- *     su IO_DISABLE_IRQ e IO_ENABLE_IRQ.
- * Le distanze che NON tornano dicono dove manca del sorgente di fabbrica
- * che questo lotto non ha recuperato; l'elenco sta nel rapporto.
- *
- * ---------------------------------------------------------------------
- * 4. IL .data E IL .bss, CHE SONO UNA PROVA A PARTE
- * ---------------------------------------------------------------------
- * `gesture_enabled` di fabbrica sta in .kernel2 (PROGBITS) a
- * 0xffffff800998a2d0 e i suoi quattro byte valgono 01 00 00 00: e'
- * `int gesture_enabled = 1;`, non la definizione senza inizializzatore di
- * ALPS. Lo scrive "b902d109 str"@0xffffff8008a72f24 (w9 = 1) su
- * GESTURE_ENABLE_TOTALLY e lo azzera "b902d11f str"@0xffffff8008a730e0.
- * Subito dopo, a 0xffffff800998a2d8, comincia `hotknot_misc_device`
- * (il primo campo vale 0xff = MISC_DYNAMIC_MINOR) e il suo campo `name`
- * punta a "hotknot"@0xffffff800924aaab. Con questo, il .data dell'oggetto
- * di fabbrica misura 0x58 byte: 4 di gesture_enabled, 4 di riempimento e
- * 0x50 di hotknot_misc_device. Non ci sta la
- * `static struct ratelimit_state ratelimit` (0x28 byte) della copia ALPS.
- * Il nostro .data misura esattamente lo stesso: gesture_enabled a 0,
- * hotknot_misc_device a 8.
- *
- * ---------------------------------------------------------------------
- * 5. QUEL CHE NON TORNA, DICHIARATO
- * ---------------------------------------------------------------------
- * (a) La forma del ciclo di checksum in gesture_event_handler. La fabbrica
- *     cammina con un puntatore e conta all'indietro
- *     ("3840152a ldrb"@0xffffff8008a72454, post-incremento, e
- *     "f100075a subs"@0xffffff8008a72458); il nostro clang -- lo STESSO
- *     clang r353983c -- sceglie un ciclo indicizzato. Sono state provate
- *     dodici scritture diverse del ciclo (indicizzata, con puntatore,
- *     do/while, contatore separato, sizeof del VLA, accumulatore int con
- *     maschera esplicita): la dimensione della funzione resta 1780 in
- *     quattro di esse e cresce nelle altre, ma nessuna riproduce la forma.
- *     La divergenza e' TUTTA li' dentro: 31 posizioni di codifica, di cui
- *     11 nel ciclo, 8 di numerazione dei registri temporanei e 12 di
- *     spiazzamento di salti interni che dipendono dalla disposizione dei
- *     blocchi.
- * (b) L'indirizzo di `c6fc`. Il binario lo mette a 0xffffff800a1006fc,
- *     cioe' quattro byte dopo hotknot_transfer_mode: un allineamento a
- *     quattro, che nel nostro oggetto tocca ai globali NON statici. La
- *     nostra `static u8` finisce a +0x09, impacchettata. Le due prove si
- *     contraddicono e la contraddizione e' dichiarata, non risolta: il
- *     codice (`tbz #0`) chiede `static u8`, l'indirizzo chiede un globale.
- *     Ho scelto di riprodurre il CODICE.
- * (c) Le costanti __LINE__ che non combaciano: 35 su 46. Non ho riempito
- *     il file di righe vuote per farle tornare -- sarebbe stato aggiustare
- *     un numero invece di misurarlo.
- *
- * ---------------------------------------------------------------------
- * 6. LETTERALI DEL BLOCCO NON CITATI ALTROVE
- * ---------------------------------------------------------------------
- * "<<GTP-DBG>>[%s:%d]Entering doze mode...\n"@0xffffff800924a225
- * "<<GTP-DBG>>[%s:%d]Working in doze mode!\n"@0xffffff800924a261
- * "<<GTP-ERR>>[%s:%d] Send doze cmd failed.\n"@0xffffff800924a28a
- * "<<GTP-DBG>>[%s:%d]0x%x = 0x%02X,0x%02X,0x%02X,0x%02X\n"@0xffffff800924a2b4
- * "<<GTP-ERR>>[%s:%d] Gesture contain too many points!(%d)\n"@0xffffff800924a300
- * "<<GTP-ERR>>[%s:%d] Gesture contain too many extra data!(%d)\n"@0xffffff800924a339
- * "<<GTP-ERR>>[%s:%d] Read extra gesture data failed.\n"@0xffffff800924a376
- * "<<GTP-ERR>>[%s:%d] Gesture checksum error.\n"@0xffffff800924a3aa
- * "<<GTP-INF>>[%s:%d] Gesture[0x%02X] has been disabled.\n"@0xffffff800924a3d6
- * "<<GTP-ERR>>[%s:%d] Read gesture data failed.\n"@0xffffff800924a40d
- * "<<GTP-DBG>>[%s:%d]--lan-- Gesture: 0x%02X, points: %d\n"@0xffffff800924a43b
- * "goodix_gesture"@0xffffff800924a4bd
- * "<<GTP-DBG>>[%s:%d]Got the gesture data.\n"@0xffffff800924a609
- * "<<GTP-ERR>>[%s:%d] copy_from_user failed.\n"@0xffffff800924a632
- * "<<GTP-DBG>>[%s:%d]gesture enabled:%x, ret:%d\n"@0xffffff800924a675
- * "<<GTP-ERR>>[%s:%d] Can't access the memory.\n"@0xffffff800924a6a3
- * "GT1X"@0xffffff800924a83f
- * "<<GTP-DBG>>[%s:%d]Obtain gesture data.\n"@0xffffff800924a7b0
- * "<<GTP-ERR>>[%s:%d] ERROR when copy gesture data to user.\n"@0xffffff800924a7d8
- * "<<GTP-DBG>>[%s:%d]ERASE_GESTURE_DATA\n"@0xffffff800924a812
- * "<<GTP-INF>>[%s:%d] Unknown cmd.\n"@0xffffff800924a844
- * "<<GTP-ERR>>[%s:%d] ERROR when copy to user.[addr: %04x], [read length:%d]\n"@0xffffff800924a871
- * "<<GTP-DBG>>[%s:%d]enter transfer mode: %s \n"@0xffffff800924a8bc
- * "GHot"@0xffffff800924a904
- * "<<GTP-ERR>>[%s:%d] Hold ss51 fail!\n"@0xffffff800924a909
- * "<<GTP-INF>>[%s:%d] hotknot load jump code.\n"@0xffffff800924a953
- * "<<GTP-ERR>>[%s:%d] Load jump code fail!\n"@0xffffff800924a97f
- * "<<GTP-INF>>[%s:%d] hotknot load auth code.\n"@0xffffff800924a9a8
- * "<<GTP-ERR>>[%s:%d] Load auth system fail!\n"@0xffffff800924a9d4
- * "<<GTP-ERR>>[%s:%d] load auth system fail!\n"@0xffffff800924a9ff
- * "<<GTP-ERR>>[%s:%d] Startup auth system fail!\n"@0xffffff800924aa2a
- * "<<GTP-ERR>>[%s:%d] i2c read error!\n"@0xffffff800924aa58
- * "<<GTP-INF>>[%s:%d] Current System version: %s\n"@0xffffff800924aa7c
- * "hotknot"@0xffffff800924aaab
- * "<<GTP-DBG>>[%s:%d]Hotknot is enabled.\n"@0xffffff800924aab3
- * "<<GTP-DBG>>[%s:%d]Hotknot is disabled.\n"@0xffffff800924aae7
- * Le due GTP_INFO("%s", ...) di gt1x_ioctl non hanno un letterale "%s"
- * separato: la macro lo salda dentro il formato, che sta a
- * "<<GTP-INF>>[%s:%d] %s\n"@0xffffff800924a6e9.
- *
- * NOTA SULLO STRUMENTO (delta riportato, non applicato): le citazioni qui
- * sopra escono da verificacitazioni.py come NON_ANCORATA, non come
- * verificate. Non e' un difetto delle citazioni -- i byte a quegli
- * indirizzi sono esattamente quelli scritti, terminatore NUL compreso --
- * ma un limite del ramo "messaggio assemblato dalla macro di log", che
- * RE_TESTA_ASSEMBLATA riconosce solo dal prefisso KERN_SOH (\x01 + cifra)
- * che printk("<<GTP-DBG>>...") non ha. La famiglia di macro Goodix
- * incolla "<<GTP-xxx>>[%s:%d]" e "\n" attorno al formato, quindi nessun
- * letterale del codice esiste nel binario come stringa a se'. E' la
- * stessa forma che gt1x_wtk.c gia' usa per gli stessi messaggi.
- * ====================================================================== */
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_extents.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
+ */
 
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -313,14 +65,13 @@
 #define HOTKNOT_AUTH_FW "gt1151_hotknot_auth_"
 #endif
 /*
- * FUORI DALL'#ifdef, e non e' una scelta: hotknot_load_hotknot_system li usa
- * SENZA guardia (gt1x_load_patch(gt1x_patch_jump_fw, ...) e
- * gt1x_load_patch(hotknot_auth_fw, ...)), e quella funzione e' esatta al byte
- * contro la fabbrica -- l'unita' e' 11 su 11.  Tenerli sotto
- * CONFIG_GTP_REQUEST_FW_UPDATE, come fa la copia di GT5688 da cui questo file
- * viene, li lascia INDEFINITI: e' cio' che il primo link di GT917S ha detto,
- * quattro volte.  Nella copia di GT5688 anche gli USI sono guardati; qui no,
- * perche' la fabbrica non li guarda.
+ * This section was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_extents.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 unsigned char gt1x_patch_jump_fw[GT1151_FW_SIZE];
 unsigned char hotknot_auth_fw[GT1151_FW_SIZE];
@@ -346,11 +97,11 @@ int gesture_enabled = 1;
 enum DOZE_T gesture_doze_status = DOZE_DISABLED;
 
 /*
- * NON : gt1x_wtk.c -- un'altra unita' di traduzione -- lo legge e lo
- * scrive (righe 509 e 512), quindi di fabbrica e' globale.  La copia di GT5688
- * da cui questo file viene lo teneva statico, perche' li' nessun altro file lo
- * tocca.  Anche questa e' una differenza che nessuna misura di DIMENSIONE puo'
- * vedere -- il codice generato e' lo stesso -- e che il link trova subito.
+ * NOT `static`: gt1x_wtk.c -- another translation unit -- reads it and
+ * writes it (lines 509 and 512), so in the factory build it is global.  The GT5688
+ * copy this file comes from kept it static, because there no other file
+ * touches it.  This too is a difference no SIZE measurement can
+ * see -- the generated code is the same -- and one the link finds at once.
  */
 u8 gestures_flag[32];
 static st_gesture_data gesture_data;
@@ -1204,14 +955,15 @@ static long gt1x_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 #ifdef CONFIG_GTP_HOTKNOT
 #ifdef CONFIG_COMPAT
-/* Di fabbrica NON c'e' switch: 56 byte in tutto, 14 istruzioni, e le sole
- * costanti sono 40, 72 e -25. Il corpo e' un rinvio secco.
+/*
+ * In the factory build there is NO switch: 56 bytes in all, 14 instructions, and the only
+ * constants are 40, 72 and -25. The body is a plain forward.
  *   "f9401408 ldr"@0xffffff8008a737b0   ldr x8, [x0,#40]  -> file->f_op
  *   "f9402508 ldr"@0xffffff8008a737b8   ldr x8, [x8,#72]  -> ->unlocked_ioctl
- *   "b27bf7e0 orr"@0xffffff8008a737d8   x0 = -25 = -ENOTTY, su entrambi i cbz
+ *   "b27bf7e0 orr"@0xffffff8008a737d8   x0 = -25 = -ENOTTY, on both cbz
  *   "92407c42 and"@0xffffff8008a737c8   x2 &= 0xffffffff  -> compat_ptr(arg)
- *   "d63f0100 blr"@0xffffff8008a737cc   chiamata indiretta, unica nel corpo
- * La `and` sta DOPO i due cbz e prima della blr: e' l'unico uso di arg32.
+ *   "d63f0100 blr"@0xffffff8008a737cc   an indirect call, the only one in the body
+ * The `and` comes AFTER the two cbz and before the blr: it is the only use of arg32.
  */
 static long gt1x_compat_ioctl(struct file *file, unsigned int cmd,
 			      unsigned long arg)

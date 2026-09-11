@@ -308,13 +308,13 @@ static int mt6370_pmu_probe(struct i2c_client *i2c,
 
 	pm_runtime_set_active(&i2c->dev);
 	/*
-	 * IL PUNTATORE GLOBALE AL PMIC, aggiunta di fabbrica: serve al driver
-	 * del pannello, che accende e spegne VPOS e VNEG scrivendo i registri
-	 * 0xb1/0xb3/0xb4 con mt6370_pmu_reg_write. Lo scrive qui, subito prima
-	 * della regmap_register: "f902a518 str"@0xffffff80085cac64 mette x24
-	 * (chip) a [x8,#1352] della pagina 0xffffff8009b2c000.
+	 * THE GLOBAL POINTER TO THE PMIC, a factory addition: it is needed by the
+	 * panel driver, which switches VPOS and VNEG on and off by writing registers
+	 * 0xb1/0xb3/0xb4 with mt6370_pmu_reg_write. It writes it here, right before
+	 * the regmap_register: "f902a518 str"@0xffffff80085cac64 puts x24
+	 * (chip) at [x8,#1352] of page 0xffffff8009b2c000.
 	 *
-	 * IL NOME E' L'INDIRIZZO (regola 5): il binario non nomina i dati.
+	 * THE NAME IS THE ADDRESS (rule 5): the binary does not name data.
 	 */
 	g9b2c548 = chip;
 	ret = mt6370_pmu_regmap_register(chip, &mt6370_regmap_fops);

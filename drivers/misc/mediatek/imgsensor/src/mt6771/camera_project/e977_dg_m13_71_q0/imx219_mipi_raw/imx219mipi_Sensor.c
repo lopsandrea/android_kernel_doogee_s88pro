@@ -168,8 +168,8 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] = {
 };
 
 /*
- * Samsung legge e scrive con l'indirizzo a SEDICI bit: il buffer e' di
- * quattro byte, non di due, e le due meta' vanno spezzate a mano.
+ * Samsung reads and writes with a SIXTEEN bit address: the buffer is four
+ * bytes, not two, and the two halves have to be split by hand.
  */
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 {
@@ -183,9 +183,9 @@ static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 }
 
 /*
- * TRE byte: indirizzo a sedici bit, dato a otto. Samsung ne usa quattro,
- * Sony tre, e GalaxyCore due -- e sono tre driver che si somigliano in tutto
- * il resto.
+ * THREE bytes: sixteen bit address, eight bit datum. Samsung uses four of
+ * them, Sony three and GalaxyCore two -- and they are three drivers that
+ * resemble each other in everything else.
  */
 static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 {
@@ -808,10 +808,11 @@ static kal_uint32 close(void)
 }
 
 /*
- * get_resolution @0xffffff8008720e7c, 100 byte.
+ * get_resolution @0xffffff8008720e7c, 100 bytes.
  *
- * Le dieci misure escono da tre `movk` in fila: 0x0910 = 2320 e 0x06d4 = 1748
- * per quattro scenari, 0x0780 = 1920 e 0x0438 = 1080 per il video veloce.
+ * The ten sizes come out of three `movk` in a row: 0x0910 = 2320 and
+ * 0x06d4 = 1748 for four scenarios, 0x0780 = 1920 and 0x0438 = 1080 for
+ * the high speed video.
  */
 static kal_uint32 get_resolution(
 	MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_resolution)

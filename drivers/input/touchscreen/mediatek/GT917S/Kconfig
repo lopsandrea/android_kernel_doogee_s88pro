@@ -1,67 +1,67 @@
 config WTK_GT917S_E977
-	bool "Goodix GT917S touch per pacchetto MediaTek (Doogee S88 Pro, dal disassemblato)"
+	bool "Goodix GT917S touch for the MediaTek package (Doogee S88 Pro, from the disassembly)"
 	default n
 	depends on !TOUCHSCREEN_MTK_GT1151 && !TOUCHSCREEN_MTK_GT5688
 	help
-	  Touchscreen Goodix GT917S del Doogee S88 Pro, ricostruito leggendo il
-	  kernel di fabbrica disassemblato.  Il config di fabbrica lo accende
-	  (CONFIG_WTK_GT917S_E977=y alla riga 2220 di e977_dg_m13_71_q0.config)
-	  e l'albero ALPS non ha il simbolo: senza questa voce `olddefconfig`
-	  scarta la riga del config di fabbrica in silenzio.
+	  Goodix GT917S touchscreen of the Doogee S88 Pro, reconstructed by
+	  reading the disassembled factory kernel.  The factory config turns it
+	  on (CONFIG_WTK_GT917S_E977=y at line 2220 of
+	  e977_dg_m13_71_q0.config) and the ALPS tree does not have the symbol:
+	  without this entry `olddefconfig` discards the factory config line in
+	  silence.
 
-	  IL `depends on` NON E' UNA PRECAUZIONE, E' UNA MISURA.  Le tre
-	  varianti Goodix definiscono gli STESSI simboli globali:
+	  THE `depends on` IS NOT A PRECAUTION, IT IS A MEASUREMENT.  The three
+	  Goodix variants define the SAME global symbols:
 
 	    $ comm -12 <(nm --defined-only --extern-only GT917S/built-in.o) \
 	                <(nm --defined-only --extern-only GT5688/built-in.o)
-	    92 nomi, fra cui gt1x_i2c_read, gt1x_init, gesture_event_handler
-	    (91 con GT1151/)
+	    92 names, among them gt1x_i2c_read, gt1x_init, gesture_event_handler
+	    (91 with GT1151/)
 
-	  Accenderne due insieme fa fallire il link con "multiple definition".
-	  La fabbrica infatti le tiene spente tutte e due (righe 2210 e 2216
-	  dello stesso config), e questa riga rende la cosa impossibile invece
-	  di lasciarla a chi configura.
+	  Turning two of them on together makes the link fail with "multiple
+	  definition".  The factory indeed keeps both off (lines 2210 and 2216
+	  of the same config), and this line makes it impossible instead of
+	  leaving it to whoever configures.
 
-	  NON C'E' UN SECONDO `depends on`, e una stesura precedente ne aveva uno
-	  sbagliato: escludeva ILITEK e FT8719 «perche' registrano tutti e tre un
-	  tpd_driver_t per lo stesso pannello».  Il config di fabbrica li accende
-	  tutti e tre (righe 2220, 2224, 2227), e il quadro `tpd` di MediaTek
-	  sceglie a tempo di esecuzione.  I tre non hanno nemmeno un simbolo
-	  globale in comune -- misurato, zero -- quindi non c'e' niente da
-	  escludere.  Il vincolo che resta e' solo quello Goodix qui sopra, che
-	  invece e' una collisione vera.
+	  THERE IS NO SECOND `depends on`, and an earlier draft had a wrong one:
+	  it excluded ILITEK and FT8719 "because all three register a
+	  tpd_driver_t for the same panel".  The factory config turns all three
+	  on (lines 2220, 2224, 2227), and MediaTek's `tpd` framework chooses at
+	  run time.  The three do not even have one global symbol in common --
+	  measured, zero -- so there is nothing to exclude.  The constraint that
+	  remains is only the Goodix one above, which is a real collision.
 
-	  Il blocco di fabbrica ha 85 funzioni in sei unita' di traduzione, e 84
-	  combaciano al byte col compilatore di fabbrica (clang-r353983c).
-	  L'unica che diverge e' gt1x_touch_event_handler, +8.
+	  The factory block has 85 functions in six translation units, and 84
+	  match to the byte with the factory compiler (clang-r353983c).  The only
+	  one that differs is gt1x_touch_event_handler, +8.
 
 # ---------------------------------------------------------------------------
-# I SIMBOLI `GTP_*`, E PERCHE' STANNO QUI
+# THE `GTP_*` SYMBOLS, AND WHY THEY ARE HERE
 # ---------------------------------------------------------------------------
-# GT917S non compilava affatto dal config, e l'ha scoperto il primo link vero:
+# GT917S did not build from the config at all, and the first real link found out:
 #
 #   gt1x_generic.c:990:7: error: use of undeclared identifier 'gesture_enabled'
 #   gt1x_generic.c:2216:6: error: use of undeclared identifier 'hotknot_enabled'
 #   gt1x_generic.c:2408:19: error: use of undeclared identifier 'GTP_INT_TRIGGER'
 #
-# I sorgenti usano quei nomi, e `include/gt1x_tpd_common.h` li dichiara solo
-# sotto CONFIG_GTP_GESTURE_WAKEUP, CONFIG_GTP_HOTKNOT e CONFIG_GTP_CUSTOM_CFG.
-# Quei simboli pero' vivevano DENTRO `if TOUCHSCREEN_MTK_GT5688` nel Kconfig di
-# GT5688: esistono solo se GT5688 e' acceso, e la fabbrica lo tiene spento.
+# The sources use those names, and `include/gt1x_tpd_common.h` declares them only
+# under CONFIG_GTP_GESTURE_WAKEUP, CONFIG_GTP_HOTKNOT and CONFIG_GTP_CUSTOM_CFG.
+# Those symbols, however, lived INSIDE `if TOUCHSCREEN_MTK_GT5688` in GT5688's
+# Kconfig: they exist only if GT5688 is on, and the factory keeps it off.
 #
-# E' UN DIFETTO DI MISURA, NON SOLO DI CABLAGGIO. Il "84 funzioni su 85 uguali
-# al byte" di GT917S e' stato misurato in un albero il cui `.config` aveva
-# CONFIG_TOUCHSCREEN_MTK_GT5688=y -- cioe' in una configurazione che NON e'
-# quella di fabbrica, e da cui il blocco prendeva in prestito i suoi GTP_*.
-# I default qui sotto riproducono esattamente quelli con cui la misura e' stata
-# fatta, cosi' che il numero resti riproducibile senza GT5688:
+# IT IS A DEFECT OF MEASUREMENT, NOT ONLY OF WIRING. The "84 functions out of 85
+# equal to the byte" for GT917S was measured in a tree whose `.config` had
+# CONFIG_TOUCHSCREEN_MTK_GT5688=y -- that is, in a configuration that is NOT the
+# factory one, and from which the block borrowed its GTP_*.
+# The defaults below reproduce exactly the ones the measurement was made with,
+# so that the number stays reproducible without GT5688:
 #
 #   CONFIG_GTP_CUSTOM_CFG=y      CONFIG_GTP_AUTO_UPDATE=y
 #   CONFIG_GTP_GESTURE_WAKEUP=y  CONFIG_GTP_CREATE_WR_NODE=y
-#   CONFIG_GTP_HOTKNOT=y         (tutti gli altri: n)
+#   CONFIG_GTP_HOTKNOT=y         (all the others: n)
 #
-# Kconfig ammette che lo stesso simbolo sia definito in piu' file -- le voci si
-# fondono -- e i due `if` sono mutuamente esclusivi per costruzione.
+# Kconfig allows the same symbol to be defined in more than one file -- the entries
+# merge -- and the two `if`s are mutually exclusive by construction.
 
 if WTK_GT917S_E977
 config GT917S_FIRMWARE

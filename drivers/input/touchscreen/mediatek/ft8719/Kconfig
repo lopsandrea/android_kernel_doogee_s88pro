@@ -1,29 +1,29 @@
 config WTK_FT8719_E977
-	bool "FocalTech FT8719 touch per pacchetto MediaTek (Doogee S88 Pro, dal disassemblato)"
+	bool "FocalTech FT8719 touch for the MediaTek package (Doogee S88 Pro, from the disassembly)"
 	default n
 	help
-	  Touchscreen FocalTech FT8719 del Doogee S88 Pro, ricostruito leggendo
-	  il kernel di fabbrica disassemblato.  Il config di fabbrica lo accende
-	  (CONFIG_WTK_FT8719_E977=y in e977_dg_m13_71_q0.config) e l'albero ALPS
-	  non ha il simbolo: senza questa voce `olddefconfig` scarta la riga del
-	  config di fabbrica in silenzio.
+	  FocalTech FT8719 touchscreen of the Doogee S88 Pro, reconstructed by
+	  reading the disassembled factory kernel.  The factory config turns it
+	  on (CONFIG_WTK_FT8719_E977=y in e977_dg_m13_71_q0.config) and the ALPS
+	  tree does not have the symbol: without this entry `olddefconfig`
+	  discards the factory config line in silence.
 
-	  IL LOTTO E' COMPLETO dal 2026-08-22: il blocco di fabbrica ha 67
-	  funzioni in SEI unita' di traduzione e ci sono tutte e 67.
+	  THE BATCH IS COMPLETE since 2026-08-22: the factory block has 67
+	  functions in SIX translation units, and all 67 are here.
 
-	    focaltech_core.c            unita' C  16 fn
-	    focaltech_sysfs.c           unita' A  22 fn
-	    focaltech_flash.c           unita' B  17 fn
-	    focaltech_ex_mode.c         unita' D   3 fn
-	    focaltech_i2c.c             unita' E   7 fn
-	    focaltech_ft8719_upgrade.c  unita' F   3 fn (piu' l'aggiornamento)
+	    focaltech_core.c            unit C  16 fn
+	    focaltech_sysfs.c           unit A  22 fn
+	    focaltech_flash.c           unit B  17 fn
+	    focaltech_ex_mode.c         unit D   3 fn
+	    focaltech_i2c.c             unit E   7 fn
+	    focaltech_ft8719_upgrade.c  unit F   3 fn (plus the upgrade)
 
-	  64 delle 67 combaciano al byte col compilatore di fabbrica
-	  (clang-r353983c).  Le tre che no stanno in focaltech_core.c:
-	  tpd_probe, get_module_id e touch_event_handler.
+	  64 of the 67 match to the byte with the factory compiler
+	  (clang-r353983c).  The three that do not are in focaltech_core.c:
+	  tpd_probe, get_module_id and touch_event_handler.
 
-	  QUESTO TESTO DICEVA "IL DRIVER NON SI LINKA" ed elencava l'unita' B
-	  come mancante per intero: era vero quando e' stato scritto e non lo e'
-	  piu'.  Il nome `focaltech_flash.c` e' una SCELTA dichiarata -- FocalTech
-	  non usa `pr_debug`, quindi non ci sono descrittori `_ddebug` che
-	  nominino i suoi file e il binario il nome non lo dice.
+	  THIS TEXT USED TO SAY "THE DRIVER DOES NOT LINK" and listed unit B as
+	  missing in full: that was true when it was written and is not any more.
+	  The name `focaltech_flash.c` is a declared CHOICE -- FocalTech does not
+	  use `pr_debug`, so there are no `_ddebug` descriptors naming its files
+	  and the binary does not give the name.

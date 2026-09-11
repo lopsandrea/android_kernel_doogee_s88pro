@@ -159,7 +159,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ae_sensor_gain_delay_frame = 0,
 	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
 	.ihdr_support = 0,	/* 1, support; 0,not support */
-	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
+	.ihdr_le_firstline = 0,	/* 1, le first ; 0, se first */
 	.sensor_mode_num = 5,	/* support sensor mode num */
 
 	.cap_delay_frame = 1,	/* enter capture delay frame num */
@@ -181,16 +181,13 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 	/* sensor output first pixel color */
 	/*
-	 * RAW_B come il gemello imx230, e per la stessa ragione.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008722b30).
 	 *
-	 * Qui non ho il /proc di fabbrica da confrontare -- questo telefono monta
-	 * l'altro modulo e non carica mai questo driver -- ma il valore si legge
-	 * dal binario: get_info lo prende con "3963e908 ldrb"@0xffffff8008722b30
-	 * da 0xffffff8009a128fa, e li' c'e' 0, cioe' RAW_B.
-	 *
-	 * La lettura si controlla da sola: con lo stesso metodo il campo di
-	 * imx230 (0xffffff8009a1217a) vale 0, e per imx230 il /proc del telefono
-	 * di fabbrica dice output_format=0. Misura indipendente, stesso risultato.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_imx230xinfengda_mipi_raw_imx230_xinfengda_mipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B,
 
@@ -3398,11 +3395,12 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	/*0: NO PDAF, 1: PDAF Raw Data mode, 2:PDAF VC mode */
 	sensor_info->PDAF_Support = 2;
 
-	/* 0 come imx230: le due get_info di fabbrica sono identiche istruzione
-	 * per istruzione (0xffffff8008707b5c e 0xffffff8008722b20, 236 byte
-	 * ciascuna), a meno dell'offset della propria imgsensor_info, di una
-	 * strh riordinata e degli offset delle stringhe. Nessun immediato
-	 * diverso: dichiarano lo stesso valore.
+	/*
+	 * 0 as for imx230: the two factory get_info functions are identical instruction
+	 * for instruction (0xffffff8008707b5c and 0xffffff8008722b20, 236 bytes
+	 * each), apart from the offset of their own imgsensor_info, a reordered
+	 * strh and the string offsets. No differing immediate:
+	 * they declare the same value.
 	 */
 	sensor_info->HDR_Support = 0;	/*0: NO HDR, 1: iHDR, 2:mvHDR, 3:zHDR */
 

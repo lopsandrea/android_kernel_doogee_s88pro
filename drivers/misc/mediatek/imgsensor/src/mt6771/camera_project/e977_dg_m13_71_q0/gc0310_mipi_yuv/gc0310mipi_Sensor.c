@@ -1,15 +1,20 @@
 /*
- * GC0310 MIPI YUV -- ricostruito dal binario di fabbrica.
+ * GC0310 MIPI YUV camera sensor -- reconstructed from the factory binary.
  *
- * NON esiste in nessun albero pubblico: ALPS ha un gc0310.c per x86 sotto
- * staging/media/atomisp, che e' un'altra piattaforma e un'altra interfaccia.
- * Ogni riga qui viene da stock.elf.
+ * It exists in no public tree: ALPS has a gc0310.c for x86 under
+ * staging/media/atomisp, a different platform and a different interface.
+ * Every line here comes from stock.elf.
  *
- * Che il file stia in camera_project/e977_dg_m13_71_q0/ non lo dice un
- * __FILE__ -- GC0310 non usa quella macro -- ma l'adiacenza in stock.map, e
- * il fatto che il nome della directory debba combaciare con la voce di
- * CONFIG_CUSTOM_KERNEL_IMGSENSOR: il Makefile di mt6771 costruisce il
- * percorso da li'.
+ * That the file belongs in camera_project/e977_dg_m13_71_q0/ is not stated by
+ * a __FILE__ -- GC0310 does not use that macro -- but by adjacency in
+ * stock.map.
+ *
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 #include <linux/videodev2.h>
@@ -36,28 +41,28 @@
 #include "gc0310mipi_Sensor.h"
 
 /*
- * gi2c NON e' dichiarata in imgsensor_i2c.h: il .c la definisce e basta.
- * La fabbrica ci arriva lo stesso -- "f000ac28 adrp"@0xffffff800870aa3c piu'
- * `add #0x258` danno 0xffffff8009c91258, che e' &gi2c.inst[1].pi2c_client --
- * quindi anche il suo sorgente se la dichiara da se'.
+ * gi2c is NOT declared in imgsensor_i2c.h: the .c defines it and that is
+ * all. The factory reaches it all the same -- "f000ac28 adrp"@0xffffff800870aa3c
+ * plus `add #0x258` give 0xffffff8258, which is &gi2c.inst[1].pi2c_client --
+ * so its source declares it itself too.
  */
 extern struct IMGSENSOR_I2C gi2c;
 
 /*
- * IL LUCCHETTO E' DI QUESTO FILE, e la prova e' un indirizzo.
+ * THE MUTEX BELONGS TO THIS FILE, and the proof is an address.
  *
- * Tutte le operazioni I2C di GC0310 prendono il mutex a
- * 0xffffff800991a098 ("90009080 adrp"@0xffffff800870ac0c piu' `add #0x98`),
- * mentre GC032A prende quello a 0xffffff800991b860. Due indirizzi diversi
- * per la stessa operazione sono due oggetti diversi: un DEFINE_MUTEX per
- * file, non quello condiviso di imgsensor.
+ * Every I2C operation of GC0310 takes the mutex at
+ * 0xffffff800991a098 ("90009080 adrp"@0xffffff800870ac0c plus `add #0x098`),
+ * while GC032A takes the one at 0xffffff800991b860. Two different addresses
+ * for the same operation are two different objects: a DEFINE_MUTEX per
+ * file, not imgsensor's shared one.
  */
 static DEFINE_MUTEX(gc0310_mutex);
 
 /*
- * I NOMI SINTETICI SONO GLI INDIRIZZI. Questi quattro oggetti sono statici e
- * stock.map non li nomina; battezzarli "cap_state" o "video_mode" vorrebbe
- * dire spacciare una lettura per una misura.
+ * THE SYNTHETIC NAMES ARE THE ADDRESSES. These four objects are static and
+ * stock.map does not name them; christening them "cap_state" or "video_mode"
+ * would mean passing a reading off as a measurement.
  */
 static kal_bool g9c95930;
 static kal_bool g9c95938;
@@ -66,27 +71,25 @@ static kal_uint8 g9c95940;
 static MUINT32 g9c959bc;
 static MSDK_SENSOR_CONFIG_STRUCT g9c95944;
 
-#define GC0310MIPI_I2C_ADDR 0x21   /* sette bit: "52800429 mov"@0xffffff800870ac24 */
+#define GC0310MIPI_I2C_ADDR 0x21   /* seven bit: "52800429 mov"@0xffffff800870ac24 */
 #define GC0310MIPI_I2C_SPEED 400   /* 0x61a80 = 400000 */
 
 /*
- * L'ISTANZA I2C E' LA NUMERO 1, e si ricava dallo spiazzamento:
- * imgsensor_i2c_init mostra che gi2c.inst[N] sta a 0xffffff8009c90250 +
- * N * 4096 ("8b083128 add"@0xffffff8008704970 e' uno scorrimento di dodici
- * bit), quindi 0x9c91250 e' inst[1].
+ * THE I2C INSTANCE IS NUMBER 1, and it follows from the offset:
+ * imgsensor_i2c_init shows that gi2c.inst[N] sits at 0xffffff8009c90250 +
+ * N * 4096 ("8b083128 add"@0xffffff8008704970 is a twelve-bit shift),
+ * so 0xffffff8009c91250 is inst[1].
  */
 #define GC0310MIPI_INST (&gi2c.inst[IMGSENSOR_I2C_DEV_1])
 
 /*
- * LA SCRITTURA CHE LE TABELLE USANO. E' static e la fabbrica la incorpora
- * 309 volte in GC0310MIPI_Sensor_Init e 126 in GC0310MIPIGammaSelect: in
- * stock.map non c'e' nessun simbolo per lei, mentre GC0310MIPI_write_reg --
- * che ha lo stesso corpo -- c'e'.
+ * GC0310MIPI_write_cmos_sensor() was reconstructed from the factory kernel disassembly.
  *
- * Il printk stampa `ret`, che a quel punto vale ancora zero, e la velocita'.
- * Sembra un difetto e lo e': il valore utile -- quale registro non e' andato
- * -- non viene stampato. E' cosi' anche in imgsensor_i2c.c di ALPS, da cui
- * questo codice e' copiato, e si riproduce (regola 7).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static void GC0310MIPI_write_cmos_sensor(kal_uint8 addr, kal_uint8 para)
 {
@@ -110,8 +113,8 @@ static void GC0310MIPI_write_cmos_sensor(kal_uint8 addr, kal_uint8 para)
 }
 
 /*
- * LA LETTURA, gemella della scrittura: due messaggi invece di uno, e il
- * valore torna dai due byte del buffer di ricezione.
+ * THE READ, twin of the write: two messages instead of one, and the
+ * value comes back from the two bytes of the receive buffer.
  */
 static kal_uint16 GC0310MIPI_read_cmos_sensor_(kal_uint8 addr)
 {
@@ -143,14 +146,13 @@ static kal_uint16 GC0310MIPI_read_cmos_sensor_(kal_uint8 addr)
 }
 
 /*
- * I DUE AIUTANTI CHE NESSUNO CHIAMA. Esistono in stock.map con collegamento
- * esterno, ma nel binario non c'e' un solo `bl` verso di loro: sono copie di
- * imgsensor_i2c_write e imgsensor_i2c_read di ALPS, private di questo file,
- * senza il controllo `pi2c_client == NULL` e senza il __ratelimit -- il
- * printk qui e' diretto.
+ * gc0310_i2c_write() was reconstructed from the factory kernel disassembly.
  *
- * Restano perche' restano nel binario (regola 6): toglierle sarebbe
- * riprodurre il file a meno di due funzioni.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int gc0310_i2c_write(u8 *pwrite_data, u16 write_length, u16 write_per_cycle,
 		     u16 id, int speed)
@@ -220,10 +222,10 @@ int gc0310_i2c_read(u8 *pwrite_data, u16 write_length, u8 *pread_data,
 }
 
 /*
- * L'otturatore sta in due registri e si rimette insieme con un innesto:
- * "331d7113 bfi"@0xffffff800870ae20 mette i bit del 0x03 sopra il byte del
- * 0x04. Il primo si legge come byte, il secondo come mezza parola -- lo
- * dicono le due load, `ldrb` e `ldrh`.
+ * The shutter lives in two registers and is put back together with a graft:
+ * "331d7113 bfi"@0xffffff800870ae20 puts the bits of 0x03 above the byte of
+ * 0x04. The first is read as a byte, the second as a half-word -- the two
+ * loads, `ldrb` and `ldrh`, say so.
  */
 kal_uint16 GC0310MIPI_Read_Shutter(void)
 {
@@ -252,14 +254,13 @@ kal_uint16 GC0310MIPI_read_reg(kal_uint8 addr)
 }
 
 /*
- * 309 SCRITTURE DI SEGUITO, e qui davvero non c'e' nessuno switch: contati i
- * salti condizionati sono 310, cioe' esattamente uno per scrittura -- il
- * controllo d'errore dell'I2C incorporato -- e nient'altro.
+ * GC0310MIPI_Sensor_Init() was reconstructed from the factory kernel disassembly (0xffffff800870e994).
  *
- * Estratte con tools/estraiscritture.py da 0xffffff800870e994 a
- * 0xffffff8008716eb4. Le prime undici sono la sequenza d'accensione che chi
- * conosce la GC0310 si aspetta; il riscontro con una fonte esterna NON e'
- * stato fatto.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 void GC0310MIPI_Sensor_Init(void)
 {
@@ -575,21 +576,13 @@ void GC0310MIPI_Sensor_Init(void)
 }
 
 /*
- * SETTE RAMI, NON UNA LISTA PIATTA -- e il documento diceva il contrario.
+ * GC0310MIPIGammaSelect() was reconstructed from the factory kernel disassembly (0xffffff800870aff0, 144 bytes).
  *
- * "7100181f cmp"@0xffffff800870aff0 confronta l'argomento con 6 e
- * "d61f0140 br"@0xffffff800870b014 salta per tavola: sette casi, con le
- * scritture divise 35, 15, 15, 14, 15, 15, 17. Estrarle di seguito le
- * concatenava tutte in una funzione sola, e la misura lo diceva -- 144 byte
- * di meno -- ma la spiegazione "non c'e' nessuno switch" era gia' scritta e
- * l'avevo creduta.
- *
- * Il conteggio che l'aveva prodotta -- "127 salti condizionati, uno per
- * scrittura" -- non era sbagliato: e' che `br` NON E' un salto condizionato,
- * e quel conteggio non poteva vederlo.
- *
- * L'ordine dei casi nel sorgente NON e' l'ordine in memoria: il caso 1 sta
- * dopo il 4. Si legge dalla tavola a 0xffffff8008f49e7c, non dagli indirizzi.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 void GC0310MIPIGammaSelect(kal_uint8 index)
 {
@@ -741,9 +734,9 @@ void GC0310MIPIGammaSelect(kal_uint8 index)
 
 
 /*
- * QUATTRO FUNZIONI VUOTE DI FABBRICA. Non sono abbozzi: nel binario il loro
- * corpo intero e' `ret`, quattro byte, e stock.map le elenca con quella
- * dimensione. Riprodurle vuote e' quel che chiede la regola 7.
+ * FOUR FUNCTIONS EMPTY IN THE FACTORY. They are not stubs: in the binary
+ * their whole body is `ret`, four bytes, and stock.map lists them at that
+ * size. Reproducing them empty is what rule 7 requires.
  */
 void GC0310MIPI_Set_Shutter(kal_uint16 iShutter)
 {
@@ -781,9 +774,9 @@ UINT32 GC0310MIPIGetResolution(
 }
 
 /*
- * LA FINESTRA E' SEMPRE LA STESSA, e comincia dalla riga 1: la fabbrica
- * costruisce 0x01DA_0278_0001_0000 in un registro solo e lo scrive con una
- * store da otto byte, cioe' {0, 1, 632, 474}.
+ * THE WINDOW IS ALWAYS THE SAME, and it starts from line 1: the factory
+ * builds 0x01DA_0278_0001_0000 in a single register and writes it with an
+ * eight-byte store, that is {0, 1, 632, 474}.
  */
 UINT32 GC0310MIPIPreview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *pImageWindow,
 			 MSDK_SENSOR_CONFIG_STRUCT *pSensorConfigData)
@@ -819,9 +812,9 @@ UINT32 GC0310MIPICapture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *pImageWindow,
 }
 
 /*
- * Control NON guarda lo scenario: chiama Preview e basta, e restituisce TRUE
- * invece di ERROR_NONE. Nel binario non c'e' nessun confronto su x0, e le 21
- * istruzioni che seguono sono quelle di Preview incorporata.
+ * Control does NOT look at the scenario: it just calls Preview, and returns
+ * TRUE instead of ERROR_NONE. In the binary there is no comparison on x0, and
+ * the 21 instructions that follow are those of Preview inlined.
  */
 UINT32 GC0310MIPIControl(enum MSDK_SCENARIO_ID_ENUM ScenarioId,
 			 MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *pImageWindow,
@@ -833,24 +826,23 @@ UINT32 GC0310MIPIControl(enum MSDK_SCENARIO_ID_ENUM ScenarioId,
 }
 
 /*
- * Quindici o trenta fotogrammi al secondo, tutto il resto e' un messaggio e
- * nient'altro: il valore di ritorno e' TRUE anche quando la velocita' e'
- * sbagliata.
+ * Fifteen or thirty frames per second, everything else is a message and
+ * nothing more: the return value is TRUE even when the rate is
+ * wrong.
  */
 /*
- * TRENTA TENTATIVI, UNO AL SECONDO. Il ritardo fra un tentativo e l'altro e'
- * mdelay(1000) -- mille giri di udelay(1000), che nel binario si vedono come
- * un contatore a -1000 e un `adds`/`b.cc` -- e i tentativi sono 30
- * ("321f0fe0 orr"@0xffffff8008716f04 mette 0x1e). Mezzo minuto buono se il
- * sensore non c'e'. E' quel che fa la fabbrica.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008716f04).
  *
- * E lavora solo se l'indice del sensore e' 3: g9c90244 lo lascia li'
- * imgsensor_hw_power.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 /*
- * Legge 0x42, alza o abbassa il bit 1, riscrive. Il binario prova il bit 0
- * dell'argomento ("36000073 tbz"), non l'argomento intero: e' quel che fa un
- * kal_bool passato a un `if`.
+ * It reads 0x42, raises or lowers bit 1, writes it back. The binary tests bit 0
+ * of the argument ("36000073 tbz"), not the whole argument: that is what a
+ * kal_bool passed to an `if` does.
  */
 static void GC0310MIPI_awb_enable(kal_bool enable)
 {
@@ -865,15 +857,13 @@ static void GC0310MIPI_awb_enable(kal_bool enable)
 }
 
 /*
- * AWB: cinque modalita' scrivono, una spegne l'automatico, le altre no.
+ * GC0310MIPI_set_param_wb() was reconstructed from the factory kernel disassembly (0xffffff8008f49e8a).
  *
- * I casi si leggono dalla tavola a 0xffffff8008f49e8a
- * (tools/casiswitch.py), e i valori dagli `strh` che caricano
- * (dato << 8) | registro: 0x4877 e' "0x77 = 0x48", non due cose diverse.
- *
- * SHADE, TWILIGHT e WARM_FLUORESCENT cadono nel default e restituiscono
- * FALSE: la fabbrica non le tratta. I loro tre numeri -- 4, 5 e 7 -- puntano
- * tutti allo stesso indirizzo, che e' il ritorno con w0 rimasto a zero.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 UINT32 GC0310MIPI_set_param_wb(UINT16 para)
 {
@@ -931,8 +921,8 @@ UINT32 GC0310MIPI_set_param_wb(UINT16 para)
 }
 
 /*
- * EFFETTI: undici casi, cinque dei quali cadono nel default.
- * Tavola a 0xffffff8008f49e9e.
+ * EFFECTS: eleven cases, five of which fall into the default.
+ * Table at 0xffffff8008f49e9e.
  */
 UINT32 GC0310MIPI_set_param_effect(UINT16 para)
 {
@@ -1007,16 +997,13 @@ UINT32 GC0310MIPIGetSensorID(UINT32 *sensorID)
 }
 
 /*
- * TRE LETTURE, E BASTA UNA A SBAGLIARE. Il confronto e' rovesciato rispetto
- * a quel che ci si aspetta: il ciclo NON cerca finche' trova, gira tre volte
- * e ogni giro deve tornare 0xa310. Al primo diverso esce con l'errore
- * ("54000185 b.ne"@0xffffff80087172c4 va al ramo di fallimento), e solo dopo
- * i tre giri buoni stampa "OK" e inizializza.
+ * GC0310MIPIOpen() was reconstructed from the factory kernel disassembly (0xffffff80087172c4).
  *
- * Il ritardo iniziale e' mdelay(10): dieci udelay(1000) srotolati.
- *
- * E se l'indice del sensore non e' 3 esce SUBITO, senza stampare niente --
- * il ramo a 0xffffff8008717304 mette 0x10 e salta all'epilogo.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 UINT32 GC0310MIPIOpen(void)
 {
@@ -1048,31 +1035,22 @@ UINT32 GC0310MIPIOpen(void)
 }
 
 /*
- * TRENTASEI CAMPI, letti dagli spiazzamenti e non dai nomi.
+ * This section was reconstructed from the factory kernel disassembly.
  *
- * La fabbrica riempie la struttura con store larghe: "str x8, [x1]" mette
- * quattro u16 in un colpo (632, 474, 632, 474), "stur x9, [x1,#9]" ne mette
- * otto da un byte, e cosi' via. I nomi qui sotto vengono da
- * ACDK_SENSOR_INFO_STRUCT contando gli spiazzamenti, non da un driver
- * simile: e' l'unico modo, perche' due campi vicini dello stesso tipo non si
- * distinguono in nessun altro modo.
- *
- * I campi fra 139 e 142 -- i quattro ritardi dell'esposizione automatica --
- * NON vengono scritti. Non e' una dimenticanza mia: nel binario non c'e'
- * nessuna store verso quegli spiazzamenti, e riempirli farebbe crescere la
- * funzione.
- *
- * La copia finale va DALLA statica ALLA struttura del chiamante, al
- * contrario di quel che fanno Preview e Capture.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 /*
- * TRE SCRITTURE, E LA SECONDA NON VA A 0xFE. Il buffer di
- * due byte tiene l indirizzo in [sp,#4] e il dato in [sp,#5]: la seconda
- * scrittura cambia l indirizzo A 0x3C prima del ramo ("52800788 orr"@0xffffff800870e78c
- * seguito da `strb w8, [sp,#4]`) e poi solo il dato nei due rami. Avevo
- * letto il secondo strb e non il primo, e la funzione era 216 byte corta.
+ * THREE WRITES, AND THE SECOND DOES NOT GO TO 0xFE. The two-byte
+ * buffer holds the address in [sp,#4] and the datum in [sp,#5]: the second
+ * write changes the address TO 0x3C before the branch ("52800788 orr"@0xffffff800870e78c
+ * followed by `strb w8, [sp,#4]`) and then only the datum in the two branches. I had
+ * read the second strb and not the first, and the function was 216 bytes short.
  *
- * E in coda lascia il valore dell'argomento in un globale.
+ * And at the tail it leaves the argument value in a global.
  */
 void GC0310MIPINightMode(kal_bool enable)
 {
@@ -1090,14 +1068,13 @@ void GC0310MIPINightMode(kal_bool enable)
 }
 
 /*
- * IL SETTIMO PUNTATORE della SENSOR_FUNCTION_STRUCT -- quello che ALPS non
- * ha e che camera_main3_yuv_bv_show chiama a +48.
+ * GC0310ReadBV() was reconstructed from the factory kernel disassembly (0xffffff800871aa54).
  *
- * Tre scritture e quattro letture, e SOLO LA PRIMA LETTURA SERVE: il valore
- * di ritorno e' quello di 0xEF ("394013f3 ldrb"@0xffffff800871aa54 e' l'unica
- * cosa che finisce in w19, e w19 e' quel che torna). Le altre tre si fanno e
- * si buttano. Non e' codice morto -- sono operazioni I2C, hanno effetto sul
- * chip -- ma il loro risultato non lo guarda nessuno.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 UINT32 GC0310ReadBV(void)
 {
@@ -1117,30 +1094,22 @@ UINT32 GC0310ReadBV(void)
 }
 
 /*
- * QUINDICI CASI SU SESSANTASEI, e gli altri cinquantuno cadono nel default.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800871a4b0).
  *
- * L'indice dello switch e' FeatureId - 3001 (SENSOR_FEATURE_START + 1), e la
- * tavola e' A BYTE ("3868692b ldrb"@0xffffff800871a4b0, senza `lsl`): 66
- * voci, 16 corpi distinti. tools/casiswitch.py la legge.
- *
- * Il caso della velocita' predefinita per scenario ha uno switch ANNIDATO su
- * cinque valori, e nella tavola a 0xffffff8008f49efd tutte e cinque le voci
- * valgono zero: tutti gli scenari cadono nello stesso corpo, che scrive 300.
- * Lo switch c'e' e non fa niente -- si riproduce com'e' (regola 7).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 /*
- * SETTE PASSI DI ESPOSIZIONE, e i sette valori sono una scala regolare:
- * 0x20, 0x28, 0x30, 0x38, 0x40, 0x48, 0x50 da -3 a +3.
+ * GC0310MIPI_set_param_exposure() was reconstructed from the factory kernel disassembly (0xffffff8008718f7c).
  *
- * QUALI sette lo dice un `ror`: "13027d08 ror"@0xffffff8008718f7c ruota
- * l'argomento di due prima del confronto con 6, quindi passano solo i
- * multipli di quattro -- 0, 4, 8, 12, 16, 20, 24. Nell'enum di ALPS quei
- * sette sono esattamente AE_EV_COMP_00, _10, _20, _30, n10, n20, n30: i
- * passi interi, senza i mezzi.
- *
- * Senza leggere il `ror` si sarebbe scritto un case per 0..6, che sono
- * AE_EV_COMP_00, _03, _05, _07, _10, _13, _15 -- sette nomi plausibili e
- * sbagliati.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc0310_mipi_yuv_gc0310mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 UINT32 GC0310MIPI_set_param_exposure(UINT16 para)
 {
@@ -1195,11 +1164,11 @@ UINT32 GC0310MIPI_set_param_exposure(UINT16 para)
 }
 
 /*
- * DUE SOLE FREQUENZE DI RETE, e il resto non fa niente: "7100051f cmp"
- * confronta con 1 e il ramo diverso esce senza scrivere. Diciassette
- * scritture per lato, e le ultime due sono in comune -- la fabbrica ne emette
- * 15 + 17 perche' il ramo a 50 Hz salta dentro la coda dell altro dopo aver
- * messo il suo valore per 0x2E, che e 0x74 contro 0x40.
+ * ONLY TWO MAINS FREQUENCIES, and the rest does nothing: "7100051f cmp"
+ * compares with 1 and the other branch returns without writing. Seventeen
+ * writes per side, and the last two are shared -- the factory emits 15 + 17
+ * because the 50 Hz branch jumps into the tail of the other after putting
+ * its own value for 0x2E, which is 0x74 against 0x40.
  */
 UINT32 GC0310MIPI_set_param_banding(UINT16 para)
 {
@@ -1252,9 +1221,9 @@ UINT32 GC0310MIPI_set_param_banding(UINT16 para)
 }
 
 /*
- * TRENTASEI SCRITTURE: una prima del ramo, trentaquattro se il motivo di
- * prova si accende, una sola se si spegne. Il messaggio in testa stampa
- * l argomento mascherato a un bit ("12000021 and"@0xffffff80087194d4).
+ * THIRTY-SIX WRITES: one before the branch, thirty-four if the test
+ * pattern is switched on, a single one if it is switched off. The message at the top prints
+ * the argument masked to one bit ("12000021 and"@0xffffff80087194d4).
  */
 UINT32 GC0310MIPISetTestPatternMode(kal_bool bEnable)
 {
@@ -1467,13 +1436,13 @@ UINT32 GC0310MIPIYUVSetVideoMode(UINT16 u2FrameRate)
 	return TRUE;
 }
 /*
- * LA STRUTTURA CON SETTE PUNTATORI, e il settimo e' quello che ALPS non ha.
+ * THE STRUCTURE WITH SEVEN POINTERS, and the seventh is the one ALPS lacks.
  *
- * GC0310ReadBV sta a +48, subito dopo SensorClose: e' il puntatore che
- * camera_main3_yuv_bv_show chiama, ed e' proprio perche' i driver di ALPS lo
- * lasciano NULL che accendere CONFIG_CUSTOM_KERNEL_IMGSENSOR senza questi
- * sensori introduce una chiamata a puntatore nullo raggiungibile da spazio
- * utente. Con GC0310 scritto, quel buco si chiude da se'.
+ * GC0310ReadBV sits at +48, right after SensorClose: it is the pointer
+ * camera_main3_yuv_bv_show calls, and it is precisely because the ALPS
+ * drivers leave it NULL that turning on CONFIG_CUSTOM_KERNEL_IMGSENSOR
+ * without these sensors introduces a null pointer call reachable from user
+ * space. With GC0310 written, that hole closes by itself.
  */
 static struct SENSOR_FUNCTION_STRUCT SensorFuncGC0310MIPI = {
 	GC0310MIPIOpen,

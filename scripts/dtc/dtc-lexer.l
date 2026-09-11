@@ -39,15 +39,15 @@ LINECOMMENT	"//".*\n
 #include "dtc-parser.tab.h"
 
 /*
- * extern, altrimenti non si compila con le toolchain moderne.
+ * extern, otherwise it does not build with modern toolchains.
  *
- * Con -fno-common -- il default da GCC 10 e dai clang recenti -- questa
- * definizione tentativa entra in conflitto con quella che bison genera in
- * dtc-parser.tab.c, e il collegamento di scripts/dtc/dtc muore con
+ * With -fno-common -- the default since GCC 10 and in recent clang -- this
+ * tentative definition conflicts with the one bison generates in
+ * dtc-parser.tab.c, and linking scripts/dtc/dtc dies with
  * \ld.lld: error: duplicate symbol: yylloc\.
  *
- * Serve per compilare dentro LineageOS, che usa clang-r487747c; con il
- * clang-r353983c di fabbrica il difetto non si vedeva.
+ * It is needed to build inside LineageOS, which uses clang-r487747c; with
+ * the factory clang-r353983c the defect did not show.
  */
 extern YYLTYPE yylloc;
 extern bool treesource_error;

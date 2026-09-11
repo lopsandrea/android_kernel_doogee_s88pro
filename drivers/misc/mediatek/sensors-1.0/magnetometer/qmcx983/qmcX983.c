@@ -1,52 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Magnetometro QST QMC7983 ("qmcX983" nei simboli di fabbrica) del Doogee
- * S88 Pro.
+ * QST QMC7983 magnetometer ("qmcX983" in the factory symbols), Doogee S88
+ * Pro.
  *
- * Ricostruito leggendo il kernel di fabbrica disassemblato (l'oracolo,
- * docs/bringup/kernel-oracolo.md), non adattato da un altro telefono. Ogni
- * costante di questo file ha accanto la riga di disassemblato da cui viene,
- * nella forma <<testo>>@0xINDIRIZZO: se un valore non ha la sua citazione, non
- * e' stato letto ed e' un difetto.
+ * Reconstructed from the disassembly of the factory kernel, not adapted from
+ * another phone. Every constant carries the disassembly line it was read from
+ * -- a value without its citation is a defect.
  *
- * Il confine del driver e' 49 funzioni (48 nel blocco contiguo
- * 0xffffff800878dba4..0xffffff800878ffff piu' qmcX983_init nella .init.text),
- * verificato in entrambe le direzioni dalla revisione indipendente
- * docs/bringup/rapporti/revisione-qmcx983.md.
- *
- * *** Vincolo: -Werror sul sottoalbero ***
- * drivers/misc/mediatek/Makefile impone subdir-ccflags-y += -Werror, quindi
- * -Wunused-function e' un errore. Delle 49 funzioni solo 2 sono globali; le
- * altre 47 sono statiche e compilano soltanto se la catena
- *   module_init -> mag_driver_add(&qmcX983_init_info)
- *               -> qmcX983_local_init -> i2c_add_driver(&qmcX983_i2c_driver)
- *               -> qmcX983_i2c_probe -> tutto il resto
- * e' presente per intero. Per questo il lotto 2 e' l'intero driver e non un
- * sottoinsieme: non esiste un sottoinsieme proprio che compili.
- *
- * *** L'ordine delle funzioni ***
- * Non e' l'ordine di emissione del binario (che clang riordina): e' l'ordine
- * ricostruito dai __LINE__ che ogni MAGN_ERR incorpora. Il binario li porta
- * come immediati, e sono monotoni nel sorgente vero:
- *   mag_i2c_read_block 198/204, mag_i2c_write_block 227/239,
- *   store_layout_value 608-622, show_trace_value 654, store_trace_value
- *   668/678, store_WRregisters_value 714-723, store_registers_value 740/744,
- *   qmcX983_create_attr 852, qmcX983_unlocked_ioctl 1070,
- *   qmcX983_m_set_delay 1198/1204, qmcX983_m_enable 1221-1246,
- *   qmcX983_m_get_data 1268/1274, qmcX983_device_check 1472-1515,
- *   qmcx983_get_OTP 1549-1602, qmcX983_i2c_probe 1637-1746,
- *   qmcX983_i2c_remove 1761, qmcX983_local_init 1782/1788.
- * Nel binario invece qmcX983_i2c_probe sta nona e qmcX983_enable ultima:
- * l'ordine di emissione **non** e' l'ordine del sorgente, contrariamente a
- * quanto affermava la versione precedente di questo commento.
- *
- * *** Nomi ***
- * I nomi delle 49 funzioni vengono dalla symtab ricostruita dell'oracolo e
- * sono quelli di fabbrica. I nomi delle variabili statiche, dei tipi e delle
- * macro NON sono nel binario: quelli qui sotto sono scelti da chi ha
- * riscritto, e la sola cosa provata dal binario e' l'indirizzo, la dimensione
- * e l'uso di ciascuna. Dove il nome viene da una stringa del binario
- * (v_open_flag, open_flag, hw_registers, chip_id) e' annotato.
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #include <linux/atomic.h>
 #include <linux/delay.h>
@@ -71,19 +37,19 @@
 #include "mag.h"
 
 /*
- * I due livelli di printk, letti dal prefisso di ogni formato:
- *   "\x016[QMC-Msensor] ..."          -> KERN_INFO, nessun argomento implicito
- *   "\x013[QMC-Msensor] %s %d : ..."  -> KERN_ERR, con __func__ e __LINE__
- * Prima citazione di ciascuno:
+ * The two printk levels, read from the prefix of every format:
+ *   "\x016[QMC-Msensor] ..."          -> KERN_INFO, no implicit arguments
+ *   "\x013[QMC-Msensor] %s %d : ..."  -> KERN_ERR, with __func__ and __LINE__
+ * First citation of each:
  *   <<\x016[QMC-Msensor] %s\n>>@0xffffff80091c1410
- * il frammento e' "%s\n", lo stesso testo che scnprintf usa altrove;
-	 * qui sta a 0xffffff80091c1420, la citazione probante e'
-	 * quella di 0xffffff8009226be1
- * il frammento e' "%s\n", lo stesso testo che scnprintf usa altrove;
-	 * qui sta a 0xffffff80091c1420, la citazione probante e'
-	 * quella di 0xffffff8009226be1
+ * the fragment is "%s\n", the same text scnprintf uses elsewhere;
+ * here it sits at 0xffffff80091c1420, the clinching citation is
+ * the one at 0xffffff8009226be1
+ * the fragment is "%s\n", the same text scnprintf uses elsewhere;
+ * here it sits at 0xffffff80091c1420, the clinching citation is
+ * the one at 0xffffff8009226be1
  *   <<\x013[QMC-Msensor] %s %d : add driver error\n>>@0xffffff80091c13af
- * il frammento che sta nel codice: "add driver error\n"@0xffffff80091c13c7
+ * the fragment that appears in the code: "add driver error\n"@0xffffff80091c13c7
  */
 #define MAGN_TAG	"[QMC-Msensor] "
 #define MAGN_LOG(fmt, args...)	pr_info(MAGN_TAG fmt, ##args)
@@ -91,31 +57,31 @@
 	pr_err(MAGN_TAG "%s %d : " fmt, __func__, __LINE__, ##args)
 
 /*
- * "qmcX983"@0xffffff80091c13a7, puntato dalle rilocazioni a
+ * "qmcX983"@0xffffff80091c13a7, pointed at by the relocations a
  * 0xffffff800992f138 (mag_init_info.name) e 0xffffff800992f198
  * (i2c_driver.driver.name).
  */
 #define QMCX983_DEV_NAME	"qmcX983"
 
 /*
- * <<orr w1,wzr,#0x20>>@0xffffff800878f558 (terzo argomento di scnprintf in
- * show_chipinfo_value): il buffer d'appoggio standard e' di 32 byte.
+ * <<orr w1,wzr,#0x20>>@0xffffff800878f558 (third argument of scnprintf in
+ * show_chipinfo_value): the buffer scratch buffer is 32 byte.
  */
 #define QMCX983_BUFSIZE		0x20
 
 /*
- * <<cmp w21,#0x9>>@0xffffff800878dd80 in I2C_RxData: la lettura fallisce da 9
- * byte in su, e il messaggio stampa 8 (<<orr w4,wzr,#0x8>>@0xffffff800878dda8).
+ * <<cmp w21,#0x9>>@0xffffff800878dd80 in I2C_RxData: the read fails from 9
+ * bytes upwards, and the message prints 8 (<<orr w4,wzr,#0x8>>@0xffffff800878dda8).
  */
 #define C_I2C_FIFO_SIZE		8
 
 /*
- * <<mov w8,#0x2c ; strh w8,[x21,#2]>>@0xffffff800878e144: l'indirizzo I2C che
- * la probe forza in client->addr.
+ * <<mov w8,#0x2c ; strh w8,[x21,#2]>>@0xffffff800878e144: the I2C address the
+ * probe forces into client->addr.
  */
 #define QMCX983_I2C_ADDR	0x2c
 
-/* I registri, ciascuno dal punto in cui il binario lo carica. */
+/* The registers, each from the point where the binary loads it. */
 #define QMCX983_REG_DATA	0x00	/* <<strb wzr,[sp]>>@0xffffff800878f67c */
 #define QMCX983_REG_STATUS	0x06	/* <<orr w22,wzr,#0x6>>@0xffffff800878f648 */
 #define QMCX983_REG_CTRL1	0x09	/* <<mov w21,#0x9>>@0xffffff800878dc10 */
@@ -126,10 +92,9 @@
 #define QMCX983_REG_OTP_DATA	0x2f	/* <<mov w8,#0x2f>>@0xffffff800878e2e4 */
 
 /*
- * Gli identificativi di chip sono gli indici della tavola di salto di
- * show_chipinfo_value ("adr x10,0xffffff800878f4e0" con la tavola di byte
- * 00 05 09 0c 13 a 0xffffff8008f54570): 0..4, nell'ordine delle cinque
- * stringhe raggiunte.
+ * The chip identifiers are the indices of the show_chipinfo_value jump table
+ * ("adr x10,0xffffff800878f4e0" with the byte table 00 05 09 0c 13 at
+ * 0xffffff8008f54570): 0..4, in the order of the five strings reached.
  */
 #define QMC6983_A1_D1		0	/* "QMC6983_A1_D1 Chip"@0xffffff80091c1981 */
 #define QMC6983_E1		1	/* "QMC6983_E1 Chip"@0xffffff80091c195b */
@@ -138,37 +103,26 @@
 #define QMC7983_SLOPE		4	/* "QMC7983_Slope Chip"@0xffffff80091c1948 */
 
 /*
- * QMCX983IO = 0x83 e i due comandi, dai due confronti di
+ * QMCX983IO = 0x83 and the two commands, from the two comparisons in
  * qmcX983_unlocked_ioctl:
  *   <<mov w8,#0x8341 ; movk w8,#0xc008,lsl #16>>@0xffffff800878fb48 -> 0xc0088341
  *   <<mov w8,#0x8340 ; movk w8,#0x4008,lsl #16>>@0xffffff800878fb58 -> 0x40088340
- * cioe' _IOWR/_IOW(0x83, 0x41/0x40, char[8]). La dimensione codificata e' 8
- * mentre il buffer davvero copiato e' 16
- * (<<orr w2,wzr,#0x10>>@0xffffff800878fc64): la discrepanza e' di fabbrica.
+ * that is _IOWR/_IOW(0x83, 0x41/0x40, char[8]). The encoded size is 8 while
+ * the buffer actually copied is 16
+ * (<<orr w2,wzr,#0x10>>@0xffffff800878fc64): the discrepancy is the factory's.
  */
 #define QMCX983IO		0x83
 #define QMCX983_IOC_WRITE	_IOW(QMCX983IO, 0x40, char[8])
 #define QMCX983_IOC_READ	_IOWR(QMCX983IO, 0x41, char[8])
 
 /*
- * struct qmcX983_i2c_data: 64 byte
- * (<<orr w2,wzr,#0x40>>@0xffffff800878e124, terzo argomento di
- * kmem_cache_alloc_trace). Gli offset vengono da accessi osservati:
- *   +0   client       <<str x21,[x19]>>@0xffffff800878e214
- *   +8   hw           <<add x1,x19,#0x8>>@0xffffff800878e138 (get_mag_dts_func)
- *   +40  layout       <<str w3,[x19,#40]>>@0xffffff800878e1c0
- *   +44  trace        <<str wzr,[x19,#44]>>@0xffffff800878e1e0
- *   +48  cvt          <<add x1,x19,#0x30>>@0xffffff800878e150 (hwmsen_get_convert)
- *   +56  xy_sensitivity <<strh w8,[x10,#56]>>@0xffffff800878dc20
- *   +58  z_sensitivity  <<strh w8,[x10,#58]>>@0xffffff800878dc24
- * struct hwmsen_convert ha sign[4]/map[4] (C_MAX_HWMSEN_EVENT_NUM = 4),
- * coerente con i sign letti a +48/+49/+50 e i map a +52/+53/+54
- * ("ldrsb w9,[x20,#48]" e <<ldrb w8,[x20,#52]>>@0xffffff800878f6f0: fra i due
- * gruppi c'e' un byte di salto, che solo un array da 4 spiega).
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800878e124, 64 bytes).
  *
- * layout e trace sono qui atomic_t per convenzione del framework MediaTek:
- * il binario non li distingue da due int, perche' atomic_set/atomic_read
- * generano lo stesso str/ldr singolo.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct qmcX983_i2c_data {
 	struct i2c_client *client;
@@ -181,40 +135,24 @@ struct qmcX983_i2c_data {
 };
 
 /*
- * struct mag_hw globale che get_cust_mag() restituisce. Non e' static: il
- * simbolo nell'oracolo e' T (globale), e nel driver "sibling" della stessa
- * famiglia MediaTek (akm09918.c, stesso albero, riga "struct mag_hw
- * mag_cust;") il campo e' definito allo stesso modo -- get_cust_mag ne
- * restituisce l'indirizzo direttamente (un solo adrp/add, nessun ldr
- * intermedio da un puntatore separato), che e' esattamente il pattern qui.
- * L'indirizzo reale (0xffffff8009cba228) e' in .bss di fabbrica.
+ * The global struct mag_hw that get_cust_mag() returns. It is not static: the
+ * symbol in the oracle is T (global), and in the "sibling" driver of the same
+ * MediaTek family (akm09918.c, same tree, line "struct mag_hw mag_cust;") the
+ * field is defined the same way -- get_cust_mag returns its address directly
+ * (a single adrp/add, no intermediate ldr from a separate pointer), which is
+ * exactly the pattern here. The real address (0xffffff8009cba228) is in the
+ * factory .bss.
  */
 struct mag_hw mag_cust;
 
 /*
- * .bss di fabbrica, ciascuna dal suo indirizzo:
- *   0xffffff8009cba248  this_client       <<ldr x22,[x8,#584]>>@0xffffff800878dd30
- *   0xffffff8009cba250  read_i2c_xyz      __mutex_init con <<&read_i2c_xyz>>@0xffffff80091c14d2
- *   0xffffff8009cba270  open_count        <<str wzr,[x8,#624]>>@0xffffff800878e020
- *   0xffffff8009cba274  qmcX983_init_flag <<ldrb w8,[x8,#628]>>@0xffffff800878e04c
- *   0xffffff8009cba278  sensor_data_mutex __mutex_init con <<&sensor_data_mutex>>@0xffffff80091c14bf
- *   0xffffff8009cba29c  otp_a             <<ldr w2,[x8,#668]>>@0xffffff800878fad0
- *   0xffffff8009cba2a0  otp_b             <<ldr w3,[x9,#672]>>@0xffffff800878fad4
- *   0xffffff8009cba2a4  open_flag         <<str w3,[x8,#676]>>@0xffffff800878eda0
- *   0xffffff8009cba2a8  v_open_flag       <<ldrb w8,[x19,#680]>>@0xffffff800878ed24
- *   0xffffff8009cba2ac  hw_registers      <<ldrb w8,[x8,#684]>>@0xffffff800878f21c
- * I nomi open_flag/v_open_flag/hw_registers vengono dalle stringhe di
- * fabbrica "open_flag = 0x%x, v_open_flag=0x%x\n"@0xffffff80091c1aeb e
- * "hw_registers = 0x%02x\n"@0xffffff80091c17ed.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8009cba248).
  *
- * qmcX983_init_flag e' un byte, non un int: local_init lo legge con
- * <<ldrb w8,[x8,#628] ; tbz w8,#0>>@0xffffff800878e04c e la probe ci scrive 1
- * con <<strb w21,[x8,#628]>>@0xffffff800878ec30.
- *
- * v_open_flag e' un byte per lo stesso motivo (ldrb/strb, mai ldrh).
- *
- * sensor_data_mutex viene inizializzata dalla probe e non e' mai presa da
- * nessuna delle 49 funzioni: e' cosi' di fabbrica.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct i2c_client *this_client;
 static struct mutex read_i2c_xyz;
@@ -224,10 +162,10 @@ static bool qmcX983_init_flag;
 static int otp_a;
 static int otp_b;
 /*
- * open_flag e' atomic_t e non int: qmcX983_m_enable gli assegna v_open_flag
- * (<<str w3,[x8,#676]>>@0xffffff800878eda0) e poi lo RILEGGE
- * (<<ldr w4,[x8,#676]>>@0xffffff800878eda4) per passarlo al printk. Su un int
- * semplice il compilatore avrebbe riusato w3: la rilettura e' la firma di
+ * open_flag is an atomic_t and not an int: qmcX983_m_enable assigns v_open_flag
+ * to it (<<str w3,[x8,#676]>>@0xffffff800878eda0) and then READS IT BACK
+ * (<<ldr w4,[x8,#676]>>@0xffffff800878eda4) to pass it to the printk. On a plain
+ * int the compiler would have reused w3: the re-read is the signature of
  * atomic_set/atomic_read (WRITE_ONCE/READ_ONCE).
  */
 static atomic_t open_flag;
@@ -235,10 +173,10 @@ static unsigned char v_open_flag;
 static unsigned char hw_registers;
 
 /*
- * chip_id sta in .data (0xffffff800992f2a0) e vale 1 nell'immagine di
- * fabbrica (la parola a quell'indirizzo e' 0x0000000000000001, senza
- * rilocazione): e' inizializzata a QMC6983_E1, non a zero. Il ramo "default"
- * di qmcX983_device_check la lascia intatta, e la probe se ne accorge
+ * chip_id lives in .data (0xffffff800992f2a0) and is 1 in the factory image
+ * (the word at that address is 0x0000000000000001, with no relocation):
+ * it is initialised to QMC6983_E1, not to zero. The "default" branch of
+ * qmcX983_device_check leaves it alone, and the probe notices
  * (<<ldr w8,[x8,#672] ; cbz w8>>@0xffffff800878e390).
  */
 static int chip_id = QMC6983_E1;
@@ -247,9 +185,9 @@ static int qmcX983_local_init(void);
 static int qmcX983_local_remove(void);
 
 /*
- * get_cust_mag: 0xffffff800878dba4, 12 byte, T (globale).
+ * get_cust_mag: 0xffffff800878dba4, 12 byte, T (global).
  *   adrp x0, 0xffffff8009cba000 ; add x0, x0, #0x228 ; ret
- * Restituisce &mag_cust (0xffffff8009cba228, in .bss di fabbrica).
+ * Returns &mag_cust (0xffffff8009cba228, in the factory .bss).
  */
 struct mag_hw *get_cust_mag(void)
 {
@@ -257,28 +195,26 @@ struct mag_hw *get_cust_mag(void)
 }
 
 /*
- * mag_i2c_read_block e mag_i2c_write_block non hanno un simbolo proprio: di
- * fabbrica sono sempre incorporate. Che siano funzioni del sorgente e non
- * macro lo dimostrano i loro __func__ e __LINE__, che restano nei printk:
- * <<mag_i2c_read_block>>@0xffffff80091c1317 alle righe 198 e 204,
- * <<mag_i2c_write_block>>@0xffffff80091c1365 alle righe 227 e 239.
+ * mag_i2c_read_block() was reconstructed from the factory kernel disassembly (0xffffff80091c1317, 192 bytes).
  *
- * Sono "inline" perche' nell'oracolo non esiste nessun simbolo con quei nomi
- * pur avendo, la seconda, quindici punti di chiamata: senza "inline" clang
- * ne emette una copia fuori linea e qmcX983_unlocked_ioctl perde 192 byte
- * rispetto alla fabbrica (misurato).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static inline int mag_i2c_read_block(struct i2c_client *client, u8 addr,
 				     u8 *data, u8 len)
 {
 	u8 beg = addr;
-	/* L'azzeramento esplicito non e' ridondanza di stile: la fabbrica lo
-	 * esegue davvero prima di riempire i campi
-	 * (<<str xzr,[sp,#8]>>@0xffffff800878dd44 e
-	 *  <<stp xzr,xzr,[sp,#16]>>@0xffffff800878dd3c, entrambi seguiti dalle
-	 * scritture vere dei campi). Con un inizializzatore designato completo
-	 * clang non emette quei tre store e la funzione perde 12 byte
-	 * (misurato: 332 invece di 344).
+	/*
+	 * The explicit clearing is not stylistic redundancy: the factory really does
+	 * it before filling the fields
+	 * (<<str xzr,[sp,#8]>>@0xffffff800878dd44 and
+	 *  <<stp xzr,xzr,[sp,#16]>>@0xffffff800878dd3c, each followed by the real
+	 * field writes). With a complete designated initialiser clang does not emit
+	 * those three stores and the function loses 12 bytes
+	 * (measured: 332 instead of 344).
 	 */
 	struct i2c_msg msgs[2] = { {0}, {0} };
 	int err;
@@ -299,10 +235,11 @@ static inline int mag_i2c_read_block(struct i2c_client *client, u8 addr,
 		return -EINVAL;
 	} else if (len > C_I2C_FIFO_SIZE) {
 		mutex_unlock(&read_i2c_xyz);
-		/* "\x013[QMC-Msensor] %s %d :  length %d exceeds %d\n"
-		 * @0xffffff80091c12e8, riga 198 (<<mov w2,#0xc6>>@0xffffff800878dda4).
- * il frammento che sta nel codice: " length %d exceeds %d\n"@0xffffff80091c1300
-		 * Due spazi dopo i due punti: sono nel binario.
+		/*
+		 * "\x013[QMC-Msensor] %s %d :  length %d exceeds %d\n"
+		 * @0xffffff80091c12e8, line 198 (<<mov w2,#0xc6>>@0xffffff800878dda4).
+		 * the fragment that appears in the code: " length %d exceeds %d\n"@0xffffff80091c1300
+		 * Two spaces after the colon: they are in the binary.
 		 */
 		MAGN_ERR(" length %d exceeds %d\n", len, C_I2C_FIFO_SIZE);
 		return -EINVAL;
@@ -310,12 +247,13 @@ static inline int mag_i2c_read_block(struct i2c_client *client, u8 addr,
 
 	err = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
 	if (err != 2) {
-		/* "\x013[QMC-Msensor] %s %d : i2c_transfer error: (%d %p %d) %d\n"
-		 * @0xffffff80091c132a, riga 204 (<<mov w2,#0xcc>>@0xffffff800878ddf8).
- * il frammento che sta nel codice: "i2c_transfer error: (%d %p %d) %d\n"@0xffffff80091c1342
-		 * Lo sblocco sta dentro i rami e non in coda: di fabbrica il
-		 * ramo che riesce sblocca a 0xffffff800878ddd8 e ritorna subito,
-		 * senza portarsi dietro err in un registro.
+		/*
+		 * "\x013[QMC-Msensor] %s %d : i2c_transfer error: (%d %p %d) %d\n"
+		 * @0xffffff80091c132a, line 204 (<<mov w2,#0xcc>>@0xffffff800878ddf8).
+		 * the fragment that appears in the code: "i2c_transfer error: (%d %p %d) %d\n"@0xffffff80091c1342
+		 * The unlock sits inside the branches and not at the tail: in the factory
+		 * build the successful branch unlocks at 0xffffff800878ddd8 and returns at
+		 * once, without carrying err along in a register.
 		 */
 		MAGN_ERR("i2c_transfer error: (%d %p %d) %d\n",
 #line 204
@@ -338,9 +276,10 @@ static inline int mag_i2c_write_block(struct i2c_client *client, u8 addr,
 		mutex_unlock(&read_i2c_xyz);
 		return -EINVAL;
 	} else if (len >= C_I2C_FIFO_SIZE) {
-		/* <<cmp w19,#0x8 ; b.cc>>@0xffffff800878fbec: in scrittura il
-		 * limite e' 8 escluso (si trasmette len+1 byte), mentre in
-		 * lettura era 9 escluso. Riga 227
+		/*
+		 * <<cmp w19,#0x8 ; b.cc>>@0xffffff800878fbec: on write the
+		 * limit is 8 exclusive (len+1 bytes are transmitted), while on
+		 * read it was 9 exclusive. Line 227
 		 * (<<mov w2,#0xe3>>@0xffffff800878fc10).
 		 */
 		mutex_unlock(&read_i2c_xyz);
@@ -354,33 +293,36 @@ static inline int mag_i2c_write_block(struct i2c_client *client, u8 addr,
 		buf[num++] = data[idx];
 
 	err = i2c_master_send(client, buf, num);
-	/* Qui lo sblocco precede il controllo del segno: di fabbrica
-	 * "mutex_unlock" sta a 0xffffff800878dc80 e il "tbnz w19,#31" solo
-	 * dopo, a 0xffffff800878dc84.
+	/*
+	 * Here the unlock precedes the sign check: in the factory build
+	 * "mutex_unlock" sits at 0xffffff800878dc80 and the "tbnz w19,#31" only
+	 * after it, at 0xffffff800878dc84.
 	 */
 	mutex_unlock(&read_i2c_xyz);
 	if (err < 0) {
-		/* "\x013[QMC-Msensor] %s %d : send command error!!\n"
-		 * @0xffffff80091c1379, riga 239 (<<mov w2,#0xef>>@0xffffff800878dcb8)
- * il frammento che sta nel codice: "send command error!!\n"@0xffffff80091c1391
+		/*
+		 * "\x013[QMC-Msensor] %s %d : send command error!!\n"
+		 * @0xffffff80091c1379, line 239 (<<mov w2,#0xef>>@0xffffff800878dcb8)
+		 * the fragment that appears in the code: "send command error!!\n"@0xffffff80091c1391
 		 */
 #line 239
 		MAGN_ERR("send command error!!\n");
 		return -EFAULT;
 	}
-	/* 0 e non err: i chiamanti scrivono "if (mag_i2c_write_block(...))" e
-	 * di fabbrica il ramo che riesce restituisce 0
-	 * (<<mov w0,wzr>>@0xffffff800878dc88 in qmcX983_set_range). Il binario
-	 * non distingue questa forma da "return err" con un chiamante che
-	 * testa "< 0": si e' scelta la prima.
+	/*
+	 * 0 and not err: the callers write "if (mag_i2c_write_block(...))" and in the
+	 * factory build the successful branch returns 0
+	 * (<<mov w0,wzr>>@0xffffff800878dc88 in qmcX983_set_range). The binary does
+	 * not distinguish this form from "return err" with a caller testing "< 0":
+	 * the first was chosen.
 	 */
 	return 0;
 }
 
 /*
- * I2C_RxData: 0xffffff800878dcf0, 344 byte, t (statica).
- * I due controlli d'ingresso restituiscono -EINVAL
- * (<<mov w0,#0xffffffea>>@0xffffff800878dd10), ogni fallimento successivo -1
+ * I2C_RxData: 0xffffff800878dcf0, 344 bytes, t (static).
+ * The two entry checks return -EINVAL
+ * (<<mov w0,#0xffffffea>>@0xffffff800878dd10), every later failure -1
  * (<<mov w0,#0xffffffff>>@0xffffff800878de18).
  */
 static int I2C_RxData(char *rxData, int length)
@@ -393,9 +335,9 @@ static int I2C_RxData(char *rxData, int length)
 }
 
 /*
- * I2C_TxData non ha simbolo proprio: e' sempre incorporata. Il controllo sul
- * puntatore resta visibile come <<cmn x22,#0x1 ; b.eq>>@0xffffff800878fbc4
- * dentro qmcX983_unlocked_ioctl, cioe' il confronto di &sData[1] con NULL.
+ * I2C_TxData has no symbol of its own: it is always inlined. The pointer
+ * check stays visible as <<cmn x22,#0x1 ; b.eq>>@0xffffff800878fbc4 inside
+ * qmcX983_unlocked_ioctl, that is, the comparison of &sData[1] with NULL.
  */
 static int I2C_TxData(char *txData, int length)
 {
@@ -408,7 +350,7 @@ static int I2C_TxData(char *txData, int length)
 }
 
 /*
- * qmcX983_set_range: 0xffffff800878dbb0, 320 byte, T (globale).
+ * qmcX983_set_range: 0xffffff800878dbb0, 320 byte, T (global).
  */
 int qmcX983_set_range(short range)
 {
@@ -418,17 +360,19 @@ int qmcX983_set_range(short range)
 	struct i2c_client *client = this_client;
 	struct qmcX983_i2c_data *obj = i2c_get_clientdata(client);
 
-	/* <<cmp w9,#0x3 ; b.hi>>@0xffffff800878dbd0 su (range & 0xffff): oltre 3
-	 * si esce con -EINVAL (<<mov w0,#0xffffffea>>@0xffffff800878dc90)
+	/*
+	 * <<cmp w9,#0x3 ; b.hi>>@0xffffff800878dbd0 on (range & 0xffff): above 3
+	 * it returns -EINVAL (<<mov w0,#0xffffffea>>@0xffffff800878dc90)
 	 */
 	if ((unsigned short)range > 3)
 		return -EINVAL;
 
-	/* "mov x9,#0x2 ; movk x9,#0x8,lsl#16 ; movk x9,#0xc,lsl#32 ;
-	 *  movk x9,#0x14,lsl#48"@0xffffff800878dbe4: la costante a 64 bit
-	 * 0x0014000c00080002 viene scalata di (range*16) bit
-	 * (<<ubfiz x8,x8,#4,#32 ; lsr x8,x9,x8>>@0xffffff800878dbfc) e troncata a
-	 * 16 bit, cioe' e' la tabella {2, 8, 12, 20} indicizzata da range.
+	/*
+	 * "mov x9,#0x2 ; movk x9,#0x8,lsl#16 ; movk x9,#0xc,lsl#32 ;
+	 *  movk x9,#0x14,lsl#48"@0xffffff800878dbe4: the 64-bit constant
+	 * 0x0014000c00080002 is shifted by (range*16) bits
+	 * (<<ubfiz x8,x8,#4,#32 ; lsr x8,x9,x8>>@0xffffff800878dbfc) and truncated to
+	 * 16 bits, that is, it is the table {2, 8, 12, 20} indexed by range.
 	 */
 	ran = (int)((0x0014000c00080002ULL >> (range * 16)) & 0xffff);
 
@@ -443,16 +387,17 @@ int qmcX983_set_range(short range)
 	data[1] = (data[0] & 0xcf) | (range << 4);
 	data[0] = QMCX983_REG_CTRL1;
 
-	/* Il valore restituito e' quello della scrittura, non quello della
-	 * lettura: di fabbrica il ramo che riesce mette zero in w0
-	 * (<<mov w0,wzr>>@0xffffff800878dc88) senza rileggere nulla.
+	/*
+	 * The value returned is the write's, not the read's: in the factory build
+	 * the successful branch puts zero in w0
+	 * (<<mov w0,wzr>>@0xffffff800878dc88) without reading anything back.
 	 */
 	err = I2C_TxData(data, 2);
 	return err;
 }
 
 /*
- * qmcX983_set_mode: 0xffffff800878de48, 244 byte, T (globale).
+ * qmcX983_set_mode: 0xffffff800878de48, 244 byte, T (global).
  */
 int qmcX983_set_mode(unsigned char mode)
 {
@@ -470,8 +415,8 @@ int qmcX983_set_mode(unsigned char mode)
 }
 
 /*
- * qmcX983_set_ratio: 0xffffff800878df3c, 196 byte, T (globale).
- * Nessuna lettura preliminare: scrive e basta.
+ * qmcX983_set_ratio: 0xffffff800878df3c, 196 bytes, T (global).
+ * No preliminary read: it just writes.
  */
 int qmcX983_set_ratio(unsigned char ratio)
 {
@@ -495,21 +440,23 @@ static int qmcX983_read_mag_xyz(int *data)
 	unsigned char rdy = 0;
 	struct qmcX983_i2c_data *clientdata = i2c_get_clientdata(this_client);
 
-	/* <<\x016[QMC-Msensor] %s\n>>@0xffffff80091c1410 con
- * il frammento e' "%s\n", lo stesso testo che scnprintf usa altrove;
-	 * qui sta a 0xffffff80091c1420, la citazione probante e'
-	 * quella di 0xffffff8009226be1
- * il frammento e' "%s\n", lo stesso testo che scnprintf usa altrove;
-	 * qui sta a 0xffffff80091c1420, la citazione probante e'
-	 * quella di 0xffffff8009226be1
-	 * <<qmcX983_read_mag_xyz>>@0xffffff80091c199f
-	 */
+	/*
+ * <<\x016[QMC-Msensor] %s\n>>@0xffffff80091c1410 with
+ * the fragment is "%s\n", the same text scnprintf uses elsewhere;
+ * here it sits at 0xffffff80091c1420, the clinching citation is
+ * the one at 0xffffff8009226be1
+ * the fragment is "%s\n", the same text scnprintf uses elsewhere;
+ * here it sits at 0xffffff80091c1420, the clinching citation is
+ * the one at 0xffffff8009226be1
+ * <<qmcX983_read_mag_xyz>>@0xffffff80091c199f
+ */
 	MAGN_LOG("%s\n", __func__);
 
-	/* <<cmp w21,#0x2 ; b.hi>>@0xffffff800878f65c con w21 inizializzata a 1
-	 * (<<orr w21,wzr,#0x1>>@0xffffff800878f644): al massimo tre letture.
-	 * <<and w8,w8,#0x7>>@0xffffff800878f66c: si esce appena uno dei tre bit
-	 * bassi del registro di stato e' alto.
+	/*
+	 * <<cmp w21,#0x2 ; b.hi>>@0xffffff800878f65c with w21 initialised to 1
+	 * (<<orr w21,wzr,#0x1>>@0xffffff800878f644): at most three reads.
+	 * <<and w8,w8,#0x7>>@0xffffff800878f66c: it exits as soon as one of the three
+	 * low bits of the status register is high.
 	 */
 	while (!(rdy & 0x07) && (t1 < 3)) {
 		mag_data[0] = QMCX983_REG_STATUS;
@@ -528,8 +475,9 @@ static int qmcX983_read_mag_xyz(int *data)
 	hw_d[1] = (short)(mag_data[3] << 8 | mag_data[2]);
 	hw_d[2] = (short)(mag_data[5] << 8 | mag_data[4]);
 
-	/* <<mov w11,#0x3e8>>@0xffffff800878f6b8 = 1000; il divisore di x e y e'
-	 * il campo a +56, quello di z il campo a +58
+	/*
+	 * <<mov w11,#0x3e8>>@0xffffff800878f6b8 = 1000; the divisor for x and y is
+	 * the field at +56, the one for z the field at +58
 	 * (<<ldrsh w9,[x20,#56]>>@0xffffff800878f6a4,
 	 *  <<ldrsh w8,[x20,#58]>>@0xffffff800878f6d8)
 	 */
@@ -545,12 +493,12 @@ static int qmcX983_read_mag_xyz(int *data)
 }
 
 /*
- * qmcX983_enable: 0xffffff800879014c, 964 byte, t.
- * Il registro w0 non viene mai riscritto prima dell'epilogo: la funzione non
- * restituisce nulla, ed e' quindi void -- coerente col fatto che nessuno dei
- * due chiamanti (qmcX983_m_enable, qmcX983_factory_enable_sensor) ne usi il
- * risultato. Una funzione dichiarata int che cade fuori senza return sarebbe
- * un errore, qui, per -Wreturn-type dentro -Werror.
+ * qmcX983_enable: 0xffffff800879014c, 964 bytes, t.
+ * Register w0 is never rewritten before the epilogue: the function returns
+ * nothing, and is therefore void -- consistent with neither of its two
+ * callers (qmcX983_m_enable, qmcX983_factory_enable_sensor) using the result.
+ * A function declared int that falls through without a return would be an
+ * error here, under -Wreturn-type inside -Werror.
  */
 static void qmcX983_enable(void)
 {
@@ -613,9 +561,9 @@ static void qmcX983_enable(void)
 }
 
 /*
- * FctShipmntTestProcess_Body: 0xffffff800878e000, 8 byte, T (globale).
+ * FctShipmntTestProcess_Body: 0xffffff800878e000, 8 bytes, T (global).
  *   orr w0, wzr, #0x1 ; ret
- * Nome e linkage globale presi dall'oracolo cosi' come sono.
+ * Name and global linkage taken from the oracle as they stand.
  */
 int FctShipmntTestProcess_Body(void)
 {
@@ -656,26 +604,29 @@ static ssize_t store_layout_value(struct device_driver *ddri,
 	if (sscanf(buf, "%d", &layout) == 1) {
 		atomic_set(&data->layout, layout);
 		if (!hwmsen_get_convert(layout, &data->cvt)) {
-			/* "\x013[QMC-Msensor] %s %d : HWMSEN_GET_CONVERT function error!\r\n"
-			 * @0xffffff80091c19e0, riga 608
- * il frammento che sta nel codice: "HWMSEN_GET_CONVERT function error!\r\n"@0xffffff80091c19f8
+			/*
+			 * "\x013[QMC-Msensor] %s %d : HWMSEN_GET_CONVERT function error!\r\n"
+			 * @0xffffff80091c19e0, line 608
+			 * the fragment that appears in the code: "HWMSEN_GET_CONVERT function error!\r\n"@0xffffff80091c19f8
 			 * (<<mov w2,#0x260>>@0xffffff800878f8a0)
 			 */
 #line 608
 			MAGN_ERR("HWMSEN_GET_CONVERT function error!\r\n");
 		} else if (!hwmsen_get_convert(data->hw.direction, &data->cvt)) {
-			/* "\x013[QMC-Msensor] %s %d : invalid layout: %d, restore to %d\n"
-			 * @0xffffff80091c1a30, riga 612
- * il frammento che sta nel codice: "invalid layout: %d, restore to %d\n"@0xffffff80091c1a48
+			/*
+			 * "\x013[QMC-Msensor] %s %d : invalid layout: %d, restore to %d\n"
+			 * @0xffffff80091c1a30, line 612
+			 * the fragment that appears in the code: "invalid layout: %d, restore to %d\n"@0xffffff80091c1a48
 			 * (<<mov w2,#0x264>>@0xffffff800878f8bc)
 			 */
 			MAGN_ERR("invalid layout: %d, restore to %d\n",
 #line 612
 				 layout, data->hw.direction);
 		} else {
-			/* "\x013[QMC-Msensor] %s %d : invalid layout: (%d, %d)\n"
-			 * @0xffffff80091c1a6b, riga 616
- * il frammento che sta nel codice: "invalid layout: (%d, %d)\n"@0xffffff80091c1a83
+			/*
+			 * "\x013[QMC-Msensor] %s %d : invalid layout: (%d, %d)\n"
+			 * @0xffffff80091c1a6b, line 616
+			 * the fragment that appears in the code: "invalid layout: (%d, %d)\n"@0xffffff80091c1a83
 			 * (<<mov w2,#0x268>>@0xffffff800878f858)
 			 */
 			MAGN_ERR("invalid layout: (%d, %d)\n",
@@ -684,9 +635,10 @@ static ssize_t store_layout_value(struct device_driver *ddri,
 			hwmsen_get_convert(0, &data->cvt);
 		}
 	} else {
-		/* "\x013[QMC-Msensor] %s %d : invalid format = '%s'\n"
-		 * @0xffffff80091c1a9d, riga 622 (<<mov w2,#0x26e>>@0xffffff800878f880)
- * il frammento che sta nel codice: "invalid format = '%s'\n"@0xffffff80091c1ab5
+		/*
+		 * "\x013[QMC-Msensor] %s %d : invalid format = '%s'\n"
+		 * @0xffffff80091c1a9d, line 622 (<<mov w2,#0x26e>>@0xffffff800878f880)
+		 * the fragment that appears in the code: "invalid format = '%s'\n"@0xffffff80091c1ab5
 		 */
 #line 622
 		MAGN_ERR("invalid format = '%s'\n", buf);
@@ -702,9 +654,10 @@ static ssize_t show_trace_value(struct device_driver *ddri, char *buf)
 	struct qmcX983_i2c_data *data = i2c_get_clientdata(this_client);
 
 	if (data == NULL) {
-		/* "\x013[QMC-Msensor] %s %d : qmcX983_i2c_data is null!!\n"
-		 * @0xffffff80091c1804, riga 654 (<<mov w2,#0x28e>>@0xffffff800878f9dc)
- * il frammento che sta nel codice: "qmcX983_i2c_data is null!!\n"@0xffffff80091c181c
+		/*
+		 * "\x013[QMC-Msensor] %s %d : qmcX983_i2c_data is null!!\n"
+		 * @0xffffff80091c1804, line 654 (<<mov w2,#0x28e>>@0xffffff800878f9dc)
+		 * the fragment that appears in the code: "qmcX983_i2c_data is null!!\n"@0xffffff80091c181c
 		 */
 #line 654
 		MAGN_ERR("qmcX983_i2c_data is null!!\n");
@@ -721,15 +674,16 @@ static ssize_t store_trace_value(struct device_driver *ddri,
 				 const char *buf, size_t count)
 {
 	struct qmcX983_i2c_data *data = i2c_get_clientdata(this_client);
-	/* Non inizializzata: la fabbrica non azzera questa variabile prima
-	 * della sscanf -- in store_layout_value invece lo fa
-	 * (<<str wzr,[sp,#4]>>@0xffffff800878f808), qui quello store non c'e'.
-	 * Azzerarla costa 4 byte in piu' (misurato: 212 invece di 208).
+	/*
+	 * Not initialised: the factory does not clear this variable before the
+	 * sscanf -- in store_layout_value it does
+	 * (<<str wzr,[sp,#4]>>@0xffffff800878f808), here that store is absent.
+	 * Clearing it costs 4 bytes more (measured: 212 instead of 208).
 	 */
 	int trace;
 
 	if (data == NULL) {
-		/* riga 668 (<<mov w2,#0x29c>>@0xffffff800878fa60) */
+		/* line 668 (<<mov w2,#0x29c>>@0xffffff800878fa60) */
 #line 668
 		MAGN_ERR("qmcX983_i2c_data is null!!\n");
 		return -EINVAL;
@@ -738,9 +692,10 @@ static ssize_t store_trace_value(struct device_driver *ddri,
 	if (sscanf(buf, "0x%x", &trace) == 1) {
 		atomic_set(&data->trace, trace);
 	} else {
-		/* "\x013[QMC-Msensor] %s %d : invalid content: '%s', length = %zd\n"
-		 * @0xffffff80091c1b32, riga 678 (<<mov w2,#0x2a6>>@0xffffff800878fa80)
- * il frammento che sta nel codice: "invalid content: '%s', length = %zd\n"@0xffffff80091c1b4a
+		/*
+		 * "\x013[QMC-Msensor] %s %d : invalid content: '%s', length = %zd\n"
+		 * @0xffffff80091c1b32, line 678 (<<mov w2,#0x2a6>>@0xffffff800878fa80)
+		 * the fragment that appears in the code: "invalid content: '%s', length = %zd\n"@0xffffff80091c1b4a
 		 */
 #line 678
 		MAGN_ERR("invalid content: '%s', length = %zd\n", buf, count);
@@ -763,8 +718,9 @@ static ssize_t show_WRregisters_value(struct device_driver *ddri, char *buf)
 		/* <<mov x0,#0xfffffffffffffff2>>@0xffffff800878f234 = -EFAULT */
 		return -EFAULT;
 	}
-	/* <<\x016[QMC-Msensor] QMCX983 hw_registers = 0x%02x\n>>@0xffffff80091c17d5
-	 * il frammento che sta nel codice: "QMCX983 hw_registers = 0x%02x\n"@0xffffff80091c17e5
+	/*
+	 * <<\x016[QMC-Msensor] QMCX983 hw_registers = 0x%02x\n>>@0xffffff80091c17d5
+	 * the fragment that appears in the code: "QMCX983 hw_registers = 0x%02x\n"@0xffffff80091c17e5
 	 */
 	MAGN_LOG("QMCX983 hw_registers = 0x%02x\n", databuf[0]);
 	/* "hw_registers = 0x%02x\n"@0xffffff80091c17ed */
@@ -782,14 +738,15 @@ static ssize_t store_WRregisters_value(struct device_driver *ddri,
 	unsigned char databuf[2];
 
 	if (data == NULL) {
-		/* riga 714 (<<mov w2,#0x2ca>>@0xffffff800878f35c) */
+		/* line 714 (<<mov w2,#0x2ca>>@0xffffff800878f35c) */
 #line 714
 		MAGN_ERR("qmcX983_i2c_data is null!!\n");
 		return -EINVAL;
 	}
-	/* "\x013[QMC-Msensor] %s %d : QMC6938:store_WRregisters_value: 0x%2x \n"
-	 * @0xffffff80091c1850, riga 718 (<<mov w2,#0x2ce>>@0xffffff800878f2dc)
- * il frammento che sta nel codice: "QMC6938:store_WRregisters_value: 0x%2x \n"@0xffffff80091c1868
+	/*
+	 * "\x013[QMC-Msensor] %s %d : QMC6938:store_WRregisters_value: 0x%2x \n"
+	 * @0xffffff80091c1850, line 718 (<<mov w2,#0x2ce>>@0xffffff800878f2dc)
+	 * the fragment that appears in the code: "QMC6938:store_WRregisters_value: 0x%2x \n"@0xffffff80091c1868
 	 */
 #line 718
 	MAGN_ERR("QMC6938:store_WRregisters_value: 0x%2x \n", buf[0]);
@@ -798,10 +755,11 @@ static ssize_t store_WRregisters_value(struct device_driver *ddri,
 	databuf[1] = buf[0];
 	mag_i2c_write_block(client, databuf[0], &databuf[1], 1);
 
-	/* "\x013[QMC-Msensor] %s %d : QMC6938: write registers 0x%2x  ---> 0x%2x success! \n"
-	 * @0xffffff80091c1891, riga 723 (<<mov w2,#0x2d3>>@0xffffff800878f38c);
- * il frammento che sta nel codice: "QMC6938: write registers 0x%2x  ---> 0x%2x success! \n"@0xffffff80091c18a9
-	 * il primo argomento e' hw_registers riletto
+	/*
+	 * "\x013[QMC-Msensor] %s %d : QMC6938: write registers 0x%2x  ---> 0x%2x success! \n"
+	 * @0xffffff80091c1891, line 723 (<<mov w2,#0x2d3>>@0xffffff800878f38c);
+	 * the fragment that appears in the code: "QMC6938: write registers 0x%2x  ---> 0x%2x success! \n"@0xffffff80091c18a9
+	 * the first argument is hw_registers read back
 	 * (<<ldrb w3,[x22,#684]>>@0xffffff800878f378)
 	 */
 	MAGN_ERR("QMC6938: write registers 0x%2x  ---> 0x%2x success! \n",
@@ -829,15 +787,16 @@ static ssize_t store_registers_value(struct device_driver *ddri,
 	struct qmcX983_i2c_data *data = i2c_get_clientdata(this_client);
 
 	if (data == NULL) {
-		/* riga 740 (<<mov w2,#0x2e4>>@0xffffff800878f474) */
+		/* line 740 (<<mov w2,#0x2e4>>@0xffffff800878f474) */
 #line 740
 		MAGN_ERR("qmcX983_i2c_data is null!!\n");
 		return -EINVAL;
 	}
 	hw_registers = buf[0];
-	/* "\x013[QMC-Msensor] %s %d : QMC6938: REGISTERS = 0x%2x\n"
-	 * @0xffffff80091c18f5, riga 744 (<<mov w2,#0x2e8>>@0xffffff800878f454)
- * il frammento che sta nel codice: "QMC6938: REGISTERS = 0x%2x\n"@0xffffff80091c190d
+	/*
+	 * "\x013[QMC-Msensor] %s %d : QMC6938: REGISTERS = 0x%2x\n"
+	 * @0xffffff80091c18f5, line 744 (<<mov w2,#0x2e8>>@0xffffff800878f454)
+	 * the fragment that appears in the code: "QMC6938: REGISTERS = 0x%2x\n"@0xffffff80091c190d
 	 */
 #line 744
 	MAGN_ERR("QMC6938: REGISTERS = 0x%2x\n", buf[0]);
@@ -852,8 +811,9 @@ static ssize_t show_chipinfo_value(struct device_driver *ddri, char *buf)
 	char strbuf[QMCX983_BUFSIZE];
 
 	if (this_client == NULL) {
-		/* <<strb wzr,[sp,#8]>>@0xffffff800878f4ec: un solo byte azzerato,
-		 * non tutto il buffer
+		/*
+		 * <<strb wzr,[sp,#8]>>@0xffffff800878f4ec: a single byte cleared,
+		 * not the whole buffer
 		 */
 		strbuf[0] = '\0';
 	} else {
@@ -900,7 +860,7 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 	struct qmcX983_i2c_data *data = i2c_get_clientdata(this_client);
 	ssize_t len = 0;
 
-	/* "CUST: %d %d (%d %d)\n"@0xffffff80091c1acc, argomenti letti come
+	/* "CUST: %d %d (%d %d)\n"@0xffffff80091c1acc, arguments read as
 	 * "ldp w3,w4,[x8,#8]" e <<ldp w5,w6,[x8,#16]>>@0xffffff800878f928
 	 */
 	len += scnprintf(buf + len, PAGE_SIZE - len, "CUST: %d %d (%d %d)\n",
@@ -917,8 +877,8 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 }
 
 /*
- * show_regiter_map: 0xffffff800878f0d0, 276 byte, t. Il nome ha il refuso di
- * fabbrica ("regiter"), preso dalla symtab dell'oracolo cosi' com'e'.
+ * show_regiter_map: 0xffffff800878f0d0, 276 bytes, t. The name carries the
+ * factory typo ("regiter"), taken from the oracle symtab as it stands.
  */
 static ssize_t show_regiter_map(struct device_driver *ddri, char *buf)
 {
@@ -936,17 +896,19 @@ static ssize_t show_regiter_map(struct device_driver *ddri, char *buf)
 		databuf[0] = i;
 		res = I2C_RxData(databuf, 1);
 		if (res < 0) {
-			/* "\x016[QMC-Msensor] QMCX983 dump registers 0x%02x failed !\n"
+			/*
+			 * "\x016[QMC-Msensor] QMCX983 dump registers 0x%02x failed !\n"
 			 * @0xffffff80091c175d
- * il frammento che sta nel codice: "QMCX983 dump registers 0x%02x failed !\n"@0xffffff80091c176d
+			 * the fragment that appears in the code: "QMCX983 dump registers 0x%02x failed !\n"@0xffffff80091c176d
 			 */
 			MAGN_LOG("QMCX983 dump registers 0x%02x failed !\n", i);
 		}
 		/* "reg[0x%2x] =  0x%2x \n"@0xffffff80091c1795 */
 		len = scnprintf(tmpbuf, sizeof(tmpbuf),
 				"reg[0x%2x] =  0x%2x \n", i, databuf[0]);
-		/* <<mul w8,w0,w20>>@0xffffff800878f16c: l'offset e' len*i, non la
-		 * somma delle lunghezze -- e' cosi' di fabbrica.
+		/*
+		 * <<mul w8,w0,w20>>@0xffffff800878f16c: the offset is len*i, not the
+		 * sum of the lengths -- that is how the factory has it.
 		 * "  %s \n"@0xffffff80091c17ab
 		 */
 		snprintf(strbuf + len * i, sizeof(strbuf) - len * i,
@@ -962,12 +924,13 @@ static ssize_t show_shipment_test(struct device_driver *ddri, char *buf)
 {
 	char strbuf[QMCX983_BUFSIZE];
 
-	/* <<\x016[QMC-Msensor] shipment_test pass\n>>@0xffffff80091c1728
-	 * il frammento che sta nel codice: "shipment_test pass\n"@0xffffff80091c1738
+	/*
+	 * <<\x016[QMC-Msensor] shipment_test pass\n>>@0xffffff80091c1728
+	 * the fragment that appears in the code: "shipment_test pass\n"@0xffffff80091c1738
 	 */
 	MAGN_LOG("shipment_test pass\n");
-	/* <<mov w8,#0x79 ; strh w8,[sp,#12]>>@0xffffff800878f084: due byte, 'y'
-	 * e il terminatore
+	/* <<mov w8,#0x79 ; strh w8,[sp,#12]>>@0xffffff800878f084: two byte, 'y'
+	 * e the terminator
 	 */
 	strcpy(strbuf, "y");
 	return sprintf(buf, "%s\n", strbuf);
@@ -993,22 +956,13 @@ static ssize_t show_OTP_value(struct device_driver *ddri, char *buf)
 }
 
 /*
- * Gli attributi sysfs. Nomi e permessi vengono dalle rilocazioni di
- * .rela.dyn, non letti a occhio -- il campo mode non e' relocato e si legge
- * dall'immagine all'indirizzo dell'attributo + 8:
- *   0xffffff800992f2a8 <<shipmenttest>>@0xffffff80091c171b  mode 0x1a4 = 0644
- *   0xffffff800992f2c8 <<regmap>>@0xffffff800917e035        mode 0x124 = 0444
- *   0xffffff800992f2e8 <<WRregisters>>@0xffffff80091c17b2   mode 0x1a4 = 0644
- *   0xffffff800992f308 <<registers>>@0xffffff80091c17b4     mode 0x1a4 = 0644
- *   0xffffff800992f328 <<chipinfo>>@0xffffff80091c1929      mode 0x124 = 0444
- *   0xffffff800992f348 <<sensordata>>@0xffffff80091c1994    mode 0x124 = 0444
- *   0xffffff800992f368 <<layout>>@0xffffff80090e39dc        mode 0x1a4 = 0644
- *   0xffffff800992f388 <<status>>@0xffffff8009228dda        mode 0x124 = 0444
- *   0xffffff800992f3a8 <<trace>>@0xffffff80090f369a         mode 0x1a4 = 0644
- *   0xffffff800992f3c8 <<otp>>@0xffffff8009292fc1           mode 0x124 = 0444
- * L'ordine dell'elenco e' quello dei dieci driver_remove_file srotolati in
- * qmcX983_delete_attr (0x2a8, 0x2c8, 0x2e8, 0x308, 0x328, 0x348, 0x368,
- * 0x388, 0x3a8, 0x3c8).
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800992f2a8).
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct driver_attribute driver_attr_shipmenttest =
 	__ATTR(shipmenttest, 0644, show_shipment_test, store_shipment_test);
@@ -1046,9 +1000,9 @@ static struct driver_attribute *qmcX983_attr_list[] = {
 };
 
 /*
- * qmcX983_create_attr: nessun simbolo proprio, sempre incorporata nella
- * probe; nome e riga restano nel printk
- * (<<qmcX983_create_attr>>@0xffffff80091c1707, riga 852).
+ * qmcX983_create_attr: no symbol of its own, always inlined into the
+ * probe; the name and the line stay in the printk
+ * (<<qmcX983_create_attr>>@0xffffff80091c1707, line 852).
  */
 static int qmcX983_create_attr(struct device_driver *driver)
 {
@@ -1060,11 +1014,12 @@ static int qmcX983_create_attr(struct device_driver *driver)
 	for (idx = 0; idx < num; idx++) {
 		err = driver_create_file(driver, qmcX983_attr_list[idx]);
 		if (err) {
-			/* "\x013[QMC-Msensor] %s %d : driver_create_file (%s) = %d\n"
-			 * @0xffffff80091c16d1, riga 852
- * il frammento che sta nel codice: "driver_create_file (%s) = %d\n"@0xffffff80091c16e9
-			 * (<<mov w2,#0x354>>@0xffffff800878e860); il primo
-			 * argomento e' attr->attr.name
+			/*
+			 * "\x013[QMC-Msensor] %s %d : driver_create_file (%s) = %d\n"
+			 * @0xffffff80091c16d1, line 852
+			 * the fragment that appears in the code: "driver_create_file (%s) = %d\n"@0xffffff80091c16e9
+			 * (<<mov w2,#0x354>>@0xffffff800878e860); the first
+			 * argument is attr->attr.name
 			 * (<<ldr x3,[x21]>>@0xffffff800878e848)
 			 */
 			MAGN_ERR("driver_create_file (%s) = %d\n",
@@ -1077,9 +1032,9 @@ static int qmcX983_create_attr(struct device_driver *driver)
 }
 
 /*
- * qmcX983_delete_attr: 0xffffff800878ef8c, 200 byte, t.
- * I dieci driver_remove_file sono srotolati nell'ordine esatto della tabella
- * di rilocazioni 0xffffff800992f2a8..0xffffff800992f3c8.
+ * qmcX983_delete_attr: 0xffffff800878ef8c, 200 bytes, t.
+ * The ten driver_remove_file calls are unrolled in the exact order of the
+ * relocation table 0xffffff800992f2a8..0xffffff800992f3c8.
  */
 static int qmcX983_delete_attr(struct device_driver *driver)
 {
@@ -1101,18 +1056,20 @@ static long qmcX983_unlocked_ioctl(struct file *file, unsigned int cmd,
 {
 	void __user *argp = (void __user *)arg;
 	char sData[16];
-	/* ret e' int e non long: di fabbrica l'estensione di segno compare solo
-	 * sul ramo d'errore (<<sxtw x0,w0>>@0xffffff800878fd70), cioe' alla
-	 * conversione del valore di ritorno, non subito dopo la chiamata.
+	/*
+	 * ret is an int and not a long: in the factory build the sign extension
+	 * appears only on the error path (<<sxtw x0,w0>>@0xffffff800878fd70), that
+	 * is, at the conversion of the return value, not right after the call.
 	 */
 	int ret = 0;
 	struct qmcX983_i2c_data *data = i2c_get_clientdata(this_client);
 
-	/* <<ldr w8,[x8,#44] ; tbz w8,#0>>@0xffffff800878fb30: bit 0 di trace */
+	/* <<ldr w8,[x8,#44] ; tbz w8,#0>>@0xffffff800878fb30: bit 0 of trace */
 	if (data && (atomic_read(&data->trace) & 0x01)) {
-		/* "\x016[QMC-Msensor] qmcX983_unlocked_ioctl !cmd= 0x%x\n"
+		/*
+		 * "\x016[QMC-Msensor] qmcX983_unlocked_ioctl !cmd= 0x%x\n"
 		 * @0xffffff80091c1b7b
- * il frammento che sta nel codice: "qmcX983_unlocked_ioctl !cmd= 0x%x\n"@0xffffff80091c1b8b
+		 * the fragment that appears in the code: "qmcX983_unlocked_ioctl !cmd= 0x%x\n"@0xffffff80091c1b8b
 		 */
 		MAGN_LOG("qmcX983_unlocked_ioctl !cmd= 0x%x\n", cmd);
 	}
@@ -1120,22 +1077,25 @@ static long qmcX983_unlocked_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case QMCX983_IOC_WRITE:
 		if (argp == NULL) {
-			/* <<\x016[QMC-Msensor] invalid argument.>>@0xffffff80091c1bae
-			 * il frammento che sta nel codice: "invalid argument."@0xffffff80091c1bbe
+			/*
+			 * <<\x016[QMC-Msensor] invalid argument.>>@0xffffff80091c1bae
+			 * the fragment that appears in the code: "invalid argument."@0xffffff80091c1bbe
 			 */
 			MAGN_LOG("invalid argument.");
 			return -EINVAL;
 		}
 		if (copy_from_user(sData, argp, sizeof(sData))) {
-			/* "\x016[QMC-Msensor] copy_from_user failed."
+			/*
+			 * "\x016[QMC-Msensor] copy_from_user failed."
 			 * @0xffffff80091c1bd0
- * il frammento che sta nel codice: "copy_from_user failed."@0xffffff80091c1be0
+			 * the fragment that appears in the code: "copy_from_user failed."@0xffffff80091c1be0
 			 */
 			MAGN_LOG("copy_from_user failed.");
 			return -EFAULT;
 		}
-		/* <<sub w8,w19,#0x2 ; cmp w8,#0xe ; b.cs>>@0xffffff800878fbb4:
-		 * ammesso solo sData[0] fra 2 e 15
+		/*
+		 * <<sub w8,w19,#0x2 ; cmp w8,#0xe ; b.cs>>@0xffffff800878fbb4:
+		 * only sData[0] between 2 and 15 is allowed
 		 */
 		if (sData[0] < 2 || sData[0] >= sizeof(sData)) {
 			MAGN_LOG("invalid argument.");
@@ -1155,8 +1115,9 @@ static long qmcX983_unlocked_ioctl(struct file *file, unsigned int cmd,
 			MAGN_LOG("copy_from_user failed.");
 			return -EFAULT;
 		}
-		/* <<sub w8,w1,#0x1 ; cmp w8,#0xf ; b.cc>>@0xffffff800878fc74:
-		 * ammesso solo sData[0] fra 1 e 15
+		/*
+		 * <<sub w8,w1,#0x1 ; cmp w8,#0xf ; b.cc>>@0xffffff800878fc74:
+		 * only sData[0] between 1 and 15 is allowed
 		 */
 		if (sData[0] < 1 || sData[0] >= sizeof(sData)) {
 			MAGN_LOG("invalid argument.");
@@ -1166,9 +1127,10 @@ static long qmcX983_unlocked_ioctl(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			return ret;
 		if (copy_to_user(argp, sData, sData[0] + 1)) {
-			/* "\x016[QMC-Msensor] copy_to_user failed."
+			/*
+			 * "\x016[QMC-Msensor] copy_to_user failed."
 			 * @0xffffff80091c1bf7
- * il frammento che sta nel codice: "copy_to_user failed."@0xffffff80091c1c07
+			 * the fragment that appears in the code: "copy_to_user failed."@0xffffff80091c1c07
 			 */
 			MAGN_LOG("copy_to_user failed.");
 			return -EFAULT;
@@ -1176,16 +1138,18 @@ static long qmcX983_unlocked_ioctl(struct file *file, unsigned int cmd,
 		return 0;
 
 	default:
-		/* "\x013[QMC-Msensor] %s %d : %s not supported = 0x%04x"
-		 * @0xffffff80091c1c1c, riga 1070
- * il frammento che sta nel codice: "%s not supported = 0x%04x"@0xffffff80091c1c34
+		/*
+		 * "\x013[QMC-Msensor] %s %d : %s not supported = 0x%04x"
+		 * @0xffffff80091c1c1c, line 1070
+		 * the fragment that appears in the code: "%s not supported = 0x%04x"@0xffffff80091c1c34
 		 * (<<mov w2,#0x42e>>@0xffffff800878fca4);
 		 * <<mov x0,#0xfffffffffffffdfd>>@0xffffff800878fcb4 = -ENOIOCTLCMD
 		 */
-		/* Ogni ramo esce con un return proprio, non attraverso un
-		 * accumulatore: di fabbrica ciascuna uscita scrive direttamente
-		 * in x0 (<<mov x0,#0xfffffffffffffdfd>>@0xffffff800878fcb4) e
-		 * salta all'epilogo comune.
+		/*
+		 * Every branch leaves through a return of its own, not through an
+		 * accumulator: in the factory build each exit writes directly
+		 * into x0 (<<mov x0,#0xfffffffffffffdfd>>@0xffffff800878fcb4) and
+		 * jumps to the common epilogue.
 		 */
 #line 1070
 		MAGN_ERR("%s not supported = 0x%04x", __func__, cmd);
@@ -1201,11 +1165,12 @@ static int qmcX983_open(struct inode *inode, struct file *file)
 {
 	struct qmcX983_i2c_data *obj = i2c_get_clientdata(this_client);
 
-	/* <<tbz w8,#3>>@0xffffff800878fe6c: bit 3 di trace */
+	/* <<tbz w8,#3>>@0xffffff800878fe6c: bit 3 of trace */
 	if (atomic_read(&obj->trace) & 0x08) {
-		/* "\x016[QMC-Msensor] Open device node:qmcX983\n"
+		/*
+		 * "\x016[QMC-Msensor] Open device node:qmcX983\n"
 		 * @0xffffff80091c1c65
- * il frammento che sta nel codice: "Open device node:qmcX983\n"@0xffffff80091c1c75
+		 * the fragment that appears in the code: "Open device node:qmcX983\n"@0xffffff80091c1c75
 		 */
 		MAGN_LOG("Open device node:qmcX983\n");
 	}
@@ -1219,14 +1184,16 @@ static int qmcX983_release(struct inode *inode, struct file *file)
 {
 	struct qmcX983_i2c_data *obj = i2c_get_clientdata(this_client);
 
-	/* ldxr/"sub w10,w10,#0x1"/stxr su 0xffffff8009cba270
-	 * @0xffffff800878feac: e' atomic_dec, non una scrittura semplice
+	/*
+	 * ldxr/"sub w10,w10,#0x1"/stxr on 0xffffff8009cba270
+	 * @0xffffff800878feac: it is an atomic_dec, not a plain write
 	 */
 	atomic_dec(&open_count);
 	if (atomic_read(&obj->trace) & 0x08) {
-		/* "\x016[QMC-Msensor] Release device node:qmcX983\n"
+		/*
+		 * "\x016[QMC-Msensor] Release device node:qmcX983\n"
 		 * @0xffffff80091c1c8f
- * il frammento che sta nel codice: "Release device node:qmcX983\n"@0xffffff80091c1c9f
+		 * the fragment that appears in the code: "Release device node:qmcX983\n"@0xffffff80091c1c9f
 		 */
 		MAGN_LOG("Release device node:qmcX983\n");
 	}
@@ -1234,14 +1201,13 @@ static int qmcX983_release(struct inode *inode, struct file *file)
 }
 
 /*
- * file_operations a 0xffffff800992f3e8: solo tre campi relocati, agli offset
- * 0x48 (unlocked_ioctl), 0x60 (open) e 0x70 (release). Nessun compat_ioctl a
- * 0x50, benche' il config di fabbrica abbia CONFIG_COMPAT=y.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800992f3e8).
  *
- * Non e' const: di fabbrica questa tabella sta in .data, incastrata fra
- * l'ultimo driver_attr_* (che finisce a 0x992f3e8) e mag_factory_fops
- * (0x992f4d8) -- non in .rodata, dove la nostra `const` la metteva
- * (revisione indipendente, revisione-qmcx983-completo.md, R3).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct file_operations qmcX983_fops = {
 	.owner = THIS_MODULE,
@@ -1252,7 +1218,7 @@ static struct file_operations qmcX983_fops = {
 
 /*
  * miscdevice a 0xffffff800992f240: minor 0xff = MISC_DYNAMIC_MINOR, name
- * relocato a "qst_msensor"@0xffffff80091c1b6f, fops a 0xffffff800992f3e8.
+ * relocated to "qst_msensor"@0xffffff80091c1b6f, fops a 0xffffff800992f3e8.
  */
 static struct miscdevice qmcX983_device = {
 	.minor = MISC_DYNAMIC_MINOR,
@@ -1277,9 +1243,10 @@ static int qmcX983_m_set_delay(u64 ns)
 	struct i2c_client *client = this_client;
 
 	if (client == NULL) {
-		/* "\x013[QMC-Msensor] %s %d : this_client is null!\n"
-		 * @0xffffff80091c1d3f, riga 1198
- * il frammento che sta nel codice: "this_client is null!\n"@0xffffff80091c1d57
+		/*
+		 * "\x013[QMC-Msensor] %s %d : this_client is null!\n"
+		 * @0xffffff80091c1d3f, line 1198
+		 * the fragment that appears in the code: "this_client is null!\n"@0xffffff80091c1d57
 		 * (<<mov w2,#0x4ae>>@0xffffff800878ee5c)
 		 */
 #line 1198
@@ -1287,9 +1254,10 @@ static int qmcX983_m_set_delay(u64 ns)
 		return -EINVAL;
 	}
 	if (i2c_get_clientdata(client) == NULL) {
-		/* "\x013[QMC-Msensor] %s %d : data is null!\n"
-		 * @0xffffff80091c1d7e, riga 1204
- * il frammento che sta nel codice: "data is null!\n"@0xffffff80091c1d96
+		/*
+		 * "\x013[QMC-Msensor] %s %d : data is null!\n"
+		 * @0xffffff80091c1d7e, line 1204
+		 * the fragment that appears in the code: "data is null!\n"@0xffffff80091c1d96
 		 * (<<mov w2,#0x4b4>>@0xffffff800878ee74)
 		 */
 #line 1204
@@ -1310,14 +1278,14 @@ static int qmcX983_m_enable(int en)
 	struct qmcX983_i2c_data *data;
 
 	if (client == NULL) {
-		/* riga 1221 (<<mov w2,#0x4c5>>@0xffffff800878edf8) */
+		/* line 1221 (<<mov w2,#0x4c5>>@0xffffff800878edf8) */
 #line 1221
 		MAGN_ERR("this_client is null!\n");
 		return -EINVAL;
 	}
 	data = i2c_get_clientdata(client);
 	if (data == NULL) {
-		/* riga 1228 (<<mov w2,#0x4cc>>@0xffffff800878ee10) */
+		/* line 1228 (<<mov w2,#0x4cc>>@0xffffff800878ee10) */
 #line 1228
 		MAGN_ERR("data is null!\n");
 		return -EINVAL;
@@ -1337,9 +1305,10 @@ static int qmcX983_m_enable(int en)
 		v_open_flag &= 0x3e;
 	}
 	atomic_set(&open_flag, v_open_flag);
-	/* "\x013[QMC-Msensor] %s %d : qmcX983 v_open_flag = 0x%x,open_flag= 0x%x\n"
-	 * @0xffffff80091c1da5, riga 1246 (<<mov w2,#0x4de>>@0xffffff800878edb8)
- * il frammento che sta nel codice: "qmcX983 v_open_flag = 0x%x,open_flag= 0x%x\n"@0xffffff80091c1dbd
+	/*
+	 * "\x013[QMC-Msensor] %s %d : qmcX983 v_open_flag = 0x%x,open_flag= 0x%x\n"
+	 * @0xffffff80091c1da5, line 1246 (<<mov w2,#0x4de>>@0xffffff800878edb8)
+	 * the fragment that appears in the code: "qmcX983 v_open_flag = 0x%x,open_flag= 0x%x\n"@0xffffff80091c1dbd
 	 */
 	MAGN_ERR("qmcX983 v_open_flag = 0x%x,open_flag= 0x%x\n",
 #line 1246
@@ -1358,8 +1327,8 @@ static int qmcX983_batch(int flag, int64_t samplingPeriodNs,
 }
 
 /*
- * qmcX983_flush: 0xffffff800878ee98, 20 byte, t.
- *   bl mag_flush_report ; ret -- il valore restituito e' quello dell'helper
+ * qmcX983_flush: 0xffffff800878ee98, 20 bytes, t.
+ *   bl mag_flush_report ; ret -- the value returned is the helper's
  */
 static int qmcX983_flush(void)
 {
@@ -1376,12 +1345,12 @@ static int qmcX983_m_get_data(int *x, int *y, int *z, int *status)
 	struct i2c_client *client = this_client;
 
 	if (client == NULL) {
-		/* riga 1268 (<<mov w2,#0x4f4>>@0xffffff800878ef60) */
+		/* line 1268 (<<mov w2,#0x4f4>>@0xffffff800878ef60) */
 		MAGN_ERR("this_client is null!\n");
 		return -EINVAL;
 	}
 	if (i2c_get_clientdata(client) == NULL) {
-		/* riga 1274 (<<mov w2,#0x4fa>>@0xffffff800878ef78) */
+		/* line 1274 (<<mov w2,#0x4fa>>@0xffffff800878ef78) */
 		MAGN_ERR("data is null!\n");
 		return -EINVAL;
 	}
@@ -1392,18 +1361,19 @@ static int qmcX983_m_get_data(int *x, int *y, int *z, int *status)
 	*z = mag[2];
 	/* <<orr w9,wzr,#0x3>>@0xffffff800878eefc */
 	*status = 3;
-	/* "orr w0,wzr,#0x1 ; bl ktime_get_with_offset ; bl ns_to_timespec"
-	 * @0xffffff800878ef00: l'offset 1 e' TK_OFFS_BOOT, e il risultato non
-	 * viene usato da nessuna parte -- e' cosi' di fabbrica.
+	/*
+	 * "orr w0,wzr,#0x1 ; bl ktime_get_with_offset ; bl ns_to_timespec"
+	 * @0xffffff800878ef00: offset 1 is TK_OFFS_BOOT, and the result is not
+	 * used anywhere -- that is how the factory has it.
 	 */
 	time = ktime_to_timespec(ktime_get_boottime());
 	return 0;
 }
 
 /*
- * qmcX983_factory_enable_sensor: 0xffffff800878fee4, 260 byte, t.
- * Stesso corpo di qmcX983_m_enable ma con i due messaggi di errore a
- * KERN_INFO e senza il printk finale.
+ * qmcX983_factory_enable_sensor: 0xffffff800878fee4, 260 bytes, t.
+ * Same body as qmcX983_m_enable but with the two error messages at
+ * KERN_INFO and without the final printk.
  */
 static int qmcX983_factory_enable_sensor(bool enable_disable,
 					 int64_t sample_periods_ms)
@@ -1413,18 +1383,20 @@ static int qmcX983_factory_enable_sensor(bool enable_disable,
 	struct qmcX983_i2c_data *data;
 
 	if (client == NULL) {
-		/* <<\x016[QMC-Msensor] this_client is null!\n>>@0xffffff80091c1cbc
-		 * il frammento e' lo stesso testo della variante KERN_ERR, gia'
-		 * citata a 0xffffff80091c1d57: qui sta a 0xffffff80091c1ccc
+		/*
+		 * <<\x016[QMC-Msensor] this_client is null!\n>>@0xffffff80091c1cbc
+		 * the fragment is the same text as the KERN_ERR variant, already
+		 * cited at 0xffffff80091c1d57: here it sits at 0xffffff80091c1ccc
 		 */
 		MAGN_LOG("this_client is null!\n");
 		return -EINVAL;
 	}
 	data = i2c_get_clientdata(client);
 	if (data == NULL) {
-		/* <<\x016[QMC-Msensor] data is null!\n>>@0xffffff80091c1ce2
-		 * il frammento e' lo stesso testo della variante KERN_ERR, gia'
-		 * citata a 0xffffff80091c1d96: qui sta a 0xffffff80091c1cf2
+		/*
+		 * <<\x016[QMC-Msensor] data is null!\n>>@0xffffff80091c1ce2
+		 * the fragment is the same text as the KERN_ERR variant, already
+		 * cited at 0xffffff80091c1d96: here it sits at 0xffffff80091c1cf2
 		 */
 		MAGN_LOG("data is null!\n");
 		return -EINVAL;
@@ -1446,11 +1418,11 @@ static int qmcX983_factory_enable_sensor(bool enable_disable,
 }
 
 /*
- * qmcX983_factory_get_data: 0xffffff800878ffe8, 284 byte, t.
- * I due printk d'errore portano __func__ = "qmcX983_m_get_data" e le righe
- * 1268/1274: qmcX983_m_get_data e' incorporata qui dentro, e le tre variabili
- * locali che le si passano devono essere azzerate all'inizio, perche' sul
- * ramo d'errore il binario scrive comunque zero nei tre elementi
+ * qmcX983_factory_get_data: 0xffffff800878ffe8, 284 bytes, t.
+ * The two error printks carry __func__ = "qmcX983_m_get_data" and lines
+ * 1268/1274: qmcX983_m_get_data is inlined in here, and the three locals
+ * passed to it have to be cleared at the start, because on the error path
+ * the binary writes zero into the three elements anyway
  * (<<mov w8,wzr ; mov w9,wzr ; mov w10,wzr>>@0xffffff80087900ec).
  */
 static int qmcX983_factory_get_data(int32_t data[3], int *status)
@@ -1459,8 +1431,8 @@ static int qmcX983_factory_get_data(int32_t data[3], int *status)
 	int err;
 
 	err = qmcX983_m_get_data(&x, &y, &z, status);
-	/* moltiplicazione per 0x66666667 e "asr x9,x9,#34"
-	 * @0xffffff8008790064: divisione intera per 10
+	/* multiplication by 0x66666667 e "asr x9,x9,#34"
+	 * @0xffffff8008790064: integer division by 10
 	 */
 	data[0] = x / 10;
 	data[1] = y / 10;
@@ -1473,9 +1445,10 @@ static int qmcX983_factory_get_data(int32_t data[3], int *status)
  */
 static int qmcX983_factory_get_raw_data(int32_t data[3])
 {
-	/* "\x016[QMC-Msensor] do not support qmcX983_factory_get_raw_data!\n"
+	/*
+	 * "\x016[QMC-Msensor] do not support qmcX983_factory_get_raw_data!\n"
 	 * @0xffffff80091c1d01
- * il frammento che sta nel codice: "do not support qmcX983_factory_get_raw_data!\n"@0xffffff80091c1d11
+	 * the fragment that appears in the code: "do not support qmcX983_factory_get_raw_data!\n"@0xffffff80091c1d11
 	 */
 	MAGN_LOG("do not support qmcX983_factory_get_raw_data!\n");
 	return 0;
@@ -1483,7 +1456,7 @@ static int qmcX983_factory_get_raw_data(int32_t data[3])
 
 /*
  * 0xffffff8008790124, 0x879012c, 0x8790134, 0x879013c, 0x8790144: 8 byte
- * ciascuna, "mov w0,wzr ; ret".
+ * each, "mov w0,wzr ; ret".
  */
 static int qmcX983_factory_enable_calibration(void)
 {
@@ -1510,8 +1483,9 @@ static int qmcX983_factory_do_self_test(void)
 	return 0;
 }
 
-/* mag_factory_fops a 0xffffff800992f4d8: otto puntatori relocati, uno per
- * campo, nell'ordine di struct mag_factory_fops
+/*
+ * mag_factory_fops at 0xffffff800992f4d8: eight relocated pointers, one per
+ * field, in the order of struct mag_factory_fops
  */
 static struct mag_factory_fops qmcX983_factory_fops = {
 	.enable_sensor = qmcX983_factory_enable_sensor,
@@ -1524,8 +1498,8 @@ static struct mag_factory_fops qmcX983_factory_fops = {
 	.do_self_test = qmcX983_factory_do_self_test,
 };
 
-/* mag_factory_public a 0xffffff800992f290: gain = 1 e sensitivity = 1 (la
- * parola a quell'indirizzo e' 0x0000000100000001), fops relocata a
+/* mag_factory_public at 0xffffff800992f290: gain = 1 and sensitivity = 1
+ * (the word at that address is 0x0000000100000001), fops relocated to
  * 0xffffff800992f4d8
  */
 static struct mag_factory_public qmcX983_factory_device = {
@@ -1535,9 +1509,9 @@ static struct mag_factory_public qmcX983_factory_device = {
 };
 
 /*
- * qmcX983_device_check: nessun simbolo proprio, sempre incorporata nella
- * probe; nome e righe restano nei printk
- * (<<qmcX983_device_check>>@0xffffff80091c167d, righe 1472/1488/1495/1509/1515).
+ * qmcX983_device_check: no symbol of its own, always inlined into the
+ * probe; the name and the lines stay in the printks
+ * (<<qmcX983_device_check>>@0xffffff80091c167d, lines 1472/1488/1495/1509/1515).
  */
 static int qmcX983_device_check(void)
 {
@@ -1548,9 +1522,10 @@ static int qmcX983_device_check(void)
 	databuf[0] = QMCX983_REG_CHIPID;
 	res = I2C_RxData(databuf, 1);
 	if (res < 0) {
-		/* "\x013[QMC-Msensor] %s %d : %s: I2C_RxData failed\n"
-		 * @0xffffff80091c164e, riga 1472
- * il frammento che sta nel codice: "%s: I2C_RxData failed\n"@0xffffff80091c1666
+		/*
+		 * "\x013[QMC-Msensor] %s %d : %s: I2C_RxData failed\n"
+		 * @0xffffff80091c164e, line 1472
+		 * the fragment that appears in the code: "%s: I2C_RxData failed\n"@0xffffff80091c1666
 		 * (<<mov w2,#0x5c0>>@0xffffff800878e26c)
 		 */
 #line 1472
@@ -1570,9 +1545,10 @@ static int qmcX983_device_check(void)
 		databuf[1] = 0x01;
 		res = I2C_TxData(databuf, 2);
 		if (res < 0) {
-			/* "\x013[QMC-Msensor] %s %d : %s: I2C_TxData failed\n"
-			 * @0xffffff80091c1692, riga 1488
- * il frammento che sta nel codice: "%s: I2C_TxData failed\n"@0xffffff80091c16aa
+			/*
+			 * "\x013[QMC-Msensor] %s %d : %s: I2C_TxData failed\n"
+			 * @0xffffff80091c1692, line 1488
+			 * the fragment that appears in the code: "%s: I2C_TxData failed\n"@0xffffff80091c16aa
 			 * (<<mov w2,#0x5d0>>@0xffffff800878e94c)
 			 */
 #line 1488
@@ -1582,7 +1558,7 @@ static int qmcX983_device_check(void)
 		databuf[0] = QMCX983_REG_OTP_DATA;
 		res = I2C_RxData(databuf, 1);
 		if (res < 0) {
-			/* riga 1495 (<<mov w2,#0x5d7>>@0xffffff800878e9ec) */
+			/* line 1495 (<<mov w2,#0x5d7>>@0xffffff800878e9ec) */
 			MAGN_ERR("%s: I2C_RxData failed\n", __func__);
 			return res;
 		}
@@ -1595,7 +1571,7 @@ static int qmcX983_device_check(void)
 			databuf[1] = 0x0f;
 			res = I2C_TxData(databuf, 2);
 			if (res < 0) {
-				/* riga 1509
+				/* line 1509
 				 * (<<mov w2,#0x5e5>>@0xffffff800878ea90)
 				 */
 #line 1509
@@ -1605,7 +1581,7 @@ static int qmcX983_device_check(void)
 			databuf[0] = QMCX983_REG_OTP_DATA;
 			res = I2C_RxData(databuf, 1);
 			if (res < 0) {
-				/* riga 1515
+				/* line 1515
 				 * (<<mov w2,#0x5eb>>@0xffffff800878eadc)
 				 */
 #line 1515
@@ -1627,15 +1603,13 @@ static int qmcX983_device_check(void)
 }
 
 /*
- * qmcx983_get_OTP: nessun simbolo proprio, incorporata nella probe; nome e
- * righe dai printk (<<qmcx983_get_OTP>>@0xffffff80091c16c1 -- la 'x'
- * minuscola e' di fabbrica -- righe 1549/1557/1576/1584/1594/1602).
+ * qmcx983_get_OTP() was reconstructed from the factory kernel disassembly (0xffffff80091c16c1).
  *
- * Le mdelay: dieci __const_udelay(0x418958) consecutivi, e 0x418958 =
- * 1000 * 0x10c7 cioe' udelay(1000) secondo include/asm-generic/delay.h;
- * dieci di fila sono il ciclo "while (__ms--) udelay(1000)" di
- * include/linux/delay.h per mdelay(10), srotolato
- * (<<mov w0,#0x8958 ; movk w0,#0x41,lsl#16>>@0xffffff800878e3e4).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int qmcx983_get_OTP(void)
 {
@@ -1648,7 +1622,7 @@ static int qmcx983_get_OTP(void)
 	databuf[1] = 0x0a;
 	res = I2C_TxData(databuf, 2);
 	if (res < 0) {
-		/* riga 1549 (<<mov w2,#0x60d>>@0xffffff800878e8cc) */
+		/* line 1549 (<<mov w2,#0x60d>>@0xffffff800878e8cc) */
 #line 1549
 		MAGN_ERR("%s: I2C_TxData failed\n", __func__);
 		return res;
@@ -1657,13 +1631,14 @@ static int qmcx983_get_OTP(void)
 	databuf[0] = QMCX983_REG_OTP_DATA;
 	res = I2C_RxData(databuf, 1);
 	if (res < 0) {
-		/* riga 1557 (<<mov w2,#0x615>>@0xffffff800878e90c) */
+		/* line 1557 (<<mov w2,#0x615>>@0xffffff800878e90c) */
 		MAGN_ERR("%s: I2C_RxData failed\n", __func__);
 		return res;
 	}
 	value1 = databuf[0];
-	/* "and w11,w8,#0x1f ; orr w12,w8,#0xffffffe0 ; tst w8,#0x20 ; csel"
-	 * @0xffffff800878e484: campo a 6 bit con segno
+	/*
+	 * "and w11,w8,#0x1f ; orr w12,w8,#0xffffffe0 ; tst w8,#0x20 ; csel"
+	 * @0xffffff800878e484: a signed 6-bit field
 	 */
 	if (value1 & 0x20)
 		otp_a = value1 | 0xffffffe0;
@@ -1675,7 +1650,7 @@ static int qmcx983_get_OTP(void)
 	databuf[1] = 0x0d;
 	res = I2C_TxData(databuf, 2);
 	if (res < 0) {
-		/* riga 1576 (<<mov w2,#0x628>>@0xffffff800878ea24) */
+		/* line 1576 (<<mov w2,#0x628>>@0xffffff800878ea24) */
 #line 1576
 		MAGN_ERR("%s: I2C_TxData failed\n", __func__);
 		return res;
@@ -1684,7 +1659,7 @@ static int qmcx983_get_OTP(void)
 	databuf[0] = QMCX983_REG_OTP_DATA;
 	res = I2C_RxData(databuf, 1);
 	if (res < 0) {
-		/* riga 1584 (<<mov w2,#0x630>>@0xffffff800878ea40) */
+		/* line 1584 (<<mov w2,#0x630>>@0xffffff800878ea40) */
 		MAGN_ERR("%s: I2C_RxData failed\n", __func__);
 		return res;
 	}
@@ -1696,7 +1671,7 @@ static int qmcx983_get_OTP(void)
 	databuf[1] = 0x0f;
 	res = I2C_TxData(databuf, 2);
 	if (res < 0) {
-		/* riga 1594 (<<mov w2,#0x63a>>@0xffffff800878eac0) */
+		/* line 1594 (<<mov w2,#0x63a>>@0xffffff800878eac0) */
 #line 1594
 		MAGN_ERR("%s: I2C_TxData failed\n", __func__);
 		return res;
@@ -1705,7 +1680,7 @@ static int qmcx983_get_OTP(void)
 	databuf[0] = QMCX983_REG_OTP_DATA;
 	res = I2C_RxData(databuf, 1);
 	if (res < 0) {
-		/* riga 1602 (<<mov w2,#0x642>>@0xffffff800878eaf8) */
+		/* line 1602 (<<mov w2,#0x642>>@0xffffff800878eaf8) */
 		MAGN_ERR("%s: I2C_RxData failed\n", __func__);
 		return res;
 	}
@@ -1721,11 +1696,11 @@ static int qmcx983_get_OTP(void)
 }
 
 /*
- * qmcX983_suspend: 0xffffff8008790510, 8 byte, t.
- * qmcX983_resume:  0xffffff8008790518, 8 byte, t.
- * Entrambe "mov w0,wzr ; ret". Il dev_pm_ops a 0xffffff8008f54708 riempie
- * con la stessa coppia suspend/resume/freeze/thaw/poweroff/restore (offset
- * 0x10, 0x18, 0x20, 0x28, 0x30, 0x38): e' esattamente SIMPLE_DEV_PM_OPS.
+ * qmcX983_suspend: 0xffffff8008790510, 8 bytes, t.
+ * qmcX983_resume:  0xffffff8008790518, 8 bytes, t.
+ * Both "mov w0,wzr ; ret". The dev_pm_ops at 0xffffff8008f54708 fills
+ * suspend/resume/freeze/thaw/poweroff/restore with the same pair (offsets
+ * 0x10, 0x18, 0x20, 0x28, 0x30, 0x38): that is exactly SIMPLE_DEV_PM_OPS.
  */
 static int qmcX983_suspend(struct device *dev)
 {
@@ -1750,16 +1725,18 @@ static int qmcX983_i2c_detect(struct i2c_client *client,
 	return 0;
 }
 
-/* i2c_device_id a 0xffffff8008f547c0: una sola voce, "qmcX983", poi il
- * terminatore azzerato a 0xffffff8008f547e0
+/*
+ * i2c_device_id at 0xffffff8008f547c0: a single entry, "qmcX983", then the
+ * terminator zeroed at 0xffffff8008f547e0
  */
 static const struct i2c_device_id qmcX983_i2c_id[] = {
 	{QMCX983_DEV_NAME, 0},
 	{}
 };
 
-/* of_device_id a 0xffffff8008f54578: il campo compatible (offset 0x40 nella
- * struttura, name[32] + type[32]) contiene "mediatek,msensor"@0xffffff8008f545b8
+/*
+ * of_device_id at 0xffffff8008f54578: the compatible field (offset 0x40 in the
+ * structure, name[32] + type[32]) holds "mediatek,msensor"@0xffffff8008f545b8
  */
 static const struct of_device_id mag_of_match[] = {
 	{.compatible = "mediatek,msensor"},
@@ -1771,10 +1748,10 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 static int qmcX983_i2c_remove(struct i2c_client *client);
 
 /*
- * i2c_driver a 0xffffff800992f158: probe (+0x10), remove (+0x18), detect
- * (+0xc0) relocati; driver.name -> "qmcX983", driver.of_match_table ->
+ * i2c_driver at 0xffffff800992f158: probe (+0x10), remove (+0x18), detect
+ * (+0xc0) relocated; driver.name -> "qmcX983", driver.of_match_table ->
  * 0xffffff8008f54578, driver.pm -> 0xffffff8008f54708, id_table ->
- * 0xffffff8008f547c0. Tutti gli altri campi sono zero.
+ * 0xffffff8008f547c0. Every other field is zero.
  */
 static struct i2c_driver qmcX983_i2c_driver = {
 	.probe = qmcX983_i2c_probe,
@@ -1789,10 +1766,10 @@ static struct i2c_driver qmcX983_i2c_driver = {
 };
 
 /*
- * mag_init_info a 0xffffff800992f138: name/init/uninit relocati a
+ * mag_init_info at 0xffffff800992f138: name/init/uninit relocated to
  * "qmcX983", qmcX983_local_init, qmcX983_local_remove; platform_diver_addr
- * (0xffffff800992f150) resta zero nell'immagine e viene riempito a runtime
- * da mag_driver_add.
+ * (0xffffff800992f150) stays zero in the image and is filled in at run time
+ * by mag_driver_add.
  */
 static struct mag_init_info qmcX983_init_info = {
 	.name = QMCX983_DEV_NAME,
@@ -1813,15 +1790,17 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	MAGN_LOG("%s\n", __func__);
 
-	/* <<mov w1,#0xc0 ; movk w1,#0x140,lsl#16>>@0xffffff800878e11c = 0x014000c0
-	 * e <<orr w2,wzr,#0x40>>@0xffffff800878e124 = 64: GFP_KERNEL senza
-	 * __GFP_ZERO (0x8000), cioe' kmalloc e non kzalloc.
+	/*
+	 * <<mov w1,#0xc0 ; movk w1,#0x140,lsl#16>>@0xffffff800878e11c = 0x014000c0
+	 * and <<orr w2,wzr,#0x40>>@0xffffff800878e124 = 64: GFP_KERNEL without
+	 * __GFP_ZERO (0x8000), that is kmalloc and not kzalloc.
 	 */
 	data = kmalloc(sizeof(struct qmcX983_i2c_data), GFP_KERNEL);
 	if (!data) {
-		/* <<mov w20,#0xfffffff4>>@0xffffff800878e180 = -ENOMEM.
-		 * Questo ramo salta il kfree ("b 0xffffff800878e978", che e'
-		 * dopo la chiamata a kfree).
+		/*
+		 * <<mov w20,#0xfffffff4>>@0xffffff800878e180 = -ENOMEM.
+		 * This branch skips the kfree ("b 0xffffff800878e978", which is
+		 * after the call to kfree).
 		 */
 		err = -ENOMEM;
 		goto exit;
@@ -1829,9 +1808,10 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = get_mag_dts_func(client->dev.of_node, &data->hw);
 	if (err < 0) {
-		/* "\x013[QMC-Msensor] %s %d : %s. get dts info fail\n"
-		 * @0xffffff80091c1436, riga 1637
- * il frammento che sta nel codice: "%s. get dts info fail\n"@0xffffff80091c144e
+		/*
+		 * "\x013[QMC-Msensor] %s %d : %s. get dts info fail\n"
+		 * @0xffffff80091c1436, line 1637
+		 * the fragment that appears in the code: "%s. get dts info fail\n"@0xffffff80091c144e
 		 * (<<mov w2,#0x665>>@0xffffff800878e198)
 		 */
 #line 1637
@@ -1845,17 +1825,19 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = hwmsen_get_convert(data->hw.direction, &data->cvt);
 	if (err) {
-		/* "\x013[QMC-Msensor] %s %d : QMCX983 invalid direction: %d\n"
-		 * @0xffffff80091c1465, riga 1647
- * il frammento che sta nel codice: "QMCX983 invalid direction: %d\n"@0xffffff80091c147d
+		/*
+		 * "\x013[QMC-Msensor] %s %d : QMCX983 invalid direction: %d\n"
+		 * @0xffffff80091c1465, line 1647
+		 * the fragment that appears in the code: "QMCX983 invalid direction: %d\n"@0xffffff80091c147d
 		 * (<<mov w2,#0x66f>>@0xffffff800878e174)
 		 */
 #line 1647
 		MAGN_ERR("QMCX983 invalid direction: %d\n", data->hw.direction);
 		goto exit_kfree;
 	}
-	/* <<\x016[QMC-Msensor] %s: direction: %d\n>>@0xffffff80091c149c
-	 * il frammento che sta nel codice: "%s: direction: %d\n"@0xffffff80091c14ac
+	/*
+	 * <<\x016[QMC-Msensor] %s: direction: %d\n>>@0xffffff80091c149c
+	 * the fragment that appears in the code: "%s: direction: %d\n"@0xffffff80091c14ac
 	 */
 	MAGN_LOG("%s: direction: %d\n", __func__, data->hw.direction);
 
@@ -1870,10 +1852,11 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = qmcX983_device_check();
 	if (err < 0) {
-		/* <<\x016[QMC-Msensor] %s check ID faild!\n>>@0xffffff80091c14e0
- * il frammento che sta nel codice: "%s check ID faild!\n"@0xffffff80091c14f0
-		 * -- il refuso "faild" e' di fabbrica
-		 */
+		/*
+ * <<\x016[QMC-Msensor] %s check ID faild!\n>>@0xffffff80091c14e0
+ * the fragment that appears in the code: "%s check ID faild!\n"@0xffffff80091c14f0
+ * -- the "faild" typo is the factory's
+ */
 		MAGN_LOG("%s check ID faild!\n", __func__);
 		goto exit_kfree;
 	}
@@ -1881,31 +1864,34 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 	if (chip_id != QMC6983_A1_D1) {
 		err = qmcx983_get_OTP();
 		if (err < 0) {
-			/* "\x016[QMC-Msensor] %s get OTP faild!\n"
+			/*
+			 * "\x016[QMC-Msensor] %s get OTP faild!\n"
 			 * @0xffffff80091c1504
- * il frammento che sta nel codice: "%s get OTP faild!\n"@0xffffff80091c1514
+			 * the fragment that appears in the code: "%s get OTP faild!\n"@0xffffff80091c1514
 			 */
 			MAGN_LOG("%s get OTP faild!\n", __func__);
 			goto exit_kfree;
 		}
 	} else {
 		/* <<str wzr,[x9,#668]>>@0xffffff800878e6f8 e
-		 * <<str w8,[x10,#672]>>@0xffffff800878e708 con w8 = 0
+		 * <<str w8,[x10,#672]>>@0xffffff800878e708 with w8 = 0
 		 */
 		otp_a = 0;
 		otp_b = 0;
 	}
 
-	/* <<ldr x9,[x23,#336] ; adds x22,x9,#0x28>>@0xffffff800878e700:
-	 * l'argomento e' platform_diver_addr + 0x28, cioe' l'offset di
-	 * struct device_driver dentro struct platform_driver, e il confronto
-	 * con zero e' il controllo "driver == NULL" fatto sulla somma.
+	/*
+	 * <<ldr x9,[x23,#336] ; adds x22,x9,#0x28>>@0xffffff800878e700:
+	 * the argument is platform_diver_addr + 0x28, that is the offset of
+	 * struct device_driver inside struct platform_driver, and the comparison
+	 * with zero is the "driver == NULL" check made on the sum.
 	 */
 	err = qmcX983_create_attr(&qmcX983_init_info.platform_diver_addr->driver);
 	if (err) {
-		/* "\x013[QMC-Msensor] %s %d : create attribute err = %d\n"
-		 * @0xffffff80091c1527, riga 1683
- * il frammento che sta nel codice: "create attribute err = %d\n"@0xffffff80091c153f
+		/*
+		 * "\x013[QMC-Msensor] %s %d : create attribute err = %d\n"
+		 * @0xffffff80091c1527, line 1683
+		 * the fragment that appears in the code: "create attribute err = %d\n"@0xffffff80091c153f
 		 * (<<mov w2,#0x693>>@0xffffff800878e894)
 		 */
 #line 1683
@@ -1915,9 +1901,10 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = misc_register(&qmcX983_device);
 	if (err) {
-		/* "\x013[QMC-Msensor] %s %d : qmcX983_device register failed\n"
-		 * @0xffffff80091c155a, riga 1691
- * il frammento che sta nel codice: "qmcX983_device register failed\n"@0xffffff80091c1572
+		/*
+		 * "\x013[QMC-Msensor] %s %d : qmcX983_device register failed\n"
+		 * @0xffffff80091c155a, line 1691
+		 * the fragment that appears in the code: "qmcX983_device register failed\n"@0xffffff80091c1572
 		 * (<<mov w2,#0x69b>>@0xffffff800878eb1c)
 		 */
 #line 1691
@@ -1927,9 +1914,10 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = mag_factory_device_register(&qmcX983_factory_device);
 	if (err) {
-		/* "\x013[QMC-Msensor] %s %d : misc device register failed, err = %d\n"
-		 * @0xffffff80091c1592, riga 1697
- * il frammento che sta nel codice: "misc device register failed, err = %d\n"@0xffffff80091c15aa
+		/*
+		 * "\x013[QMC-Msensor] %s %d : misc device register failed, err = %d\n"
+		 * @0xffffff80091c1592, line 1697
+		 * the fragment that appears in the code: "misc device register failed, err = %d\n"@0xffffff80091c15aa
 		 * (<<mov w2,#0x6a1>>@0xffffff800878e838)
 		 */
 #line 1697
@@ -1939,12 +1927,13 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	/* <<strb wzr,[sp,#96]>>@0xffffff800878eb88 = ctl+48 */
 	ctl.is_report_input_direct = false;
-	/* is_use_common_factory (ctl+50) NON viene assegnata: resta a zero
-	 * dall'azzeramento iniziale della struttura. Un `ctl.is_use_common_factory
-	 * = false;` qui produrrebbe uno `strb wzr` che di fabbrica non esiste in
-	 * nessun punto della funzione (revisione indipendente,
-	 * docs/bringup/rapporti/revisione-qmcx983-completo.md, R6): la riga era
-	 * stata scritta e il commento sopra la contraddiceva gia'.
+	/*
+	 * is_use_common_factory (ctl+50) is NOT assigned: it stays zero from the
+	 * initial clearing of the structure. A `ctl.is_use_common_factory = false;`
+	 * here would produce a `strb wzr` that does not exist anywhere in the
+	 * factory function (independent review,
+	 * docs/bringup/rapporti/revisione-qmcx983-complete.md, R6): the line had
+	 * been written and the comment above it already contradicted it.
 	 */
 	ctl.open_report_data = qmcX983_m_open_report_data;
 	ctl.enable = qmcX983_m_enable;
@@ -1955,10 +1944,11 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 	 * data->hw.is_batch_supported (hw+28) in ctl+49
 	 */
 	ctl.is_support_batch = data->hw.is_batch_supported;
-	/* copia di 8 byte da 0xffffff8008f54800 ("qmcX983") e azzeramento di
-	 * tutti gli altri 56 byte del campo
+	/*
+	 * a copy of 8 bytes from 0xffffff8008f54800 ("qmcX983") and the clearing of
+	 * all the other 56 bytes of the field
 	 * ("stur x8,[sp,#100]" ... <<stur xzr,[sp,#140]>>@0xffffff800878eb9c):
-	 * e' la semantica di strncpy, non di strcpy
+	 * that is strncpy semantics, not strcpy
 	 */
 	strncpy(ctl.libinfo.libname, QMCX983_DEV_NAME,
 		sizeof(ctl.libinfo.libname));
@@ -1968,8 +1958,9 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	err = mag_register_control_path(&ctl);
 	if (err) {
-		/* "register mag control path err\n"@0xffffff80091c15d1: senza
-		 * prefisso KERN_*, quindi printk nudo e non pr_err
+		/*
+		 * "register mag control path err\n"@0xffffff80091c15d1: without a
+		 * KERN_* prefix, hence a bare printk and not pr_err
 		 */
 		printk("register mag control path err\n");
 		goto exit_register_path_failed;
@@ -1989,8 +1980,9 @@ static int qmcX983_i2c_probe(struct i2c_client *client,
 
 	/* "strb w21,[x8,#628]" con w21 = 1 @0xffffff800878ec30 */
 	qmcX983_init_flag = true;
-	/* <<\x016[QMC-Msensor] %s: OK\n>>@0xffffff80091c1610
-	 * il frammento che sta nel codice: "%s: OK\n"@0xffffff80091c1620
+	/*
+	 * <<\x016[QMC-Msensor] %s: OK\n>>@0xffffff80091c1610
+	 * the fragment that appears in the code: "%s: OK\n"@0xffffff80091c1620
 	 */
 	MAGN_LOG("%s: OK\n", __func__);
 	return 0;
@@ -2004,10 +1996,11 @@ exit_misc_register_failed:
 exit_kfree:
 	kfree(data);
 exit:
-	/* <<\x013[QMC-Msensor] %s %d : %s: err = %d\n>>@0xffffff80091c1628,
- * il frammento che sta nel codice: "%s: err = %d\n"@0xffffff80091c1640
-	 * riga 1746 (<<mov w2,#0x6d2>>@0xffffff800878e988)
-	 */
+	/*
+ * <<\x013[QMC-Msensor] %s %d : %s: err = %d\n>>@0xffffff80091c1628,
+ * the fragment that appears in the code: "%s: err = %d\n"@0xffffff80091c1640
+ * line 1746 (<<mov w2,#0x6d2>>@0xffffff800878e988)
+ */
 #line 1746
 	MAGN_ERR("%s: err = %d\n", __func__, err);
 	return err;
@@ -2022,9 +2015,10 @@ static int qmcX983_i2c_remove(struct i2c_client *client)
 
 	err = qmcX983_delete_attr(&qmcX983_init_info.platform_diver_addr->driver);
 	if (err) {
-		/* "\x013[QMC-Msensor] %s %d : qmcX983_delete_attr fail: %d\n"
-		 * @0xffffff80091c1e10, riga 1761
- * il frammento che sta nel codice: "qmcX983_delete_attr fail: %d\n"@0xffffff80091c1e28
+		/*
+		 * "\x013[QMC-Msensor] %s %d : qmcX983_delete_attr fail: %d\n"
+		 * @0xffffff80091c1e10, line 1761
+		 * the fragment that appears in the code: "qmcX983_delete_attr fail: %d\n"@0xffffff80091c1e28
 		 * (<<mov w2,#0x6e1>>@0xffffff800878ec78)
 		 */
 #line 1761
@@ -2041,19 +2035,20 @@ static int qmcX983_i2c_remove(struct i2c_client *client)
 }
 
 /*
- * qmcX983_local_init: 0xffffff800878e008, 128 byte, t.
- * Entrambi i rami d'errore restituiscono -EINVAL
- * (<<mov w0,#0xffffffea>>@0xffffff800878e07c), non -1.
+ * qmcX983_local_init: 0xffffff800878e008, 128 bytes, t.
+ * Both error branches return -EINVAL
+ * (<<mov w0,#0xffffffea>>@0xffffff800878e07c), not -1.
  */
 static int qmcX983_local_init(void)
 {
-	/* <<str wzr,[x8,#624]>>@0xffffff800878e020, prima di i2c_add_driver */
+	/* <<str wzr,[x8,#624]>>@0xffffff800878e020, before i2c_add_driver */
 	atomic_set(&open_count, 0);
 
 	if (i2c_add_driver(&qmcX983_i2c_driver)) {
-		/* "\x013[QMC-Msensor] %s %d : add driver error\n"
-		 * @0xffffff80091c13af, riga 1782
- * il frammento che sta nel codice: "add driver error\n"@0xffffff80091c13c7
+		/*
+		 * "\x013[QMC-Msensor] %s %d : add driver error\n"
+		 * @0xffffff80091c13af, line 1782
+		 * the fragment that appears in the code: "add driver error\n"@0xffffff80091c13c7
 		 * (<<mov w2,#0x6f6>>@0xffffff800878e03c)
 		 */
 #line 1782
@@ -2061,11 +2056,12 @@ static int qmcX983_local_init(void)
 		return -EINVAL;
 	}
 	if (!qmcX983_init_flag) {
-		/* <<\x013[QMC-Msensor] %s %d : %s failed!\n>>@0xffffff80091c13ec,
- * il frammento che sta nel codice: "%s failed!\n"@0xffffff80091c1404
-		 * riga 1788 (<<mov w2,#0x6fc>>@0xffffff800878e070); il terzo
-		 * argomento e' di nuovo __func__ (<<mov x3,x1>>@0xffffff800878e074)
-		 */
+		/*
+ * <<\x013[QMC-Msensor] %s %d : %s failed!\n>>@0xffffff80091c13ec,
+ * the fragment that appears in the code: "%s failed!\n"@0xffffff80091c1404
+ * line 1788 (<<mov w2,#0x6fc>>@0xffffff800878e070); the third
+ * argument is __func__ again (<<mov x3,x1>>@0xffffff800878e074)
+ */
 #line 1788
 		MAGN_ERR("%s failed!\n", __func__);
 		return -EINVAL;
@@ -2084,9 +2080,9 @@ static int qmcX983_local_remove(void)
 }
 
 /*
- * qmcX983_init: 0xffffff8009374654, 32 byte, t, nella .init.text.
+ * qmcX983_init: 0xffffff8009374654, 32 bytes, t, in .init.text.
  *   bl mag_driver_add(&qmcX983_init_info) ; mov w0, wzr ; ret
- * Il valore restituito da mag_driver_add viene scartato.
+ * The value returned by mag_driver_add is discarded.
  */
 static int __init qmcX983_init(void)
 {
@@ -2097,88 +2093,13 @@ static int __init qmcX983_init(void)
 module_init(qmcX983_init);
 
 /*
- * ===========================================================================
- * qmcX983_exit -- 0xffffff80093aa5ec, 4 byte, `.exit.text`, corpo VUOTO
- * ===========================================================================
+ * qmcX983_exit() was reconstructed from the factory kernel disassembly (0xffffff80093aa5ec, 4 bytes).
  *
- * **CORREZIONE del 2026-08-21 (secondo passaggio sulla `.exit.text`).** La
- * stesura precedente di questo commento concludeva «NESSUNA `__exit` PER
- * QUESTO DRIVER -- risultato negativo». La conclusione era SBAGLIATA, e lo
- * era per un difetto nello strumento che l'aveva prodotta, non nei dati.
- *
- * Il censimento del primo passaggio spezzava le funzioni solo dopo un `ret`
- * (e dopo un `b` che uscisse dalla sezione). Ma una funzione puo' finire con
- * un `b` ALL'INDIETRO dentro se stessa -- il salto di ritorno di un ramo
- * freddo -- e in quel caso il primo passaggio la fondeva con la funzione
- * seguente. E' esattamente cio' che accade qui: la `.exit.text` del core
- * magnetometro finisce con
- *   "97c2c426 bl"@0xffffff80093aa5e4    -> __dynamic_pr_debug
- *   "17ffffe3 b"@0xffffff80093aa5e8     -> 0xffffff80093aa574, all'indietro
- * e i 4 byte successivi venivano contati come suo corpo. Con la regola giusta
- * (ogni `b` incondizionato chiude un blocco; se l'istruzione seguente non e'
- * bersaglio di alcun salto, comincia una funzione) il core magnetometro
- * misura 144 byte e non 148, e a 0xffffff80093aa5ec resta una funzione
- * separata di 4 byte:
- *   "d65f03c0 ret"@0xffffff80093aa5ec
- * Nessun salto, in tutte le 5.018.179 righe del disassemblato dell'immagine,
- * ha 0xffffff80093aa5ec come bersaglio: non e' codice raggiungibile dal
- * vicino, e' una funzione a se'.
- *
- * Col confine corretto la sezione ha 692 funzioni, non 669, e 26 corpi vuoti
- * da 4 byte, non 25.
- *
- * ATTRIBUZIONE -- e' un'inferenza dall'ORDINE DI LINK, non la lettura di un
- * nome, perche' una funzione vuota non nomina niente. Va pesata per quello
- * che e'. Tre sezioni diverse dell'immagine, disposte tutte in ordine di
- * link, danno lo stesso ordinamento degli oggetti, e i 4 byte cadono nella
- * stessa lacuna in tutte e tre:
- *
- *   oggetto        dato                .init.text            .exit.text
- *   core mag       0xffffff800992ee60  mag_init   0x9374140  0xffffff80093aa55c
- *   >>> qmcX983    0xffffff800992f138  qmcX983_init 0x9374654 >>> 0xffffff80093aa5ec
- *   scp            0xffffff800992f750  scp_init   0x9374674  0xffffff80093aa5f0
- *
- *  - il dato: "91398000 add"@0xffffff80093aa5b8 mette 0xffffff800992ee60 in
- *    x0 per la platform_driver_unregister del core mag, indirizzo che nel
- *    resto dell'immagine e' usato solo da `mag_driver_add`;
- *    "911d4000 add"@0xffffff80093aa618 mette 0xffffff800992f750 in x0 per la
- *    misc_deregister di scp, indirizzo usato solo da `scp_init`; e
- *    `qmcX983_init_info` sta a 0xffffff800992f138, in mezzo ai due
- *    ("9104e000 add"@0xffffff8009374660);
- *  - la `.init.text`: in `oracolo/stock.map` le tre righe sono CONSECUTIVE,
- *    mag_init / qmcX983_init / scp_init, nessun altro simbolo fra loro;
- *  - la `.exit.text`: fra la fine del core mag (0xffffff80093aa5ec) e
- *    l'inizio di scp ("f81e0ff3 str"@0xffffff80093aa5f0) c'e' esattamente
- *    questa funzione e nient'altro.
- *
- * Il metodo e' TARATO su tre casi in cui la funzione si nomina da sola e
- * cade comunque nella lacuna che l'ordine di link prevede: `flashlight_exit`,
- * `flashlight_mt6370_exit` e `mir3da_exit` -- quest'ultimo a
- * 0xffffff80093aa528, nella lacuna fra il core accelerometro e il core mag,
- * dove `mir3da_init` sta fra `acc_init` e `mag_init`. Sulle 15 coppie
- * init/exit dei driver di questo progetto l'ordine e' monotono senza
- * eccezioni.
- *
- * CIO' CHE RESTA NON PROVATO, e va detto: un oggetto che avesse una `__exit`
- * vuota e NESSUN simbolo in `.init.text` e NESSUN dato proprio sarebbe
- * invisibile a tutti e tre gli ordinamenti, e potrebbe occupare questa
- * lacuna al posto di qmcX983. Non c'e' modo di escluderlo dal binario.
- *
- * IL CORPO, invece, e' misurato e non ammette alternative: 4 byte, un solo
- * `ret`, nessun accesso a memoria, nessuna chiamata. Coerente con
- * `qmcX983_init`, che si limita a `mag_driver_add`: `mag_driver_del` non
- * esiste come simbolo in stock.map, quindi non c'e' niente da disfare.
- *
- * Il `module_exit()` qui sotto e' una SCELTA dichiarata, non una misura: il
- * puntatore che genera finisce in `.exitcall.exit`, che vmlinux.lds scarta
- * (`EXIT_CALL` dentro /DISCARD/), mentre la funzione sopravvive comunque
- * perche' per un file built-in `__exit` implica `__used`
- * (include/linux/init.h righe 78-85). Dal binario «con module_exit()» e
- * «senza» sono indistinguibili.
- *
- * MISURA DI DIMENSIONE NON FATTA: questo lotto non ha un albero di build per
- * qmcX983 e non ha compilato il file. I 4 byte di fabbrica sono letti dal
- * disassemblato; il confronto con il nostro `.o` VA ANCORA FATTO.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static void __exit qmcX983_exit(void)
 {
@@ -2189,14 +2110,12 @@ module_exit(qmcX983_exit);
 MODULE_DESCRIPTION("QST QMC7983 magnetometer (Doogee S88 Pro, dal disassemblato)");
 MODULE_LICENSE("GPL");
 /*
- * ___modver_attr a 0xffffff800992f0f0, appena prima di mag_init_info: i due
- * puntatori "orfani" che sembravano un'anomalia (0xffffff800992f128 e
- * f130) sono i campi module_name/version di questa struttura, raggiunta solo
- * dalla sezione __modver che kernel/params.c percorre al boot -- nessuna
- * funzione del driver la legge, per questo nessuna delle 49 la referenzia.
- * module_name punta alla stessa stringa "qmcX983" di mag_init_info.name
- * (0xffffff80091c13a7); version punta a "driver version 3.4"@0xffffff80091c1e59.
- * Verificato campo per campo dalla revisione indipendente
- * (docs/bringup/rapporti/revisione-qmcx983-completo.md, R1/§7).
+ * MODULE_VERSION() was reconstructed from the factory kernel disassembly (0xffffff800992f0f0).
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_magnetometer_qmcx983_qmcX983.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 MODULE_VERSION("driver version 3.4");

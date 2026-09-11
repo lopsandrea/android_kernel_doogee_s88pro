@@ -44,24 +44,13 @@ struct mt_chip_drv *get_mt_chip_drv(void)
 }
 
 /*
- * IL NODO /proc/wtk_memInfo -- AGGIUNTA DI FABBRICA, tre funzioni contigue
- * subito dopo get_mt_chip_drv nell'immagine:
- *   wtk_create_proc_mem_info @0xffffff80087a24ec, 68 byte
- *   wtk_mem_info_open        @0xffffff80087a2530, 36 byte
- *   wtk_mem_info_show        @0xffffff80087a2554, 40 byte
+ * wtk_create_proc_mem_info() was reconstructed from the factory kernel disassembly (0xffffff80087a24ec, 68 bytes).
  *
- * Il nome del nodo e il messaggio d'errore NON coincidono, ed e' cosi' nel
- * binario: il nodo si chiama "wtk_memInfo"@0xffffff80091c83c2 e il messaggio
- * dice "create /proc/mem_info_entry fail\n"@0xffffff80091c83cf. Difetto di
- * fabbrica, riprodotto.
- *
- * I permessi sono 0444: "52802481 mov"@0xffffff80087a2504 mette 0x124 in w1,
- * che e' 292, cioe' 0444 in ottale.
- *
- * La struttura delle operazioni sta a 0xffffff8008f55ee0 e ha seq_lseek a +8
- * e seq_read a +16 (readelf -r: gli addendi normalizzati danno
- * 0xffffff8008297dd8 e 0xffffff8008297730), cioe' e' la forma standard di
- * single_open.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_chip_mtk_chip_common.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 extern char wtk_mem_name[100];
 
@@ -202,35 +191,13 @@ static void __init create_procfs(void)
 }
 
 /*
- * init_wtk_mem_name @0xffffff80093769a8, 56 byte, in .init.text -- AGGIUNTA
- * WINGTECH a questo file di ALPS.
+ * init_wtk_mem_name() was reconstructed from the factory kernel disassembly (0xffffff80093769a8, 56 bytes).
  *
- * E' un gestore `__setup` del parametro `wtk_memname=`, e il binario lo dice
- * tutto:
- *
- *   ffffff80093769b4: adrp x19, ...       il buffer a 0xffffff8009d060e8
- *   ffffff80093769b8: add  x19, x19, #0xe8
- *   ffffff80093769c0: mov  w2, #0x63      99 byte al massimo
- *   ffffff80093769c8: bl   <strncpy>
- *   ffffff80093769d0: orr  w0, wzr, #0x1  il ritorno e' 1
- *   ffffff80093769d4: strb wzr, [x19,#99] e il terminatore va a mano
- *
- * IL BUFFER E' DI CENTO BYTE, non di novantanove: `strncpy` ne copia 99 e il
- * centesimo e' lo zero scritto a mano -- che e' anche la prova che la
- * sorgente NON si fida di `strncpy` per terminare, ed e' giusto: se `str` e'
- * piu' lungo di 99 byte `strncpy` non termina.
- *
- * L'UNICO LETTORE, in tutta l'immagine, e' `wtk_mem_info_show` poche righe
- * piu' su -- 0xffffff80087a2554, che legge lo stesso 0xffffff8009d060e8. Il
- * parametro finisce in un nodo `/proc` e in nient'altro: senza questa
- * funzione quel nodo mostra una stringa vuota, e nessun'altra cosa cambia.
- *
- * LA CATENA DEL PARAMETRO e' letta con le rilocazioni, non a occhio: la
- * `struct obs_kernel_param` sta a 0xffffff800941dda8 e ha `str` =
- * "wtk_memname=" (0xffffff80094176b2) e `setup_func` = questa.
- *
- * IL NOME `wtk_mem_name` E' SCELTO: la mappa non ha simboli di dato, e il
- * binario quel buffer non lo nomina.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_chip_mtk_chip_common.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 char wtk_mem_name[100];
 
@@ -246,9 +213,11 @@ __setup("wtk_memname=", init_wtk_mem_name);
 
 static int __init chip_common_init(void)
 {
-	/* PRIMA di create_procfs: nel binario "97bdfa92 bl"@0xffffff8009376a0c
-	 * (proc_create, incorporata da wtk_create_proc_mem_info) precede
-	 * "97bdf98d bl"@0xffffff8009376a34 (proc_mkdir_data di /proc/chip). */
+	/*
+	 * BEFORE create_procfs: in the binary "97bdfa92 bl"@0xffffff8009376a0c
+	 * (proc_create, inlined by wtk_create_proc_mem_info) precedes
+	 * "97bdf98d bl"@0xffffff8009376a34 (the proc_mkdir_data of /proc/chip).
+	 */
 	wtk_create_proc_mem_info();
 	create_procfs();
 	return 0;

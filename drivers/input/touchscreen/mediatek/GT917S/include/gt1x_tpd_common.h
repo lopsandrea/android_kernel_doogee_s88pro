@@ -324,9 +324,9 @@ extern void gesture_clear_wakeup_data(void);
 /* Export from gt1x_tpd.c */
 extern void gt1x_touch_down(s32 x, s32 y, s32 size, s32 id);
 extern void gt1x_touch_up(s32 id);
-/* s32 e non void: di fabbrica l'epilogo azzera w0 prima del ret
- * ("2a1f03e0 mov"@0xffffff8008a76fac), cosa che nessuna delle void dello
- * stesso blocco fa.  Cambiata dal lotto tpd il 2026-08-23. */
+/* s32 and not void: in the factory build the epilogue clears w0 before the
+ * ret ("2a1f03e0 mov"@0xffffff8008a76fac), which none of the void functions
+ * in the same block does.  Changed by the tpd batch on 2026-08-23. */
 extern s32 gt1x_power_switch(s32 state);
 extern void gt1x_irq_enable(void);
 extern void gt1x_irq_disable(void);

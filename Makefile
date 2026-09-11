@@ -881,22 +881,22 @@ KBUILD_CFLAGS += $(call cc-disable-warning, pointer-sign)
 KBUILD_CFLAGS += $(call cc-disable-warning, stringop-truncation)
 
 #
-# I warning introdotti DOPO clang-9, spenti per poter compilare questo albero
-# con le toolchain recenti -- LineageOS 21 porta clang-17.
+# The warnings introduced AFTER clang-9, turned off so this tree builds
+# with recent toolchains -- LineageOS 21 ships clang-17.
 #
-# cc-disable-warning aggiunge il flag SOLO se il compilatore lo conosce:
-# con il clang-r353983c di fabbrica, che questi warning non li ha, queste
-# righe non fanno nulla e il kernel compila esattamente come prima.
+# cc-disable-warning adds the flag ONLY if the compiler knows it: with the
+# factory clang-r353983c, which does not have these warnings, these lines
+# do nothing and the kernel builds exactly as before.
 #
-# I flag finiscono IN FONDO alla riga di compilazione (vedi la coda di
-# c_flags in scripts/Makefile.lib) e non in KBUILD_CFLAGS: 52 Makefile di
-# questo albero -- quasi tutti MediaTek -- aggiungono un -Wall -Werror
-# proprio in ccflags-y, che viene DOPO KBUILD_CFLAGS, e l ultimo flag vince.
+# The flags end up AT THE END of the compile line (see the tail of
+# c_flags in scripts/Makefile.lib) and not in KBUILD_CFLAGS: 52 Makefiles in
+# this tree -- nearly all MediaTek -- add a -Wall -Werror in ccflags-y,
+# which comes AFTER KBUILD_CFLAGS, and the last flag wins.
 #
-# Non e -Werror spento: sono i singoli warning, e un difetto vero continua a
-# fermare il build. Riguardano tutti costrutti legittimi in gnu89 -- lo
-# standard che questo Makefile chiede a riga 424 -- che gli standard piu
-# recenti hanno deprecato.
+# This is not -Werror turned off: these are the individual warnings, and a real
+# defect still stops the build. They all concern constructs that are legitimate
+# in gnu89 -- the standard this Makefile asks for at line 424 -- and that more
+# recent standards have deprecated.
 #
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, unused-but-set-variable)
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, void-pointer-to-enum-cast)
@@ -908,9 +908,9 @@ KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, sometimes-uninitial
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, misleading-indentation)
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, bool-operation)
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-disable-warning, gnu-variable-sized-type-not-at-end)
-# clang-17 puo trasformare una strcpy() in stpcpy(), che questo kernel non
-# implementa: il collegamento di vmlinux muore con "undefined symbol:
-# stpcpy". -fno-builtin-stpcpy glielo impedisce.
+# clang-17 may turn a strcpy() into an stpcpy(), which this kernel does not
+# implement: the vmlinux link dies with "undefined symbol: stpcpy".
+# -fno-builtin-stpcpy prevents it.
 KBUILD_CFLAGS_TOOLCHAIN_COMPAT += $(call cc-option, -fno-builtin-stpcpy)
 
 export KBUILD_CFLAGS_TOOLCHAIN_COMPAT

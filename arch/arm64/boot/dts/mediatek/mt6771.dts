@@ -374,7 +374,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		interrupts = <GIC_SPI 304 IRQ_TYPE_EDGE_RISING>;
 	};
 
-	/* nodo del device tree di fabbrica, estratto da boot.img con tools/bootimg.py */
+	/* factory device tree node, extracted from boot.img with tools/bootimg.py */
 	tkcore {
 		compatible = "trustkernel,tkcore";
 		interrupts = <GIC_SPI 304 IRQ_TYPE_EDGE_RISING>;
@@ -3117,7 +3117,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "mediatek,flashlights_mt6370";
 	};
 
-	/* nodo del device tree di fabbrica, estratto da boot.img con tools/bootimg.py */
+	/* factory device tree node, extracted from boot.img with tools/bootimg.py */
 	flashlights_sub_mt6370: flashlights_sub_mt6370 {
 		compatible = "mediatek,flashlights_sub_mt6370";
 	};
@@ -4077,7 +4077,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		temp_t1_threshold = <0>;
 	};
 
-	/* nodo del device tree di fabbrica, estratto da boot.img con tools/bootimg.py */
+	/* factory device tree node, extracted from boot.img with tools/bootimg.py */
 	usb_insert_detect: usb_insert_detect {
 		compatible = "mediatek,usb_insert_detect";
 	};
@@ -4087,10 +4087,10 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		algorithm_name = "SwitchCharging";
 		/* enable_sw_jeita; */
 		/*
-		 * La fabbrica NON dichiara enable_pe_plus, enable_pe_2, _3, _4,
-		 * enable_type_c, power_path_support, enable_dynamic_mivr ne'
-		 * disable_pd_dual: i protocolli di ricarica rapida MediaTek qui
-		 * non si usano, perche' la carica passa per l'induzione (MT5725).
+		 * The factory does NOT declare enable_pe_plus, enable_pe_2, _3, _4,
+		 * enable_type_c, power_path_support, enable_dynamic_mivr nor
+		 * disable_pd_dual: the MediaTek fast-charge protocols are not used
+		 * here, because charging goes through induction (MT5725).
 		 */
 
 		/* common */
@@ -4142,7 +4142,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		max_charge_temp = <50>;
 		max_charge_temp_minus_x_degree = <47>;
 
-		/* PE -- la fabbrica non dichiara ta_12v_support ne' ta_9v_support */
+		/* PE -- the factory declares neither ta_12v_support nor ta_9v_support */
 		pe_ichg_level_threshold = <1000000>; /* uA */
 		ta_ac_12v_input_current = <3200000>;
 		ta_ac_9v_input_current = <3200000>;
@@ -4220,12 +4220,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	/*
-	 * IL SENSORE DI HALL E' QUESTO.
+	 * THIS IS THE HALL SENSOR.
 	 *
-	 * CONFIG_WTK_MHALL era fra le opzioni di fabbrica che il nostro albero
-	 * non dichiarava, e cercandone il codice non si trovava niente: in
-	 * stock.map non c'e' nessun simbolo di un driver di Hall. Non manca il
-	 * codice -- mancava il nodo.
+	 * CONFIG_WTK_MHALL was among the factory options our tree did not
+	 * declare, and looking for its code turned up nothing: stock.map holds
+	 * no symbol of a Hall driver. The code is not missing -- the node was.
 	 */
 	mhall: mhall {
 		compatible = "mediatek,mhall";
@@ -4288,7 +4287,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	/* NFC start */
 	nfc:nfc {
 		compatible = "mediatek,nfc-gpio-v2";
-		/* la fabbrica non dichiara qui gpio-rst/gpio-irq */
+		/* the factory declares no gpio-rst/gpio-irq here */
 	};
 
 	irq_nfc: irq_nfc {

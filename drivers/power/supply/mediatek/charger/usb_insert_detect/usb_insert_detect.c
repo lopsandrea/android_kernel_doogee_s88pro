@@ -1,36 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * `usb_insert_detect` -- il rilevamento dell'inserimento USB del Doogee S88
- * Pro, ricostruito leggendo il kernel di fabbrica disassemblato.
+ * usb_insert_detect -- USB insertion detection on the Doogee S88 Pro.
  *
- * L'unita' di traduzione ha OTTO funzioni, in corsa contigua subito dopo la
- * fine di `mt5725`:
+ * Eight functions, running contiguously right after the end of the mt5725
+ * block. Reconstructed from the disassembly of the factory kernel.
  *
- *   ffffff8008ace894 t Mt5725_get_rxdetect                    <- ultima di mt5725
- *   ffffff8008ace8f0 T usb_insert_online                        20 byte
- *   ffffff8008ace904 t usb_insert_detect_probe                 596
- *   ffffff8008aceb58 t usb_insert_detect_remove                  8
- *   ffffff8008aceb60 t usb_insert_detect_thread_kthread        416
- *   ffffff8008aced00 t usb_insert_detect_eint_interrupt_handler 80
- *   ffffff8008aced50 t usb_insert_detect_show_debug             48
- *   ffffff8008aced80 t usb_insert_detect_store_debug           124
- *   ffffff8009385a80 t usb_insert_detect_init                   52  (.init.text)
- *
- * PERCHE' E' STATO SCRITTO PER INTERO. Fino al 23 agosto 2026 di questo file
- * esisteva la sola `usb_insert_online`, aggiunta perche' `mt5725` la chiama e
- * senza di essa quel driver non si linka. Il confronto delle funzioni di
- * inizializzazione fra l'immagine di fabbrica e la nostra
- * (`tools/confrontainitcall.py`) ha poi detto che di tutte le 2.437 `_init`
- * della fabbrica ne mancavano DUE, e una era `usb_insert_detect_init`: senza,
- * il driver non si registra, `usb_insert_stato` non lo scrive nessuno, e
- * `mt5725_reverse_charge` prende sempre lo stesso ramo. Era l'unico buco
- * FUNZIONALE dell'intera superficie di avvio.
- *
- * COSA FA. Un GPIO segnala l'inserimento del cavo. L'interruzione sveglia un
- * kthread, che legge il GPIO, gira il tipo di interruzione per il fronte
- * opposto, aggiorna `usb_insert_stato` e -- se la ricarica inversa wireless e'
- * attiva (`mt5725_rvs_online`) -- riconfigura il caricatore: uscendo dalla
- * modalita' OTG quando il cavo entra, rientrandoci quando esce.
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 #include <linux/device.h>
@@ -53,41 +33,42 @@
 
 #include <mt-plat/charger_class.h>
 
-/* Di `mt5725`, e solo LETTA da qui: 0xffffff800a110fec.
- * "b94feea8 ldr"@0xffffff8008acec60 e "b94feea8 ldr"@0xffffff8008acecb4. */
+/*
+ * `mt5725`'s, and only READ from here: 0xffffff800a110fec.
+ * "b94feea8 ldr"@0xffffff8008acec60 and "b94feea8 ldr"@0xffffff8008acecb4.
+ */
 extern int mt5725_rvs_online;
 
 extern struct charger_device *get_charger_by_name(const char *name);
 
-/* DELTA DI HEADER, non fatto qui per la regola sui file condivisi: nessun
- * header di ALPS dichiara `mt_charger_set_opa_mode`, che sta in
- * drivers/misc/mediatek/pmic/mt6370/ (vedi
- * patches/kernel-stock/mt6370-charger-set-opa-mode.patch). Come fa gia'
- * `mt5725.c`, la si dichiara LOCALMENTE. */
+/*
+ * A HEADER DELTA, not done here by the rule on shared files: no
+ * ALPS header declares `mt_charger_set_opa_mode`, which lives in
+ * drivers/misc/mediatek/pmic/mt6370/ (see
+ * patches/kernel-stock/mt6370-charger-set-opa-mode.patch). As
+ * `mt5725.c` already does, it is declared LOCALLY.
+ */
 extern int mt_charger_set_opa_mode(struct charger_device *chg_dev, bool en);
 
 /*
- * 0xffffff800a110ff4, `int`. L'unico stato che `usb_insert_online` legge:
- * "d000b208 adrp"@0xffffff8008ace8f0 sulla pagina 0xffffff800a110000 piu'
- * "b94ff508 ldr"@0xffffff8008ace8f4 con offset 4084 = 0xff4.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800a110ff4).
  *
- * NON E' `static`: lo scrive il kthread di questa unita'
- * ("b90ff794 str"@0xffffff8008acec68 e "b90ff79f str"@0xffffff8008acecbc) e
- * lo legge `mt5725_reverse_charge`. Il nome e' SCELTO: il binario non lo
- * nomina, e la mappa non ha simboli di dato.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int usb_insert_stato;
 
-/* Gli altri stati, tutti in `.bss` sulla pagina 0xffffff800a111000. Gli
- * offset sono MISURATI, i nomi sono scelti.
- *   +368 "f900b900 str"@0xffffff8008ace99c   il caricatore primario
- *   +376 "f900be80 str"@0xffffff8008ace9b8   il pinctrl
- *   +384 "f900c100 str"@0xffffff8008acea04   lo stato di pin
- *   +392 "f900c680 str"@0xffffff8008acea5c   il nodo del device tree
- *   +400 "b90192a0 str"@0xffffff8008acea7c   il gpio
- *   +404 "b9019500 str"@0xffffff8008aceacc   l'irq
- *   +408 "b901994b str"@0xffffff8008acead4   il flag di debug
- *   +412 "39067109 strb"@0xffffff8008aced30  la sveglia del kthread
+/*
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800a111000).
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct charger_device *usb_insert_detect_chg_dev;
 static struct pinctrl *usb_insert_detect_pinctrl;
@@ -98,40 +79,30 @@ static int usb_insert_detect_irq;
 static int usb_insert_detect_flag;
 
 /*
- * LA SVEGLIA E' UN BYTE, non un `int`, e il binario lo dice due volte:
- * "394672e8 ldrb"@0xffffff8008acebb0 la legge a un byte e
- * "39067109 strb"@0xffffff8008aced30 la scrive a un byte. Il test e'
- * "37000388 tbnz w8, #0", cioe' sul solo bit 0: e' un `bool`.
+ * THE WAKE FLAG IS A BYTE, not an `int`, and the binary says so twice:
+ * "394672e8 ldrb"@0xffffff8008acebb0 reads it as a byte and
+ * "39067109 strb"@0xffffff8008aced30 writes it as a byte. The test is
+ * "37000388 tbnz w8, #0", that is on bit 0 alone: it is a `bool`.
  */
 static bool usb_insert_detect_thread_flag;
 
-/* 0xffffff80099a77d8, scritto a zero dalla probe
- * ("b907d93f str"@0xffffff8008acead0) e dal kthread col valore del gpio
- * ("b907db20 str"@0xffffff8008acec3c). */
+/*
+ * 0xffffff80099a77d8, written to zero by the probe
+ * ("b907d93f str"@0xffffff8008acead0) and by the kthread with the gpio value
+ * ("b907db20 str"@0xffffff8008acec3c).
+ */
 static int usb_insert_detect_gpio_state;
 
 static DECLARE_WAIT_QUEUE_HEAD(usb_insert_detect_waiter);
 
 /*
- * ------------------------------------------------------------------
- * usb_insert_online @0xffffff8008ace8f0, 20 byte
- * ------------------------------------------------------------------
- * Cinque istruzioni, nessuna chiamata, nessun frame.
+ * usb_insert_online() was reconstructed from the factory kernel disassembly (0xffffff8008ace8f0, 20 bytes).
  *
- *   ffffff8008ace8f0:	d000b208 	adrp	x8, ffffff800a110000
- *   ffffff8008ace8f4:	b94ff508 	ldr	w8, [x8,#4084]
- *   ffffff8008ace8f8:	7100011f 	cmp	w8, #0x0
- *   ffffff8008ace8fc:	1a9f07e0 	cset	w0, ne
- *   ffffff8008ace900:	d65f03c0 	ret
- *
- * IL RITORNO E' 0 O 1, NON IL VALORE. "1a9f07e0 cset"@0xffffff8008ace8fc
- * normalizza: qualunque valore diverso da zero diventa uno. Restituire
- * direttamente `usb_insert_stato` darebbe un `ldr`+`ret` senza `cset`, ed e'
- * la differenza che la dimensione denuncia.
- *
- * IL TIPO DI RITORNO NON E' MISURATO. Il `cset w0` scrive 32 bit e non dice
- * se il sorgente dica `int` o `bool`: e' una SCELTA, presa per `int` perche'
- * il simbolo e' `T` e un chiamante fuori dall'unita' -- `mt5725` -- lo usa.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int usb_insert_online(void)
 {
@@ -139,11 +110,11 @@ int usb_insert_online(void)
 }
 
 /*
- * usb_insert_detect_show_debug @0xffffff8008aced50, 48 byte.
+ * usb_insert_detect_show_debug @0xffffff8008aced50, 48 bytes.
  *   "321403e1 orr"@0xffffff8008aced6c   w1 = 0x1000 = PAGE_SIZE
- *   "b9419903 ldr"@0xffffff8008aced5c   il flag, a +408
- *   "93407c00 sxtw"@0xffffff8008aced74  il ritorno e' esteso con segno a 64
- *                                        bit: e' una `ssize_t`
+ *   "b9419903 ldr"@0xffffff8008aced5c   the flag, at +408
+ *   "93407c00 sxtw"@0xffffff8008aced74  the return value is sign-extended to 64
+ *                                        bits: it is an `ssize_t`
  */
 static ssize_t usb_insert_detect_show_debug(struct device *dev,
 					    struct device_attribute *attr,
@@ -153,17 +124,13 @@ static ssize_t usb_insert_detect_show_debug(struct device *dev,
 }
 
 /*
- * usb_insert_detect_store_debug @0xffffff8008aced80, 124 byte.
+ * usb_insert_detect_store_debug() was reconstructed from the factory kernel disassembly (0xffffff8008aced80, 124 bytes).
  *
- * IL RAMO DI STAMPA E' UN `pr_debug`, E LO PROVA LA GUARDIA:
- * "39730908 ldrb"@0xffffff8008acedb0 legge un byte di un descrittore
- * `_ddebug` e "361001c8 tbz w8, #2" salta se il bit 2 e' spento -- e' la
- * forma di `CONFIG_DYNAMIC_DEBUG`, e la chiamata e' a
- * <__dynamic_pr_debug> ("97e6322b bl"@0xffffff8008acedd0), non a <printk>.
- *
- * IL RITORNO E' `count` E NON QUELLO DI `sscanf`:
- * "aa0303f3 mov"@0xffffff8008aceda0 salva x3 in x19 PRIMA della chiamata, e
- * "aa1303e0 mov"@0xffffff8008acedf0 lo rimette in x0 alla fine.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static ssize_t usb_insert_detect_store_debug(struct device *dev,
 					     struct device_attribute *attr,
@@ -181,14 +148,13 @@ static DEVICE_ATTR(usb_insert_detect_debug, 0664, usb_insert_detect_show_debug,
 		   usb_insert_detect_store_debug);
 
 /*
- * usb_insert_detect_eint_interrupt_handler @0xffffff8008aced00, 80 byte.
+ * usb_insert_detect_eint_interrupt_handler() was reconstructed from the factory kernel disassembly (0xffffff8008aced00, 80 bytes).
  *
- * L'ORDINE E' MISURATO, e non e' quello che verrebbe naturale: la sveglia si
- * alza PRIMA della `__wake_up` ("39067109 strb"@0xffffff8008aced30 precede
- * "97d93993 bl"@0xffffff8008aced34) e l'interruzione si disabilita DOPO
- * ("97d9af7f bl"@0xffffff8008aced40). E' il kthread a riabilitarla.
- *
- * "320003e0 orr"@0xffffff8008aced44 rende 1 = IRQ_HANDLED.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static irqreturn_t usb_insert_detect_eint_interrupt_handler(int irq, void *dev_id)
 {
@@ -202,25 +168,13 @@ static irqreturn_t usb_insert_detect_eint_interrupt_handler(int irq, void *dev_i
 }
 
 /*
- * usb_insert_detect_thread_kthread @0xffffff8008aceb60, 416 byte.
+ * usb_insert_detect_thread_kthread() was reconstructed from the factory kernel disassembly (0xffffff8008aceb60, 416 bytes).
  *
- * IL CICLO NON FINISCE MAI: l'ultima istruzione dei due rami e'
- * "17ffffc5 b"@0xffffff8008aceca8 e "17ffffb0 b"@0xffffff8008acecfc, tutte e
- * due all'indietro verso la stampa condivisa a 0xffffff8008acebbc. Non c'e'
- * nessun `kthread_should_stop`, e non c'e' `usb_insert_detect_remove` che lo
- * fermi: e' un difetto di fabbrica, ed e' riprodotto (regola 7).
- *
- * LA CODA DI STAMPA E' CONDIVISA fra i due rami, e per questo la `printk`
- * finale e la `enable_irq` stanno FUORI dall'`if`.
- *
- * I DUE VALORI DI CORRENTE sono misurati:
- *   "529c6c01 mov"@0xffffff8008acec80 + "72a002c1 movk" -> 0x16e360 = 1500000
- *   "52923801 mov"@0xffffff8008acece8 + "72a00421 movk" -> 0x2191c0 = 2200000
- *
- * E I DUE TIPI DI INTERRUZIONE si girano a ogni passaggio:
- *   "321d03e1 orr"@0xffffff8008acec58   w1 = 8 = IRQ_TYPE_LEVEL_LOW
- *   "321e03e1 orr"@0xffffff8008acecac   w1 = 4 = IRQ_TYPE_LEVEL_HIGH
- * cioe' il livello atteso e' sempre l'opposto di quello appena letto.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int usb_insert_detect_thread_kthread(void *x)
 {
@@ -269,14 +223,14 @@ static int usb_insert_detect_thread_kthread(void *x)
 }
 
 /*
- * usb_insert_detect_probe @0xffffff8008ace904, 596 byte.
+ * usb_insert_detect_probe @0xffffff8008ace904, 596 bytes.
  *
- * IL FALLIMENTO DI `device_create_file` NON FERMA LA PROBE: dopo
- * "34000080 cbz"@0xffffff8008ace928 i due rami si riuniscono sulla stessa
- * "97d992e5 bl"@0xffffff8008ace940 verso <printk> e si prosegue. E' un
- * difetto di fabbrica, riprodotto.
+ * A FAILURE OF `device_create_file` DOES NOT STOP THE PROBE: after
+ * "34000080 cbz"@0xffffff8008ace928 the two branches rejoin on the same
+ * "97d992e5 bl"@0xffffff8008ace940 towards <printk> and carry on. It is a
+ * factory defect, reproduced.
  *
- * "add x19, x0, #0x10"@0xffffff8008ace914 e' `&pdev->dev`.
+ * "add x19, x0, #0x10"@0xffffff8008ace914 is `&pdev->dev`.
  */
 static int usb_insert_detect_probe(struct platform_device *pdev)
 {
@@ -308,17 +262,13 @@ static int usb_insert_detect_probe(struct platform_device *pdev)
 	}
 
 	/*
-	 * I DUE PUNTATORI VIVONO IN UN LOCALE, non solo nel globale, e il
-	 * binario lo dice: "aa0003f3 mov"@0xffffff8008ace9ac tiene in x19 il
-	 * valore appena reso da <devm_pinctrl_get> mentre
-	 * "f900be80 str"@0xffffff8008ace9b8 lo scrive anche nel globale, e il
-	 * ritorno del ramo d'errore e' "2a1303e0 mov w0, w19", cioe' il LOCALE.
-	 * Leggendo `PTR_ERR(globale)` dopo la `printk` clang deve rileggere la
-	 * memoria -- la chiamata potrebbe averla cambiata -- e sono quattro byte
-	 * di troppo.
+	 * devm_pinctrl_get() was reconstructed from the factory kernel disassembly (0xffffff8008ace9ac).
 	 *
-	 * `pinctrl_select_state` invece RILEGGE il globale
-	 * ("f940be80 ldr"@0xffffff8008acea2c), e qui si fa lo stesso.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_usb_insert_detect_usb_insert_detect.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	pinctrl = devm_pinctrl_get(&pdev->dev);
 	usb_insert_detect_pinctrl = pinctrl;
@@ -378,10 +328,10 @@ static int usb_insert_detect_probe(struct platform_device *pdev)
 }
 
 /*
- * usb_insert_detect_remove @0xffffff8008aceb58, 8 byte: due istruzioni,
- * "2a1f03e0 mov w0, wzr" e "d65f03c0 ret". Non ferma il kthread, non libera
- * il gpio, non toglie l'attributo sysfs -- e' un difetto di fabbrica, ed e'
- * riprodotto.
+ * usb_insert_detect_remove @0xffffff8008aceb58, 8 bytes: two instructions,
+ * "2a1f03e0 mov w0, wzr" and "d65f03c0 ret". It does not stop the kthread, does not free
+ * the gpio, does not remove the sysfs attribute -- it is a factory defect, and it is
+ * reproduced.
  */
 static int usb_insert_detect_remove(struct platform_device *pdev)
 {
@@ -403,12 +353,12 @@ static struct platform_driver usb_insert_detect_driver = {
 };
 
 /*
- * usb_insert_detect_init @0xffffff8009385a80, 52 byte, in `.init.text`.
+ * usb_insert_detect_init @0xffffff8009385a80, 52 bytes, in `.init.text`.
  *
- * "12800240 mov"@0xffffff8009385aa8 rende -19 = -ENODEV.
+ * "12800240 mov"@0xffffff8009385aa8 returns -19 = -ENODEV.
  *
- * NON C'E' UN `module_exit`: la mappa non ha nessun `usb_insert_detect_exit`,
- * e nemmeno un `__exitcall`. Il driver si registra e non si toglie.
+ * THERE IS NO `module_exit`: the map has no `usb_insert_detect_exit`,
+ * and no `__exitcall` either. The driver registers itself and never unregisters.
  */
 static int __init usb_insert_detect_init(void)
 {

@@ -1,20 +1,20 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * mt5725_fw.h -- i due blob di firmware Cortex-M del MT5725, ESTRATTI CON UNO
- * SCRIPT dai byte dell'oracolo. Mai trascritti a mano: un solo byte sbagliato
- * programma male l'OTP del chip, che e' irreversibile.
+ * mt5725_fw.h -- the two Cortex-M firmware blobs of the MT5725, EXTRACTED
+ * WITH A SCRIPT from the oracle's bytes. Never transcribed by hand: a single
+ * wrong byte programs the chip's OTP badly, and that is irreversible.
  *
- * Prodotto da /mnt/s88pro/kernel-stock/lavoro-mt5725/estrai_fw.py:
- *   MT5725_pgm_fw   836 byte @0xffffff8008f82170 (usato da MT5725_run_pgm_fw,
- *                   costante 0x344: "52806881 mov"...)
- *                   vettore ARMv7-M: SP=0x20000800 reset=0x00000181
+ * Produced by /mnt/s88pro/kernel-stock/lavoro-mt5725/estrai_fw.py:
+ *   MT5725_pgm_fw   836 bytes @0xffffff8008f82170 (used by MT5725_run_pgm_fw,
+ *                   constant 0x344: "52806881 mov"...)
+ *                   ARMv7-M vector: SP=0x20000800 reset=0x00000181
  *                   sha256 fcf7c8912a370b4db1d05184965d40c33be4331304cd369562cb66a9eec96af6
- *   MT5725_otp_fw 15024 byte @0xffffff8008f824b4 (usato da MT5725_otp_process,
- *                   costante 0x3ab0)
- *                   vettore ARMv7-M: SP=0x20000600 reset=0x000002c7
+ *   MT5725_otp_fw 15024 bytes @0xffffff8008f824b4 (used by MT5725_otp_process,
+ *                   constant 0x3ab0)
+ *                   ARMv7-M vector: SP=0x20000600 reset=0x000002c7
  *                   sha256 461bee797480137ddc2a50fdcfe71ae77b531b498d6e0ebbe21f664d2e1f1839
  *
- * Riverifica:
+ * To check it again:
  *   ./venv/bin/python3 lavoro-mt5725/estrai_fw.py && \
  *     diff lavoro-mt5725/fw_arrays.h <(sed -e '1,/^$/d' mt5725_fw.h)
  */

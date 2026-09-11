@@ -28,26 +28,18 @@ unsigned char UcPwmMod;  /* PWM MODE */
 unsigned char UcCvrCod;  /* CverCode */
 
 /*
- * DUE COPPIE DI TABELLE: la seconda e' per l'altro modulo.
+ * LC898122AF OIS -- the register tables.
  *
- * IniFil sceglie con due csel sullo stesso g9c96cbc
- * ("3972f108 ldrb"@0xffffff800874a0e0): a 0xffffff8008f4c6e8 e
- * 0xffffff8008f4c708 le tabelle del modulo 2, a 0xffffff8008f4d388 e
- * 0xffffff8008f4d3a8 le altre.
+ * There are two pairs of tables, the second for the other camera module;
+ * IniFil picks between them. Read from the factory binary: the tables match
+ * each other and the ALPS one.
  *
- * LE DUE TABELLE DI REGISTRI SONO IDENTICHE FRA LORO E A QUELLA DI ALPS --
- * lette dal binario, non supposte. Restano due perche' il csel sceglie fra
- * due INDIRIZZI: se nel sorgente ce ne fosse una sola non ci sarebbe niente
- * da scegliere, e il csel non ci sarebbe.
- *
- * QUELLE DELLA RAM sono 199 voci piu' il terminatore, contro le 322 di
- * ALPS. Dentro ci sono 20 indirizzi che ALPS non ha, 11 valori ritarati
- * rispetto ad ALPS, e fra le due di fabbrica 39 valori diversi.
- *
- * IniFil accende WC_RAMACCXY prima del ciclo della RAM e lo spegne dopo. Il
- * nome del registro dice "accesso a X e Y", e una tabella piu' corta e'
- * coerente con lo scrivere due assi in un colpo -- ma quella e' una lettura
- * del nome, non una misura: 37 indirizzi oltre 0x1100 ci sono ancora.
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 const struct STFILREG g8f4c6e8[] = {{0x0111, 0x00},
 				    {0x0113, 0x00},
@@ -549,11 +541,11 @@ void IniClk(void)
 	RegWriteA_LC898122AF(AFPWMDIV, 0x02); /* 0x0213       48MHz/2 = 24MHz */
 #endif
 	/*
-	 * OPAFDIV dipende dal modulo: 0x06 (48MHz/6 = 8MHz) contro lo 0x04 di
-	 * ALPS. Due chiamate distinte e non un ternario, perche' la fabbrica
-	 * dirama -- "54000061 b.ne"@0xffffff80087491fc -- invece di fare un
-	 * csel, ed e' quel che clang produce da un if/else con due chiamate
-	 * di cui poi fonde la coda.
+	 * OPAFDIV depends on the module: 0x06 (48MHz/6 = 8MHz) against the 0x04 of
+	 * ALPS. Two distinct calls and not a ternary, because the factory
+	 * branches -- "54000061 b.ne"@0xffffff80087491fc -- instead of doing a
+	 * csel, and that is what clang produces from an if/else with two calls
+	 * whose tail it then merges.
 	 */
 	if (g9c96cbc == 2)
 		RegWriteA_LC898122AF(OPAFDIV, 0x06);
@@ -864,7 +856,7 @@ void IniSrv(void)
 
 #ifdef USE_VH_SYNC
 	RegWriteA_LC898122AF(STROBEFC,
-			     0x80); /* 0x001C       äO?ì¸óÕStrobeêM?ÇÃóLå¯ */
+			     0x80); /* 0x001C       ÔøΩO?ÔøΩÔøΩÔøΩÔøΩStrobeÔøΩM?ÔøΩÃóLÔøΩÔøΩ */
 	RegWriteA_LC898122AF(STROBEDLYX, 0x00); /* 0x001D       Delay */
 	RegWriteA_LC898122AF(STROBEDLYY, 0x00); /* 0x001E       Delay */
 #endif						/* USE_VH_SYNC */
@@ -970,30 +962,13 @@ void IniSrv(void)
 void IniGyr(void)
 {
 	/*
-	 * IL #ifdef CORRECT_1DEG E' DIVENTATO UNA SCELTA A ESECUZIONE.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008749bc8).
 	 *
-	 * Quattro csel in cima -- "9a890156 csel"@0xffffff8008749bc8 e i tre
-	 * che seguono -- sullo stesso g9c96cbc, tutti prima della prima
-	 * chiamata. Quattro locali, per la stessa ragione di S2cPro: usarli
-	 * come macro farebbe rileggere la variabile dopo ogni bl.
-	 *
-	 * E i valori del MODULO 2 sono quelli della colonna CORRECT_1DEG di
-	 * ALPS: 0x40400000 per il limite 4, 0x40000000 e 0x3F800000 per la
-	 * soglia alta e media. Lo stesso vale per MAXLMT in SetH1cMod. La
-	 * fabbrica ha preso una scelta che in ALPS si fa a compilazione e
-	 * l'ha messa sul modulo -- poi ha ritarato l'altra colonna, che
-	 * infatti non coincide con nessuno dei due rami di ALPS.
-	 *
-	 * GYRLMT3 e' l'eccezione: 0x3EE66666 sul modulo 2 contro lo
-	 * 0x3F19999A di CORRECT_1DEG. Ritarato anche quello.
-	 *
-	 * I registri si leggono da dove il valore va a finire, non
-	 * dall'ordine dei csel: x22 in 0x1029/0x102A (limite 3), x21 in
-	 * 0x102B/0x102C (limite 4), x20 in 0x104F, x19 in 0x105F. Attenzione
-	 * che x21 e x22 vengono RIASSEGNATI a meta' funzione con due trucchi
-	 * aritmetici (`add x21, x23, #0xd` e `sub x22, x22, #0x800, lsl #12`)
-	 * per costruire altre costanti: le loro apparizioni dopo quel punto
-	 * non c'entrano con la scelta di modulo.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned long UlGyrLmt3 = (g9c96cbc == 2) ? 0x3EE66666 : 0x3F0F5C29;
 	unsigned long UlGyrLmt4 = (g9c96cbc == 2) ? 0x40400000 : 0x40333333;
@@ -1007,7 +982,7 @@ void IniGyr(void)
 	/*Gyro Filter Down Sampling */
 
 	RegWriteA_LC898122AF(WG_SHTON, 0x10);
- /* CmShtOpe[1:0] 00: ÉV?ÉbÉ^Å[OFF, 01: ÉV?ÉbÉ^Å[ON, 1x:äO?êßå‰ */
+ /* CmShtOpe[1:0] 00: ÔøΩV?ÔøΩbÔøΩ^ÔøΩ[OFF, 01: ÔøΩV?ÔøΩbÔøΩ^ÔøΩ[ON, 1x:ÔøΩO?ÔøΩÔøΩÔøΩÔøΩ */
 
 #ifdef DEF_SET
 	RegWriteA_LC898122AF(WG_SHTDLYTMR, 0x00); /* 0x0117 Shutter Delay */
@@ -1015,7 +990,7 @@ void IniGyr(void)
 			     0x00); /* 0x011C               Sampling timing */
 	RegWriteA_LC898122AF(WG_HCHR, 0x00);
 	RegWriteA_LC898122AF(WG_LMT3MOD, 0x00);
-	/* CmLmt3Mod       0: í èÌ?É~ÉbÉ^Å[ìÆçÏ, 1: â~ÇÃîºåa?É~ÉbÉ^Å[ìÆçÏ */
+	/* CmLmt3Mod       0: ÔøΩ èÔøΩ?ÔøΩ~ÔøΩbÔøΩ^ÔøΩ[ÔøΩÔøΩÔøΩÔøΩ, 1: ÔøΩ~ÔøΩÃîÔøΩÔøΩa?ÔøΩ~ÔøΩbÔøΩ^ÔøΩ[ÔøΩÔøΩÔøΩÔøΩ */
 	RegWriteA_LC898122AF(WG_VREFADD, 0x12);
 #endif
 	RegWriteA_LC898122AF(WG_SHTMOD, 0x06);
@@ -1032,17 +1007,17 @@ void IniGyr(void)
 
 	RamWrite32A_LC898122AF(
 		gylmt4HS0,
-		UlGyrLmt4); /* 0x112B        Yé≤Limiter4 High?íl0 */
+		UlGyrLmt4); /* 0x112B        YÔøΩÔøΩLimiter4 High?ÔøΩl0 */
 	RamWrite32A_LC898122AF(
 		gxlmt4HS0,
-		UlGyrLmt4); /* 0x102B        Xé≤Limiter4 High?íl0 */
+		UlGyrLmt4); /* 0x102B        XÔøΩÔøΩLimiter4 High?ÔøΩl0 */
 
 	RamWrite32A_LC898122AF(
 		gxlmt4HS1,
-		UlGyrLmt4); /* 0x102C        Xé≤Limiter4 High?íl1 */
+		UlGyrLmt4); /* 0x102C        XÔøΩÔøΩLimiter4 High?ÔøΩl1 */
 	RamWrite32A_LC898122AF(
 		gylmt4HS1,
-		UlGyrLmt4); /* 0x112C        Yé≤Limiter4 High?íl1 */
+		UlGyrLmt4); /* 0x112C        YÔøΩÔøΩLimiter4 High?ÔøΩl1 */
 
 	/* Pan/Tilt parameter */
 	RegWriteA_LC898122AF(WG_PANADDA,
@@ -1160,16 +1135,13 @@ void IniGyr(void)
 	RegWriteA_LC898122AF(WG_ADJGANGO, 0x00); /* 0x0108       manual off */
 
 	/*
-	 * OFF, NON ON -- ed e' esattamente lo scambio che ALPS ha in
-	 * commento. La fabbrica scrive 0xA0 in 0x0129 e 0x012A
-	 * ("52801401 mov"@0xffffff8008749b28 e' 0xA0, non 0xA3), e subito
-	 * dopo le due RamWrite32A del ramo OFF verso 0x100B e 0x110B, che
-	 * sono GANADR e GANADR | 0x0100.
+	 * AutoGainControlSw() was reconstructed from the factory kernel disassembly (0xffffff8008749b28).
 	 *
-	 * Le avevo prese per due scritture nuove verso gxadj e gyadj: gli
-	 * indirizzi e i valori tornavano, ma la spiegazione era sbagliata.
-	 * Erano gia' dentro AutoGainControlSw, e bastava chiamarlo con
-	 * l'altro argomento.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	AutoGainControlSw(OFF);		     /* Auto Gain Control Mode OFF */
 	/* AutoGainControlSw( ON ) ;      */ /* Auto Gain Control Mode ON  */
@@ -1180,8 +1152,8 @@ void IniFil(void)
 {
 	unsigned short UsAryId;
 	/*
-	 * Le due scelte si fanno in cima, una volta sola, come in S2cPro: la
-	 * fabbrica fa i due csel prima del primo ciclo e poi non rilegge piu'.
+	 * The two choices are made at the top, once only, as in S2cPro: the
+	 * factory does the two csels before the first loop and then never re-reads.
 	 */
 	const struct STFILREG *CsFilRegSel =
 		(g9c96cbc == 2) ? g8f4c6e8 : CsFilReg;
@@ -1213,14 +1185,13 @@ void IniFil(void)
 void IniAdj(void)
 {
 	/*
-	 * Due valori per modulo, scelti una volta sola in cima come in
-	 * S2cPro: "1a890153 csel"@0xffffff800874a1d8 per la corrente di
-	 * polarizzazione e "1a8b0194 csel"@0xffffff800874a1dc per il
-	 * guadagno, tutti e due prima della chiamata a IniPtAve.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800874a1d8).
 	 *
-	 * X e Y prendono lo stesso registro (w20) in tutti e due i rami:
-	 * AMP_GAIN_X e AMP_GAIN_Y restano due macro in ALPS ma qui valgono
-	 * sempre uguale, ed e' per questo che la locale e' una sola.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned char UcBiasCur = (g9c96cbc == 2) ? 0x44 : BIAS_CUR_OIS;
 	unsigned char UcAmpGain = (g9c96cbc == 2) ? 0x03 : AMP_GAIN_X;
@@ -1232,14 +1203,14 @@ void IniAdj(void)
 
 	/* OIS */
 	RegWriteA_LC898122AF(CMSDAC0,
-			     UcBiasCur); /* 0x0251       Hall Dacìdó¨ */
+			     UcBiasCur); /* 0x0251       Hall DacÔøΩdÔøΩÔøΩ */
 	RegWriteA_LC898122AF(OPGSEL0,
 			     UcAmpGain); /* 0x0253       Hall amp Gain X */
 	RegWriteA_LC898122AF(OPGSEL1,
 			     UcAmpGain); /* 0x0254       Hall amp Gain Y */
 	/* AF */
 	RegWriteA_LC898122AF(CMSDAC1,
-			     BIAS_CUR_AF); /* 0x0252       Hall Dacìdó¨ */
+			     BIAS_CUR_AF); /* 0x0252       Hall DacÔøΩdÔøΩÔøΩ */
 	RegWriteA_LC898122AF(OPGSEL2,
 			     AMP_GAIN_AF); /* 0x0255       Hall amp Gain AF */
 
@@ -1284,10 +1255,10 @@ void IniAdj(void)
 	RamAccFixMod(OFF); /* 32bit Float mode */
 
 	/*
-	 * L'unica chiamata a SetDOFSTDAF di tutto il binario che non venga da
-	 * SetDOFSTDAF_WT: "97fffb4d bl"@0xffffff800874a304, sotto la guardia
-	 * di g9c96cb8 -- l'altra variabile di modulo, non quella che sceglie
-	 * le costanti qui sopra.
+	 * The only call to SetDOFSTDAF in the whole binary that does not come from
+	 * SetDOFSTDAF_WT: "97fffb4d bl"@0xffffff800874a304, under the guard
+	 * of g9c96cb8 -- the other module variable, not the one that chooses
+	 * the constants above.
 	 */
 	if (g9c96cb8 == 2)
 		SetDOFSTDAF(0x10);
@@ -1350,11 +1321,11 @@ void BsyWit(unsigned short UsTrgAdr, unsigned char UcTrgDat)
 			     UcTrgDat); /* Trigger Register Setting */
 
 	/*
-	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
-	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
-	 * Il contatore si prova in cima e il valore con un break: e' quella
-	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
-	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 * A WAIT LIMITED TO SIXTY ROUNDS, as in StbOnn and StbOnnN.
+	 * ALPS spins until the chip answers; the factory counts and leaves.
+	 * The counter is tested at the top and the value with a break: it is that
+	 * shape, and not the double condition, that makes the code match -- and that
+	 * kills the initial value, which the binary indeed never writes.
 	 */
 	while (UcCntPla < 60) {
 
@@ -1401,11 +1372,11 @@ void AccWit(unsigned char UcTrgDat)
 	unsigned char UcCntPla = 0;
 
 	/*
-	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
-	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
-	 * Il contatore si prova in cima e il valore con un break: e' quella
-	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
-	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 * A WAIT LIMITED TO SIXTY ROUNDS, as in StbOnn and StbOnnN.
+	 * ALPS spins until the chip answers; the factory counts and leaves.
+	 * The counter is tested at the top and the value with a break: it is that
+	 * shape, and not the double condition, that makes the code match -- and that
+	 * kills the initial value, which the binary indeed never writes.
 	 */
 	while (UcCntPla < 60) {
 		RegReadA_LC898122AF(GRACC, &UcFlgVal); /* 0x0282 */
@@ -1497,14 +1468,13 @@ void SelectGySleep(unsigned char UcSelMode)
 		GyOutSignal(); /* Select Gyro output signal */
 
 		/*
-		 * LA FABBRICA NON HA QUESTA ATTESA. Nessuna delle due: in
-		 * tutto SelectGySleep non c'e' un solo `bl` verso WitTim.
-		 * Il nostro build ne mostrava una sola in piu' perche' clang
-		 * fonde le code dei due rami, ma le righe da togliere sono
-		 * due.
+		 * RegWriteA_LC898122AF() was reconstructed from the factory kernel disassembly.
 		 *
-		 * Coerente con WitTim svuotata: chi ha tolto il corpo ha
-		 * tolto anche qualche chiamata.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 
 		RegWriteA_LC898122AF(
@@ -1541,14 +1511,13 @@ void SelectGySleep(unsigned char UcSelMode)
 		GyOutSignal(); /* Select Gyro output signal */
 
 		/*
-		 * LA FABBRICA NON HA QUESTA ATTESA. Nessuna delle due: in
-		 * tutto SelectGySleep non c'e' un solo `bl` verso WitTim.
-		 * Il nostro build ne mostrava una sola in piu' perche' clang
-		 * fonde le code dei due rami, ma le righe da togliere sono
-		 * due.
+		 * RegWriteA_LC898122AF() was reconstructed from the factory kernel disassembly.
 		 *
-		 * Coerente con WitTim svuotata: chi ha tolto il corpo ha
-		 * tolto anche qualche chiamata.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 
 		RegWriteA_LC898122AF(
@@ -1597,11 +1566,11 @@ void ClrGyr(unsigned short UsClrFil, unsigned char UcClrMod)
 
 	/*Check RAM Clear complete */
 	/*
-	 * ATTESA LIMITATA A SESSANTA GIRI, come in StbOnn e StbOnnN.
-	 * ALPS gira finche' il chip non risponde; la fabbrica conta e se ne va.
-	 * Il contatore si prova in cima e il valore con un break: e' quella
-	 * forma, e non la condizione doppia, a far combaciare il codice -- e a
-	 * far morire il valore iniziale, che nel binario infatti non si scrive.
+	 * A WAIT LIMITED TO SIXTY ROUNDS, as in StbOnn and StbOnnN.
+	 * ALPS spins until the chip answers; the factory counts and leaves.
+	 * The counter is tested at the top and the value with a break: it is that
+	 * shape, and not the double condition, that makes the code match -- and that
+	 * kills the initial value, which the binary indeed never writes.
 	 */
 	while (UcCntPla < 60) {
 		RegReadA_LC898122AF(WC_RAMINITON, &UcRamClr);
@@ -1653,19 +1622,19 @@ void AfDrvSw(unsigned char UcDrvSw)
 {
 	if (UcDrvSw == ON) {
 		/*
-		 * Il valore di DRVFCAF dipende dal modulo, come le costanti
-		 * di SetH1cMod -- ma qui la variabile e' g9c96cb8
-		 * ("3972e108 ldrb"@0xffffff800874ad44, spiazzamento 3256 =
-		 * 0xCB8), non g9c96cbc. Sono due variabili distinte e
-		 * SelectModule le scrive tutte e due.
+		 * The value of DRVFCAF depends on the module, like the constants
+		 * of SetH1cMod -- but here the variable is g9c96cb8
+		 * ("3972e108 ldrb"@0xffffff800874ad44, offset 3256 =
+		 * 0xCB8), not g9c96cbc. They are two distinct variables and
+		 * SelectModule writes both.
 		 *
-		 * DUE CHIAMATE, NON UN TERNARIO: col ternario clang emette
-		 * un csel e la funzione resta quattro byte corta. La
-		 * fabbrica dirama e poi fonde la coda, che e' quel che
-		 * produce un if/else con due chiamate distinte.
+		 * TWO CALLS, NOT A TERNARY: with a ternary clang emits
+		 * a csel and the function comes out four bytes short. The
+		 * factory branches and then merges the tail, which is what
+		 * an if/else with two distinct calls produces.
 		 *
-		 * 0x20 e' il valore di ALPS con AF_PWMMODE non definita, ed
-		 * e' il ramo diverso da 2.
+		 * 0x20 is the ALPS value with AF_PWMMODE undefined, and
+		 * it is the branch other than 2.
 		 */
 		if (g9c96cb8 == 2)
 			RegWriteA_LC898122AF(DRVFCAF, 0x10);
@@ -1693,15 +1662,13 @@ void IniAf(void)
 {
 	unsigned char UcStbb0;
 	/*
-	 * QUI CONVIVONO LE DUE VARIABILI DI MODULO, e non e' un refuso.
-	 * Questi quattro valori si scelgono su g9c96cbc
-	 * ("3972f128 ldrb"@0xffffff800874a450, spiazzamento 3260 = 0xCBC),
-	 * mentre i blocchi if/else piu' sotto si scelgono su g9c96cb8
-	 * ("3972e2e8 ldrb"@0xffffff800874a48c, spiazzamento 3256 = 0xCB8).
-	 * SelectModule le scrive tutte e due, e IniAf le legge tutte e due.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800874a450).
 	 *
-	 * Nessuno dei quattro valori coincide con quelli di ALPS in nessuno
-	 * dei tre rami ACTREG_*: sono stati ritarati e si leggono solo qui.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned short UsRwexd2 = (g9c96cbc == 2) ? 0x113E : 0x4A02;
 	unsigned short UsRwexd3 = (g9c96cbc == 2) ? 0x7211 : 0x7D62;
@@ -1710,10 +1677,10 @@ void IniAf(void)
 
 	AfDrvSw(OFF); /* AF Drvier Block Ena=0 */
 	/*
-	 * Il blocco intero e' duplicato, non e' un valore che cambia: sul
-	 * modulo 2 c'e' una scrittura in piu' verso 0x0380 -- che in
-	 * OisDef.h e' un #define commentato, quindi resta un numero -- e ne
-	 * manca una verso PWMAAF.
+	 * The whole block is duplicated, it is not a value that changes: on
+	 * module 2 there is one extra write towards 0x0380 -- which in
+	 * OisDef.h is a commented-out #define, so it stays a number -- and one
+	 * towards PWMAAF is missing.
 	 */
 	if (g9c96cb8 == 2) {
 		RamWriteA_LC898122AF(0x0380, 0x8000);
@@ -1765,8 +1732,8 @@ void IniAf(void)
 	RamWriteA_LC898122AF(RWEXD3_L, UsRwexd3);   /* 0x039A - 0x039B */
 	RegWriteA_LC898122AF(FSTCTIME, UcFstctime); /* 0x0303 */
 	/*
-	 * RegWriteA, non RamWriteA, e 0x04 al posto di 0x0000: la fabbrica
-	 * chiama l'altra funzione con un altro valore
+	 * RegWriteA, not RamWriteA, and 0x04 instead of 0x0000: the factory
+	 * calls the other function with a different value
 	 * ("321e03e1 orr"@0xffffff800874a5cc).
 	 */
 	RegWriteA_LC898122AF(TCODEH, 0x04); /* 0x0304 */
@@ -1824,40 +1791,30 @@ void ChkCvr(void)
 {
 	RegReadA_LC898122AF(CVER, &UcCvrCod); /* 0x027E */
 	/*
-	 * LA SCRITTURA DI MDLREG NON C'E'. Nella ChkCvr di fabbrica ci sono
-	 * due chiamate in tutto, la lettura di 0x027E e la scrittura di
-	 * 0x02D0: verso 0x00FF non va niente.
+	 * THE WRITE OF MDLREG IS ABSENT. In the factory ChkCvr there are
+	 * two calls in all, the read of 0x027E and the write of
+	 * 0x02D0: nothing goes towards 0x00FF.
 	 */
 	RegWriteA_LC898122AF(VRREG, FW_VER); /* 0x02D0       Version */
 }
 
 /*
- * SetTregAf e RemOff STANNO QUI E NON IN OisCmd.c, e la ragione e' misurabile.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff80087490f0).
  *
- * In stock.map il blocco delle OIS si spezza in due a IniSet
- * (0xffffff80087490f0), che e' la prima funzione di questo file. Tutto quel
- * che sta prima -- TneRun, AfMidOffAdj, GetDOFSTDAF, SetDOFSTDAF,
- * SelectModule -- e' OisCmd.c; tutto quel che sta dopo e' OisIni.c. E
- * SetTregAf (0xffffff800874ad84) e RemOff (0xffffff800874adb8) stanno DOPO.
- *
- * Non e' una questione di ordine estetico. Tenendole in OisCmd.c, clang le
- * vedeva dalla stessa unita' di traduzione e le INCORPORAVA dentro
- * AfMidOffAdj e dentro se stesse: AfMidOffAdj misurava +60 e RemOff +4, e in
- * tutti e due i casi la differenza era una `bl` di fabbrica diventata codice
- * srotolato da noi. Spostate qui, il compilatore non puo' piu' vederle e
- * chiama, come fa la fabbrica.
- *
- * E' il quarto caso in questo driver in cui la differenza non era il codice
- * ma CHI PUO' VEDERE CHE COSA.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 /*
- * SetTregAf legge il globale che SelectModule scrive
- * ("3972e108 ldrb"@0xffffff800874ad90 e' [0xffffff8009c96cb8]) e sceglie
- * quanto spostare: cinque bit se vale 2, sei altrimenti
- * ("531b6801 lsl"@0xffffff800874ad9c contro "531a6401 lsl"@0xffffff800874ada4).
+ * SetTregAf reads the global SelectModule writes
+ * ("3972e108 ldrb"@0xffffff800874ad90 is [0xffffff8009c96cb8]) and chooses
+ * how far to shift: five bits if it is 2, six otherwise
+ * ("531b6801 lsl"@0xffffff800874ad9c against "531a6401 lsl"@0xffffff800874ada4).
  *
- * E' anche la prova che g9c96cb8 SI LEGGE: finora nessuna funzione lo
- * rileggeva, ed era il motivo per cui non poteva essere `static`.
+ * It is also the proof that g9c96cb8 IS READ: until now no function
+ * re-read it, and that was why it could not be `static`.
  */
 void SetTregAf(unsigned short UcTregAf)
 {
@@ -1868,18 +1825,13 @@ void SetTregAf(unsigned short UcTregAf)
 }
 
 /*
- * Due rami e un'attesa. Il parametro vale 1 o 0; per qualunque altro valore
- * la funzione non fa niente ("350008a8 cbnz"@0xffffff800874ade0 salta
- * all'uscita).
+ * RemOff() was reconstructed from the factory kernel disassembly (0xffffff800874ade0).
  *
- * L'ATTESA SCRIVE INDIETRO. "390013e8 strb"@0xffffff800874ae8c rimette in
- * pila il valore mascherato, e questo dice che il sorgente assegna
- * (`UcRegDat &= 0x02;`) invece di mascherare dentro la condizione: un
- * `while (UcRegDat & 0x02)` non avrebbe nessuna scrittura.
- *
- * Il conteggio si ferma sopra 0x3b ("7100ed3f cmp"@0xffffff800874ae84,
- * `b.hi`), e il confronto e' su otto bit
- * ("12001e69 and"@0xffffff800874ae80): il contatore e' un `unsigned char`.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisIni.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 void RemOff(unsigned char UcMod)
 {

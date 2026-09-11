@@ -122,34 +122,34 @@ config TS3A225E_ACCDET
 	  If unsure, say N.
 
 #
-# LE OPZIONI DI FABBRICA CHE MANCAVANO, dichiarate il 2026-08-26.
+# THE FACTORY OPTIONS THAT WERE MISSING, declared on 2026-08-26.
 #
-# Il .config di fabbrica le ha tutte a =y e il nostro albero non le
-# dichiarava affatto: `olddefconfig` scarta un simbolo che nessun Kconfig
-# definisce, quindi non c'era modo di accenderle.
+# The factory .config has them all at =y and our tree did not declare them
+# at all: `olddefconfig` discards a symbol no Kconfig defines, so there was
+# no way to turn them on.
 #
-# ATTENZIONE, e va detto prima di leggerle come «funzioni aggiunte»:
-# **nessuna di queste guardia protegge codice che esista in questo albero.**
-# Accenderle allinea il .config al kernel di fabbrica e non cambia un byte
-# del binario. Servono a due cose:
+# BEWARE, and this has to be said before reading them as "added features":
+# **none of these guards protects code that exists in this tree.**
+# Turning them on aligns the .config with the factory kernel and does not change
+# a byte of the binary. They serve two purposes:
 #
-#   1. togliere quindici differenze dal confronto dei config, che e' una
-#      delle tre misure del progetto;
-#   2. dare un posto dove attaccare il codice quando lo si scrivera'.
+#   1. removing fifteen differences from the config comparison, which is one
+#      of the three measurements of the project;
+#   2. giving the code somewhere to attach to when it gets written.
 #
-# Il posto in cui stanno lo abbiamo scelto noi, per sottosistema: il Kconfig
-# di fabbrica non e' fra i file recuperati, e dedurlo dal binario non si puo'
-# -- un simbolo di Kconfig non lascia traccia nel codice compilato.
+# Where they sit is our own choice, by subsystem: the factory Kconfig is not
+# among the recovered files, and deriving it from the binary is impossible
+# -- a Kconfig symbol leaves no trace in compiled code.
 #
 
 config WTK_TYPE_C_ACCDET
-	bool "rilevamento cuffie sul connettore Type-C (nome di fabbrica)"
+	bool "headset detection on the Type-C connector (factory name)"
 	default y
 	help
-	  Il .config di fabbrica ha CONFIG_WTK_TYPE_C_ACCDET=y e nessun file di
-	  questo albero nomina questa guardia.
+	  The factory .config has CONFIG_WTK_TYPE_C_ACCDET=y and no file in this
+	  tree names this guard.
 
-	  E' il candidato piu' probabile per i 588 byte di differenza di
-	  mt_accdet_probe, che e' lo scarto piu' grosso fra i driver
-	  ricostruiti -- ma finche' il codice non c'e', questo resta un
-	  sospetto e non una spiegazione.
+	  It is the likeliest candidate for the 588 byte difference in
+	  mt_accdet_probe, which is the largest gap among the reconstructed
+	  drivers -- but as long as the code is not here, this stays a suspicion
+	  and not an explanation.

@@ -362,17 +362,13 @@ static const struct file_operations fcamera_proc_fops_status_info = {
 
 
 /*
- * IL NODO /proc/wtk_cameraInfo -- AGGIUNTA DI FABBRICA:
- *   wtk_creat_proc_camera_info @0xffffff8008704e24, 64 byte
- *   wtk_camera_info_open       @0xffffff8008704ffc, 36 byte
- *   wtk_camera_info_show       @0xffffff8008705020, 64 byte
+ * wtk_creat_proc_camera_info() was reconstructed from the factory kernel disassembly (0xffffff8008704e24, 64 bytes).
  *
- * DUE DISALLINEAMENTI DI FABBRICA, riprodotti:
- *  - il nodo si chiama "wtk_cameraInfo"@0xffffff80091a5b22 ma il messaggio
- *    d'errore dice "/proc/camera_info_entry"@0xffffff80091a5b31;
- *  - il quarto campo e' etichettato "Main3Camera" ma il buffer che stampa e'
- *    quello che imgsensor_set_driver riempie nel caso SUB2. Il buffer di
- *    main3 (g9917b18) esiste e non viene mostrato.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_common_v1_1_imgsensor_proc.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 extern char g9917a98[32];
 extern char g9917ab8[32];
@@ -409,46 +405,25 @@ int wtk_creat_proc_camera_info(void)
 
 
 /*
- * LE DUE CLASSI /sys/class DI WINGTECH, e le tre funzioni che le servono:
- *   camera_main3_yuv_bv_show   @0xffffff8008705c18, 96 byte
- *   camera_yuv_bv_switch_show  @0xffffff8008705c78, 48 byte
- *   camera_yuv_bv_switch_store @0xffffff8008705ca8, 124 byte
+ * camera_main3_yuv_bv_show() was reconstructed from the factory kernel disassembly (0xffffff8008705c18, 96 bytes).
  *
- * I permessi sono letti dal campo mode delle due struct class_attribute,
- * che non e' relocato e sta scritto in chiaro: 0x124 a 0xffffff8009917b40
- * (0444) e 0x1a4 a 0xffffff8009917b60 (0644).
- *
- * DUE DISALLINEAMENTI DI FABBRICA, riprodotti:
- *  - la classe si chiama "camera_main3_yuv_bv" ma il suo messaggio d'errore
- *    dice "camera_main2_yuv_bv_class"@0xffffff80091a5bf2;
- *  - la show di main3 legge gimgsensor.sensor[3].pfunc, e l'indice 3 e'
- *    SUB2, non MAIN3. Il calcolo: sensor sta a +336, sizeof e' 128 e pfunc
- *    e' l'ultimo campo (+120), quindi 336 + 128*3 + 120 = 840, che e'
- *    esattamente "f941a508 ldr"@0xffffff8008705c30.
- *
- * I nomi dei tre globali sono i loro indirizzi (regola 5).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_common_v1_1_imgsensor_proc.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int g9c95260;
 static u8 g9c95264;
 
 /*
- * IL PUNTATORE A gimgsensor, e perche' non basta la struttura.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008705c28).
  *
- * Di fabbrica camera_main3_yuv_bv_show fa DUE caricamenti prima della
- * guardia, non uno:
- *
- *   "f9433908 ldr"@0xffffff8008705c28   x8 = *(0xffffff8009917670)
- *   "f941a508 ldr"@0xffffff8008705c30   x8 = *(x8 + 840)
- *
- * Il primo legge un PUNTATORE da un globale in .data; il secondo prende
- * sensor[3].pfunc a partire da li'. Scrivendo `gimgsensor.sensor[3].pfunc`
- * il caricamento e' uno solo -- gimgsensor e' un indirizzo noto a
- * compilazione -- e mancano quattro byte, che erano esattamente lo scarto.
- *
- * Il puntatore non e' `static`: se lo fosse, clang saprebbe che nessuno lo
- * cambia e ripiegherebbe di nuovo sull'indirizzo diretto.
- *
- * Il nome e' l'indirizzo (regola 5): il binario non nomina i dati.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_common_v1_1_imgsensor_proc.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct IMGSENSOR *g9917670 = &gimgsensor;
 
@@ -458,11 +433,13 @@ static ssize_t camera_main3_yuv_bv_show(struct class *class,
 	struct SENSOR_FUNCTION_STRUCT *pfunc = g9917670->sensor[3].pfunc;
 	int bv;
 
-	/* Il valore reso NON viene riletto dal globale sul ramo in cui la
-	 * chiamata c'e' stata: "2a0003e2 mov"@0xffffff8008705c40 lo passa
-	 * direttamente da w0, e solo il ramo senza pfunc lo rilegge con
-	 * "b9426102 ldr"@0xffffff8008705c54. Scrivendo `g = f(); return
-	 * sprintf(..., g)` clang rilegge in tutti e due, ed e' un'istruzione. */
+	/*
+	 * The value returned is NOT re-read from the global on the branch where the
+	 * call did happen: "2a0003e2 mov"@0xffffff8008705c40 passes it
+	 * straight from w0, and only the branch without pfunc re-reads it with
+	 * "b9426102 ldr"@0xffffff8008705c54. Writing `g = f(); return
+	 * sprintf(..., g)` makes clang re-read on both, and that is one instruction.
+	 */
 	if (pfunc) {
 		bv = pfunc->c48();
 		g9c95260 = bv;
@@ -493,9 +470,11 @@ static ssize_t camera_yuv_bv_switch_store(struct class *class,
 	return count;
 }
 
-/* CLASS_ATTR_RO da' 0444 e CLASS_ATTR_RW 0644: sono esattamente i due modi
- * letti dal binario, quindi le macro giuste sono queste e non una CLASS_ATTR
- * col modo esplicito, che in 4.9 non esiste piu'. */
+/*
+ * CLASS_ATTR_RO gives 0444 and CLASS_ATTR_RW 0644: they are exactly the two modes
+ * read from the binary, so these are the right macros and not a CLASS_ATTR
+ * with an explicit mode, which no longer exists in 4.9.
+ */
 static CLASS_ATTR_RO(camera_main3_yuv_bv);
 static CLASS_ATTR_RW(camera_yuv_bv_switch);
 
@@ -518,12 +497,16 @@ enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 	/* Camera information */
 	proc_create(PROC_CAMERA_INFO, 0000, NULL, &fcamera_proc_fops1);
 
-	/* L'ULTIMA delle otto: "97efc13e bl"@0xffffff8008704f5c usa la stringa
-	 * a 0xffffff80091a5b22, ed e' seguita dalla printk sull'errore. */
+	/*
+	 * The LAST of the eight: "97efc13e bl"@0xffffff8008704f5c uses the string
+	 * at 0xffffff80091a5b22, and is followed by the printk on the error.
+	 */
 	wtk_creat_proc_camera_info();
 
-	/* Le due classi, dopo il nodo: "97f7a5fa bl"@0xffffff8008704f84 e
-	 * "97f7a5ea bl"@0xffffff8008704fc4 sono le due __class_create. */
+	/*
+	 * The two classes, after the node: "97f7a5fa bl"@0xffffff8008704f84 and
+	 * "97f7a5ea bl"@0xffffff8008704fc4 are the two __class_create.
+	 */
 	g9c95268 = class_create(THIS_MODULE, "camera_main3_yuv_bv");
 	if (class_create_file(g9c95268, &class_attr_camera_main3_yuv_bv))
 		printk("camera_main2_yuv_bv_class create sys interface ERROR\n");

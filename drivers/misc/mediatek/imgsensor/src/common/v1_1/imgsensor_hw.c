@@ -192,9 +192,9 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 }
 
 /*
- * Definito qui perche' qui e' scritto, e in .bss finisce a
- * 0xffffff8009c90244 -- dodici byte prima di gi2c, che e' il primo oggetto
- * del file successivo nell'ordine di link.
+ * Defined here because it is written here, and in .bss it lands at
+ * 0xffffff8009c90244 -- twelve bytes before gi2c, which is the first object
+ * of the next file in link order.
  */
 enum IMGSENSOR_SENSOR_IDX g9c90244;
 
@@ -223,19 +223,13 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
 
 	/*
-	 * L'INDICE DEL SENSORE, LASCIATO IN UN GLOBALE. ALPS non ce l'ha: la
-	 * fabbrica aggiunge questa store subito prima della prima
-	 * imgsensor_hw_power_sequence ("b9024515 str"@0xffffff80087045d0), e
-	 * il valore e' proprio sensor_idx -- lo stesso w21 che va in w1 alle
-	 * due chiamate che seguono.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff80087045d0).
 	 *
-	 * Serve ai driver di sensore YUV, che lo leggono per sapere se il
-	 * telefono sta accendendo LORO: GC0310 fa `if (g9c90244 == 3)` in
-	 * Open e in GetSensorID, cioe' lavora solo quando l'indice e' quello
-	 * suo. Senza questo globale quei due `if` non si possono nemmeno
-	 * scrivere.
-	 *
-	 * Il nome e' l'indirizzo perche' stock.map non nomina i dati.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_common_v1_1_imgsensor_hw.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	g9c90244 = sensor_idx;
 

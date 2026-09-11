@@ -92,10 +92,10 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw);
 
 /*
- * L INDICE DEL SENSORE CHE SI STA ACCENDENDO, lasciato qui da
- * imgsensor_hw_power. Lo leggono i driver YUV di fabbrica per sapere se il
- * telefono sta accendendo LORO. Il nome e l indirizzo: stock.map non nomina
- * i dati.
+ * THE INDEX OF THE SENSOR BEING POWERED UP, left here by
+ * imgsensor_hw_power. The factory YUV drivers read it to know whether the
+ * phone is powering THEM up. The name is the address: stock.map does not name
+ * the data.
  */
 extern enum IMGSENSOR_SENSOR_IDX g9c90244;
 

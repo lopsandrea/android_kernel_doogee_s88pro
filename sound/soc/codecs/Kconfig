@@ -1231,10 +1231,10 @@ config SND_SOC_RT5509
 endmenu
 
 config SND_SOC_AW87329
-	bool "Awinic AW87329 audio PA (Doogee S88 Pro, dal disassemblato)"
+	bool "Awinic AW87329 audio PA (Doogee S88 Pro, from the disassembly)"
 	depends on I2C
 	help
-	  Amplificatore di potenza audio Awinic AW87329, ricostruito leggendo
-	  il kernel di fabbrica del Doogee S88 Pro. Il config di fabbrica lo
-	  accende (CONFIG_SND_SOC_AW87329=y); nessun albero pubblico ha il
-	  sorgente. Vedi docs/bringup/driver-riscritti.md.
+	  Awinic AW87329 audio power amplifier, reconstructed by reading the
+	  factory kernel of the Doogee S88 Pro. The factory config turns it on
+	  (CONFIG_SND_SOC_AW87329=y); no public tree has the source.
+	  See docs/bringup/driver-riscritti.md.

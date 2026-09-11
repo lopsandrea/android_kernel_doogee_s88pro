@@ -95,9 +95,11 @@ static const char * const mtk_chg_type_name[] = {
 	"Apple 1.0A Charger",
 	"Apple 0.5A Charger",
 	"Wireless Charger",
-	/* La DECIMA voce, aggiunta da Wingtech: di fabbrica
-	 * "5265766572736520436861726765722e" a 0xffffff80092614f0, e il
-	 * confronto e' "7100245f cmp"@0xffffff8008ac26e4 con 9, non con 8. */
+	/*
+	 * The TENTH entry, added by Wingtech: in the factory build
+	 * "5265766572736520436861726765722e" at 0xffffff80092614f0, and the
+	 * comparison is "7100245f cmp"@0xffffff8008ac26e4 with 9, not with 8.
+	 */
 	"Reverse Charger",
 };
 
@@ -112,9 +114,11 @@ static void dump_charger_name(enum charger_type type)
 	case APPLE_2_1A_CHARGER:
 	case APPLE_1_0A_CHARGER:
 	case APPLE_0_5A_CHARGER:
-	/* I DUE CASI CHE ALPS NON ELENCA. Che ci siano e' misurato: il
-	 * confronto di fabbrica e' "7100245f cmp"@0xffffff8008ac26e4, cioe'
-	 * con 9; senza questi due casi ALPS confronta con 7. */
+	/*
+	 * THE TWO CASES ALPS DOES NOT LIST. That they exist is measured: the
+	 * factory comparison is "7100245f cmp"@0xffffff8008ac26e4, that is
+	 * with 9; without these two cases ALPS compares with 7.
+	 */
 	case WIRELESS_CHARGER:
 	case REVERSE_CHARGER:
 		pr_info("%s: charger type: %d, %s\n", __func__, type,
@@ -139,18 +143,21 @@ struct mt_charger {
 	struct power_supply_desc usb_desc;
 	struct power_supply_config usb_cfg;
 	struct power_supply *usb_psy;
-	/* --- L'AGGIUNTA WINGTECH: 264 byte fra `usb_psy` (+360) e `cti`.
-	 * La misura sta nel cappello delle quattro funzioni piu' sotto: di
-	 * fabbrica `chg_type` sta a +644 e in ALPS a +380, e 644-380 = 264. --- */
+	/*
+	 * --- THE WINGTECH ADDITION: 264 bytes between `usb_psy` (+360) and `cti`.
+	 * The measurement is in the header of the four functions further down: in
+	 * the factory build `chg_type` sits at +644 and in ALPS at +380, and
+	 * 644-380 = 264. ---
+	 */
 	struct power_supply_desc wls_desc;      /* +368 */
 	struct power_supply_config wls_cfg;     /* +448 */
 	struct power_supply *wls_psy;           /* +480 */
-	int c488;   /* +488: scritto dalla `set` sul caso ONLINE */
-	int c492;   /* +492: NON osservato, dedotto dallo spazio */
+	int c488;   /* +488: written by the `set` on the ONLINE case */
+	int c492;   /* +492: NOT observed, inferred from the space */
 	int c496;   /* +496: la proprieta' CURRENT_NOW */
 	int c500;   /* +500: la proprieta' CURRENT_MAX */
 	int c504;   /* +504: la proprieta' CHARGE_ENABLED */
-	int c508;   /* +508: NON osservato, dedotto dallo spazio */
+	int c508;   /* +508: NOT observed, inferred from the space */
 	struct power_supply_desc rvs_desc;      /* +512 */
 	struct power_supply_config rvs_cfg;     /* +592 */
 	struct power_supply *rvs_psy;           /* +624 */
@@ -187,12 +194,14 @@ static int mt_charger_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		/* FORZATO A 1 SENZA GUARDARE chg_type, e il binario lo dice:
-		 * "320003e8 orr"@0xffffff8008ac24ec mette 1 in w8 sul ramo di
-		 * POWER_SUPPLY_PROP_ONLINE (psp == 4) e non c'e' nessun
-		 * confronto prima. Il commento di ALPS -- "Force to 1 in all
-		 * charger type" -- descriveva gia' questo, ma il codice teneva
-		 * il controllo: valeva 24 byte. */
+		/*
+		 * FORCED TO 1 WITHOUT LOOKING AT chg_type, and the binary says so:
+		 * "320003e8 orr"@0xffffff8008ac24ec puts 1 in w8 on the
+		 * POWER_SUPPLY_PROP_ONLINE branch (psp == 4) and there is no
+		 * comparison before it. The ALPS comment -- "Force to 1 in all
+		 * charger type" -- already described this, but the code kept
+		 * the check: it was worth 24 bytes.
+		 */
 		val->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
@@ -248,8 +257,10 @@ static int mt_charger_set_property(struct power_supply *psy,
 
 	power_supply_changed(mtk_chg->ac_psy);
 	power_supply_changed(mtk_chg->usb_psy);
-	/* Anche le due power_supply dell'aggiunta Wingtech, wls (+480) e
-	 * rvs (+624): la fabbrica le tocca insieme alle altre. */
+	/*
+	 * The two power_supply entries of the Wingtech addition too, wls (+480) and
+	 * rvs (+624): the factory touches them together with the others.
+	 */
 	power_supply_changed(mtk_chg->wls_psy);
 	power_supply_changed(mtk_chg->rvs_psy);
 
@@ -267,11 +278,13 @@ static int mt_ac_get_property(struct power_supply *psy,
 		/* Force to 1 in all charger type */
 		if (mtk_chg->chg_type != CHARGER_UNKNOWN)
 			val->intval = 1;
-		/* Reset to 0 if charger type is USB -- E ANCHE SE E'
-		 * WIRELESS_CHARGER, che e' l'aggiunta del blocco. La maschera
-		 * di fabbrica e' "528020c9 mov"@0xffffff8008ac2558, cioe'
-		 * 0x106: bit 1 (STANDARD_HOST), bit 2 (CHARGING_HOST) e bit 8
-		 * (WIRELESS_CHARGER). ALPS ha solo i primi due. */
+		/*
+		 * Reset to 0 if charger type is USB -- AND ALSO IF IT IS
+		 * WIRELESS_CHARGER, which is the block's addition. The factory
+		 * mask is "528020c9 mov"@0xffffff8008ac2558, that is
+		 * 0x106: bit 1 (STANDARD_HOST), bit 2 (CHARGING_HOST) and bit 8
+		 * (WIRELESS_CHARGER). ALPS has only the first two.
+		 */
 		if ((mtk_chg->chg_type == STANDARD_HOST) ||
 			(mtk_chg->chg_type == CHARGING_HOST) ||
 			(mtk_chg->chg_type == WIRELESS_CHARGER))
@@ -312,78 +325,31 @@ static int mt_usb_get_property(struct power_supply *psy,
 
 
 /*
- * ===================================================================
- * L'AGGIUNTA WINGTECH: l'alimentazione WIRELESS e quella INVERSA
- * ===================================================================
- * Quattro funzioni ricostruite dal disassemblato del kernel di fabbrica,
- * piu' i campi che leggono. Non sono in nessun albero pubblico: l'albero ALPS
- * ha questo file ma non queste funzioni. E' lo stesso schema di
- * `mt_charger_set_opa_mode` dentro mt6370_pmu_charger.c e delle quattro
- * funzioni di /proc/wtk_tpInfo dentro mtk_tpd.c.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008ac260c).
  *
- *   mt_wls_set_property           0xffffff8008ac260c   336   t
- *   mt_wls_get_property           0xffffff8008ac275c   204   t
- *   mt_wls_property_is_writeable  0xffffff8008ac2828    52   t
- *   mt_rvs_get_property           0xffffff8008ac285c    64   t
- *
- * CHE STIANO IN QUESTO FILE lo dice l'adiacenza: di fabbrica seguono
- * immediatamente `mt_charger_get_property` (0xffffff8008ac24bc),
- * `mt_ac_get_property` (0xffffff8008ac250c) e `mt_usb_get_property`
- * (0xffffff8008ac2580), che questo file gia' contiene.
- *
- * LA DISPOSIZIONE DELLA STRUTTURA E' MISURATA, NON SUPPOSTA. La prova sta in
- * `mt_usb_get_property`, che di fabbrica e' identica alla nostra istruzione
- * per istruzione TRANNE UNA:
- *
- *   fabbrica:  "b9428408 ldr"@0xffffff8008ac25b0   ldr w8, [x0,#644]
- *   ALPS:                                          ldr w8, [x0,#380]
- *
- * E' lo stesso campo, `chg_type`. 644 - 380 = 264: Wingtech ha INSERITO 264
- * byte prima di esso, non aggiunti in coda. Dove, lo dicono gli offset che le
- * funzioni di fabbrica toccano:
- *
- *   +360  usb_psy      invariato (probe, set_property, remove, resume)
- *   +368  wls_desc     probe scrive +368 +376 +384 +400 +416
- *   +448  wls_cfg      probe scrive +456, cioe' `cfg.drv_data`
- *   +480  wls_psy      "f940f260 ldr"@0xffffff8008ac2738 + power_supply_changed
- *   +488  int          "b901ea68 str"@0xffffff8008ac26b4
- *   +496  int          "b901f268 str"@0xffffff8008ac26dc
- *   +500  int          "b901f668 str"@0xffffff8008ac26d0
- *   +504  int          "b901fa68 str"@0xffffff8008ac26a8
- *   +512  rvs_desc     probe scrive +512 +520 +528 +536 +544
- *   +592  rvs_cfg      probe scrive +600, cioe' `cfg.drv_data`
- *   +624  rvs_psy      probe (x3), set_property, remove, resume
- *   +632  cti          era 368 -- "f9413e68 ldr"@0xffffff8008ac2724 (OTTO byte)
- *   +640  chg_online   era 376 -- "390a0268 strb"@0xffffff8008ac26c4 (UN byte)
- *   +644  chg_type     era 380
- *
- * 368 + 120 (wls) + 24 (sei interi) + 120 (rvs) = 632, e da li' cti, chg_online
- * e chg_type ripartono: il conto torna al byte, e i 264 sono esattamente questi.
- * Due dei sei interi (+492 e +508) NON sono osservati da nessuna funzione:
- * sono dedotti dallo spazio, e questo e' dichiarato.
- *
- * I NOMI c488..c508 NON SONO INVENTATI DESCRITTIVI: il binario non nomina
- * questi campi, quindi si chiamano `c<offset>` e il commento dice cio' che di
- * loro e' MISURATO -- quale proprieta' li legge e li scrive.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_mtk_chg_type_det.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /*
- * Il prototipo visibile QUI rende `bool`, e non e' una scelta: al sito di
- * chiamata la fabbrica emette "12000108 and"@0xffffff8008ac27fc, cioe' la
- * normalizzazione a un bit di un valore reso da una chiamata che il
- * compilatore non vede. Con `int` quell'istruzione non ci sarebbe.
+ * wls_get_online() was reconstructed from the factory kernel disassembly (0xffffff8008ac27fc).
  *
- * DIVERGENZA DICHIARATA: il nostro `mt5725.c` le definisce `int` (rendendo
- * `x != 0`, che emette lo stesso codice DENTRO mt5725.c ma non qui).
- * Allinearle e' un lotto suo, perche' tocca un file gia' misurato.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_mtk_chg_type_det.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 extern bool wls_get_online(void);
 extern bool rvs_get_online(void);
 
 /*
- * "b9400283 ldr"@0xffffff8008ac2628 legge `val->intval` PRIMA della `printk`.
- * "\x016%s psp=%d val=%d \n"@0xffffff8009261500 -- lo spazio prima di \n e'
- * della fabbrica. `__func__` = "mt_wls_set_property"@0xffffff8009261515.
+ * "b9400283 ldr"@0xffffff8008ac2628 reads `val->intval` BEFORE the `printk`.
+ * "\x016%s psp=%d val=%d \n"@0xffffff8009261500 -- the space before the \n is
+ * the factory's. `__func__` = "mt_wls_set_property"@0xffffff8009261515.
  */
 static int mt_wls_set_property(struct power_supply *psy,
 	enum power_supply_property psp, const union power_supply_propval *val)
@@ -399,18 +365,20 @@ static int mt_wls_set_property(struct power_supply *psy,
 		return -EINVAL;
 	}
 
-	/* La tavola di salto sta a 0xffffff8008f81cc8, 17 byte indicizzati da
-	 * `psp - 1` ("510006a8 sub"@0xffffff8008ac264c), e vale
-	 *   0:0x00  3:0x0f  15:0x16  16:0x19  tutti gli altri 0x36
-	 * cioe' psp = 1, 4, 16, 17; il caso 65 sta fuori dalla tavola
-	 * ("710106bf cmp"@0xffffff8008ac269c). */
+	/*
+	 * The jump table sits at 0xffffff8008f81cc8, 17 bytes indexed by
+	 * `psp - 1` ("510006a8 sub"@0xffffff8008ac264c), and holds
+	 *   0:0x00  3:0x0f  15:0x16  16:0x19  all the others 0x36
+	 * that is psp = 1, 4, 16, 17; case 65 falls outside the table
+	 * ("710106bf cmp"@0xffffff8008ac269c).
+	 */
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		/* "b9028668 str"@0xffffff8008ac2678 */
 		mtk_chg->chg_type = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
-		/* "b901ea68 str"@0xffffff8008ac26b4 poi
+		/* "b901ea68 str"@0xffffff8008ac26b4 then
 		 * "1a9f07e8 cset"@0xffffff8008ac26c0 +
 		 * "390a0268 strb"@0xffffff8008ac26c4 */
 		mtk_chg->c488 = val->intval;
@@ -432,11 +400,13 @@ static int mt_wls_set_property(struct power_supply *psy,
 		return -EINVAL;
 	}
 
-	/* "b9428662 ldr"@0xffffff8008ac26e0 rilegge `chg_type` DOPO lo switch */
+	/* "b9428662 ldr"@0xffffff8008ac26e0 re-reads `chg_type` AFTER the switch */
 	dump_charger_name(mtk_chg->chg_type);
-	/* "97d83254 bl"@0xffffff8008ac2734 verso <queue_work_on> con
-	 * "321d03e0 orr"@0xffffff8008ac2728 = 8 = WORK_CPU_UNBOUND, cioe'
-	 * `queue_work`; x1 = cti+168, x2 = cti+176 */
+	/*
+	 * "97d83254 bl"@0xffffff8008ac2734 towards <queue_work_on> with
+	 * "321d03e0 orr"@0xffffff8008ac2728 = 8 = WORK_CPU_UNBOUND, that is
+	 * `queue_work`; x1 = cti+168, x2 = cti+176
+	 */
 	queue_work(mtk_chg->cti->chg_in_wq, &mtk_chg->cti->chg_in_work);
 	/* "f940f260 ldr"@0xffffff8008ac2738 (+480) e
 	 * "f9403e60 ldr"@0xffffff8008ac2740 (+120) */
@@ -462,8 +432,10 @@ static int mt_wls_get_property(struct power_supply *psy,
 		return -EINVAL;
 	}
 
-	/* Tavola a 0xffffff8008f81cd9: 0:0x00 3:0x0d 15:0x12 16:0x14,
-	 * gli altri 0x17 -- gli stessi cinque casi della `set`. */
+	/*
+	 * Table at 0xffffff8008f81cd9: 0:0x00 3:0x0d 15:0x12 16:0x14,
+	 * the others 0x17 -- the same five cases as the `set`.
+	 */
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		/* "b9428688 ldr"@0xffffff8008ac27bc */
@@ -493,13 +465,13 @@ static int mt_wls_get_property(struct power_supply *psy,
 }
 
 /*
- * Nessuna `printk` e nessun accesso alla struttura: la funzione e' un puro
- * test sul solo `psp`. "51004028 sub"@0xffffff8008ac2828 toglie 16 e
- * "7100c51f cmp"@0xffffff8008ac282c confronta con 0x31; la maschera
- * "d2800069 mov"@0xffffff8008ac283c + "f2e00049 movk"@0xffffff8008ac2840 vale
- * 0x0002000000000003, cioe' i bit 0, 1 e 49 -- psp - 16 in {0, 1, 49}, cioe'
- * psp in {16, 17, 65}. Sono le tre proprieta' che la `set` sa scrivere e che
- * non sono `chg_type` ne' `online`.
+ * No `printk` and no access to the structure: the function is a pure test on
+ * `psp` alone. "51004028 sub"@0xffffff8008ac2828 subtracts 16 and
+ * "7100c51f cmp"@0xffffff8008ac282c compares with 0x31; the mask
+ * "d2800069 mov"@0xffffff8008ac283c + "f2e00049 movk"@0xffffff8008ac2840 is
+ * 0x0002000000000003, that is bits 0, 1 and 49 -- psp - 16 in {0, 1, 49}, that
+ * is psp in {16, 17, 65}. These are the three properties the `set` knows how
+ * to write and that are neither `chg_type` nor `online`.
  */
 static int mt_wls_property_is_writeable(struct power_supply *psy,
 	enum power_supply_property psp)
@@ -515,11 +487,11 @@ static int mt_wls_property_is_writeable(struct power_supply *psy,
 }
 
 /*
- * Un solo caso. "7100103f cmp"@0xffffff8008ac285c prova `psp == 4` PRIMA di
- * salvare qualunque registro: il ramo d'errore non tocca la pila
- * ("128002a0 mov"@0xffffff8008ac2894 = -22 e ritorno). `psy` non e' usata --
- * nessuna `power_supply_get_drvdata` -- ed e' un fatto, non una svista da
- * correggere: la funzione rende il globale, non un campo della struttura.
+ * A single case. "7100103f cmp"@0xffffff8008ac285c tests `psp == 4` BEFORE
+ * saving any register: the error path does not touch the stack
+ * ("128002a0 mov"@0xffffff8008ac2894 = -22 and return). `psy` is unused --
+ * no `power_supply_get_drvdata` -- and that is a fact, not an oversight to
+ * be fixed: the function returns the global, not a field of the structure.
  */
 static int mt_rvs_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
@@ -547,22 +519,13 @@ static enum power_supply_property mt_usb_properties[] = {
 };
 
 /*
- * LE DUE TAVOLE DELL'AGGIUNTA WINGTECH, lette dai byte del kernel di
- * fabbrica a 0xffffff80099a6c34 e 0xffffff80099a6c44:
+ * This section was reconstructed from the factory kernel disassembly (0xffffff80099a6c34).
  *
- *   ffffff80099a6c30  08000000 04000000 11000000 10000000
- *   ffffff80099a6c40  41000000 04000000 00000000 00000000
- *
- * cioe' 4, 17, 16, 65 a partire da 0xc34 e il solo 4 a 0xc44. Le due
- * numerosita' sono confermate dal codice: "321e03e8 orr"@0xffffff8008ac1e84
- * mette w8 = 4 e "a918200b stp"@0xffffff8008ac1ea0 lo scrive a +392, mentre
- * "320003ea orr"@0xffffff8008ac1e34 mette w10 = 1 e
- * "f9010c0a str"@0xffffff8008ac1f0c lo scrive a +536.
- *
- * Le tre scrivibili di `mt_wls_properties` sono esattamente quelle che
- * `mt_wls_property_is_writeable` accetta, e l'unica di `mt_rvs_properties`
- * e' l'unico caso che `mt_rvs_get_property` sa trattare: due conferme
- * indipendenti.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_mtk_chg_type_det.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static enum power_supply_property mt_wls_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -720,21 +683,13 @@ static int mt_charger_probe(struct platform_device *pdev)
 	mt_chg->usb_cfg.drv_data = mt_chg;
 
 	/*
-	 * I DUE DESCRITTORI DELL'AGGIUNTA WINGTECH.
-	 * "9101258c add"@0xffffff8008ac1e98 mette "wireless"@0xffffff80092ba049
-	 * e "f900b80c str"@0xffffff8008ac1eb4 lo scrive a +368;
-	 * "910a6d08 add"@0xffffff8008ac1ebc mette "rvs"@0xffffff800926129b e
-	 * "f9010008 str"@0xffffff8008ac1ed4 lo scrive a +512.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008ac1e98).
 	 *
-	 * IL TIPO DELL'ALIMENTAZIONE WIRELESS E' 8, NON 12. Il binario e'
-	 * esplicito -- "321d03ed orr"@0xffffff8008ac1ea8 mette w13 = 8 e
-	 * "b901780d str"@0xffffff8008ac1ec8 lo scrive a +376 -- e 8 e'
-	 * POWER_SUPPLY_TYPE_USB_TYPE_C, non POWER_SUPPLY_TYPE_WIRELESS. Che la
-	 * numerazione dell'enum sia la stessa di ALPS lo provano le tre righe
-	 * gia' presenti: chg = 0 ("b900101f str"@0xffffff8008ac1e58),
-	 * ac = 3 ("b900880e str"@0xffffff8008ac1e6c), usb = 4
-	 * ("b9010008 str"@0xffffff8008ac1e9c). E' una stranezza della fabbrica
-	 * e si riproduce.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_power_supply_mediatek_charger_mtk_chg_type_det.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	mt_chg->wls_desc.name = "wireless";
 	mt_chg->wls_desc.type = POWER_SUPPLY_TYPE_USB_TYPE_C;
@@ -779,7 +734,7 @@ static int mt_charger_probe(struct platform_device *pdev)
 		goto err_usb_psy;
 	}
 
-	/* "9105c261 add"@0xffffff8008ac1fc0 mette x1 = mt_chg + 368 (wls_desc) e
+	/* "9105c261 add"@0xffffff8008ac1fc0 puts x1 = mt_chg + 368 (wls_desc) e
 	 * "91070262 add"@0xffffff8008ac1fc4 x2 = mt_chg + 448 (wls_cfg) */
 	mt_chg->wls_psy = power_supply_register(&pdev->dev, &mt_chg->wls_desc,
 		&mt_chg->wls_cfg);
@@ -887,8 +842,10 @@ static int mt_charger_remove(struct platform_device *pdev)
 	power_supply_unregister(mt_charger->chg_psy);
 	power_supply_unregister(mt_charger->ac_psy);
 	power_supply_unregister(mt_charger->usb_psy);
-	/* Anche le due power_supply dell'aggiunta Wingtech, wls (+480) e
-	 * rvs (+624): la fabbrica le tocca insieme alle altre. */
+	/*
+	 * The two power_supply entries of the Wingtech addition too, wls (+480) and
+	 * rvs (+624): the factory touches them together with the others.
+	 */
 	power_supply_unregister(mt_charger->wls_psy);
 	power_supply_unregister(mt_charger->rvs_psy);
 
@@ -917,8 +874,10 @@ static int mt_charger_resume(struct device *dev)
 	power_supply_changed(mt_charger->chg_psy);
 	power_supply_changed(mt_charger->ac_psy);
 	power_supply_changed(mt_charger->usb_psy);
-	/* Anche le due power_supply dell'aggiunta Wingtech, wls (+480) e
-	 * rvs (+624): la fabbrica le tocca insieme alle altre. */
+	/*
+	 * The two power_supply entries of the Wingtech addition too, wls (+480) and
+	 * rvs (+624): the factory touches them together with the others.
+	 */
 	power_supply_changed(mt_charger->wls_psy);
 	power_supply_changed(mt_charger->rvs_psy);
 

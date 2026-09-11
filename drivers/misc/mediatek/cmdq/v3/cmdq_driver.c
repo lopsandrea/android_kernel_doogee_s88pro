@@ -1068,30 +1068,13 @@ static long cmdq_ioctl(struct file *pf, unsigned int code,
 	CMDQ_VERBOSE("%s code:0x%08x f:0x%p\n", __func__, code, pf);
 
 /*
- * I SEI CASI CHE ALPS SPEGNE E LA FABBRICA TIENE ACCESI.
+ * This section was reconstructed from the factory kernel disassembly.
  *
- * Qui c'erano due `#if 0` che escludevano EXEC_COMMAND, ASYNC_JOB_EXEC,
- * ASYNC_JOB_WAIT_AND_CLOSE, ALLOC_WRITE_ADDRESS, FREE_WRITE_ADDRESS e
- * READ_ADDRESS_VALUE. Le funzioni restavano compilate -- si vedono nella
- * mappa come simboli globali -- e nessuno le chiamava.
- *
- * Il servizio della fotocamera di questo telefono le usa. Col nostro kernel
- * il suo ioctl finiva nel ramo di ripiego, quarantasette volte per ogni
- * apertura:
- *
- *   [CMDQ][ERR]unrecognized ioctl 0x40087807
- *
- * e lo stesso log col kernel di fabbrica ne conta ZERO.
- *
- * Che 0x40087807 sia proprio ALLOC_WRITE_ADDRESS non e' dedotto dal numero:
- * nel binario di fabbrica quel confronto
- * ("528f00e8 mov"@0xffffff80087cf740 con "72a80108 movk"@0xffffff80087cf744)
- * salta a un ramo che chiama `cmdqCoreAllocWriteAddress`
- * ("94006f9c bl"@0xffffff80087cfa84).
- *
- * La fabbrica confronta 0x40087806, 0x40087807 e 0x40087808; il nostro
- * binario non conteneva nessuno dei tre -- verificato cercando `0x7807` in
- * tutta la zona CMDQ e trovando zero occorrenze.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_cmdq_v3_cmdq_driver.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 	switch (code) {
 	case CMDQ_IOCTL_EXEC_COMMAND:

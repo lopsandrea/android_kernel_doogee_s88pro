@@ -37,147 +37,35 @@
 #include <linux/input/mt.h>
 #endif
 
-/* LE CITAZIONI DEI LETTERALI DI QUESTA UNITA'.
- * Forma verificabile "testo"@0xINDIRIZZO: il testo e' quello ASSEMBLATO
- * dalla macro (prefisso "<<GTP-xxx>>[%s:%d]" + formato + "\n"), perche' e'
- * quello che esiste nel binario -- il letterale nudo del codice non ci
- * compare mai.  verificacitazioni.py non riconosce quella testa (il suo
- * RE_TESTA_ASSEMBLATA apre solo sul prefisso KERN_SOH) e le segna
- * NON_ANCORATA: e' un limite dello strumento, gia' riportato dal lotto
- * extents, non un difetto delle citazioni -- i byte a quegli indirizzi sono
- * esattamente quelli scritti, NUL compreso.
+/*
+ * Goodix GT917S touch panel, Doogee S88 Pro -- literal citations for this
+ * translation unit.
  *
- * TRE dei tredici strcmp di gt1x_debug_write_proc NON hanno nessuna stringa
- * nel binario, e non e' una svista: clang li ha ridotti a un confronto con
- * una costante immediata, perche' il testo con il NUL sta in quattro o otto
- * byte.  "int" e' "52883c80"-style: "528dcd29 mov"@0xffffff8008a75e14 +
- * "72a00e89 movk"@0xffffff8008a75e18 danno 0x0074_6e69 = 'i','n','t',NUL,
- * confrontati con "b94133e8 ldr"@0xffffff8008a75e10 (quattro byte di
- * mode_str).  "poweron" e "version" allo stesso modo su otto byte
- * ("d28dee09 mov"@0xffffff8008a75e28 e "d28caec9 mov"@0xffffff8008a75e5c).
- * Percio' non sono citate: nel binario non c'e' nessun indirizzo da citare.
- * Le sette voci che il codice usa SOLO sotto #ifdef spenti ("NEAR", "on",
- * "off", "enable", "disable", "fail", "success", tutte in
- * gt1x_ps_operate/gt1x_report_ps sotto CONFIG_GTP_PROXIMITY) NON sono citate:
- * i byte che si trovano in giro per il binario sono di ALTRI driver, e un
- * indirizzo cosi' non prova niente.  Stanno fra le eccezioni.
+ * The citations use the ASSEMBLED text produced by the logging macro (the
+ * "<<GTP-xxx>>[%s:%d]" prefix plus the format plus "\n"), because that is
+ * what exists in the binary -- the bare literal from the source never appears
+ * there. The project's verificacitazioni.py does not recognise that head and
+ * marks them NON_ANCORATA: a limitation of the tool, not of the citations.
  *
- * "<<GTP-ERR>>[%s:%d] Create proc entry /proc/%s FAILED!\n"@0xffffff800924b6d1
- * "<<GTP-INF>>[%s:%d] Created proc entry /proc/%s.\n"@0xffffff800924a511
- * "==== GT1X default config setting in driver====\n"@0xffffff800924b71d
- * "0x%02X,"@0xffffff800924b74d
- * "\n"@0xffffff8009245994 -- 48916 occorrenze nel binario: DEBOLE, non
- *   prova l'indirizzo da sola.  Quello che gt1x_parse_config passa a printk
- *   e' pero' misurato: "91265000 add"@0xffffff8008a73b40 (x0 = 0x9245994).
- * "==== GT1X config read from chip====\n"@0xffffff800924b755
- * "<<GTP-INF>>[%s:%d] I2C TRANSFER: %d\n"@0xffffff800924b77a
- * "==== GT1X Version Info ====\n"@0xffffff800924b7b4
- * "ProductID: GT%c%c%c%c\n"@0xffffff800924b7d1
- * "PatchID: %02X%02X\n"@0xffffff800924b7e8
- * "MaskID: %02X%02X\n"@0xffffff800924b7fb
- * "SensorID: %02X\n"@0xffffff800924b80d
- * "<<GTP-DBG>>[%s:%d]write count %ld\n\n"@0xffffff800924b81d
- * "<<GTP-ERR>>[%s:%d] Too much data, buffer size: %d, data:%ld\n"@0xffffff800924b857
- * "<<GTP-ERR>>[%s:%d] copy from user fail!\n"@0xffffff800924b894
- * "%s %d"@0xffffff8009263d94
- * "clear_config"@0xffffff800924b8bd
- * "<<GTP-INF>>[%s:%d] Force clear gt1x_config\n"@0xffffff800924b8ca
- * "init"@0xffffff8009271d89 -- 523 occorrenze nel binario, DEBOLE per il
- *   conteggio; l'indirizzo pero' e' MISURATO, non scelto: e' quello che
- *   "91362421 add"@0xffffff8008a75de4 mette in x1 per __pi_memcmp.
- * "<<GTP-INF>>[%s:%d] Init panel\n"@0xffffff800924b8f6
- * "chip"@0xffffff800911c38b -- 6 occorrenze, indirizzo misurato da
- *   "910e2c21 add"@0xffffff8008a75dfc.
- * "<<GTP-INF>>[%s:%d] Get chip type:\n"@0xffffff800924b915
- * "<<GTP-INF>>[%s:%d] Disable irq.\n"@0xffffff800924b938
- * "<<GTP-INF>>[%s:%d] Enable irq.\n"@0xffffff800924b959
- * "poweroff"@0xffffff80090e3dce -- 7 occorrenze, indirizzo misurato da
- *   "91373821 add"@0xffffff8008a75e44.
- * "reset"@0xffffff8009232c75 -- 86 occorrenze, indirizzo misurato da
- *   "9131d421 add"@0xffffff8008a75e78.
- * "%s %s"@0xffffff8009140a04 -- 6 occorrenze, indirizzo misurato da
- *   "91281021 add"@0xffffff8008a75e90.
- * "update"@0xffffff80091d4fcf -- 57 occorrenze, indirizzo misurato da
- *   "913f3c21 add"@0xffffff8008a75ea8.
- * "sendconfig"@0xffffff800924b981
- * "debug_gesture"@0xffffff800924b98c
- * "force_update"@0xffffff800924b99a
- * "<<GTP-ERR>>[%s:%d] Open config file error!(file: %s)\n"@0xffffff800924ab1f
- * "<<GTP-ERR>>[%s:%d] Config is invalid!(length: %d)\n"@0xffffff800924ab67
- * "<<GTP-ERR>>[%s:%d] Allocate memory failed!(size: %d)\n"@0xffffff800924ab9a
- * "<<GTP-ERR>>[%s:%d] Read %d bytes from file failed!\n"@0xffffff800924abd0
- * "<<GTP-INF>>[%s:%d] Parse config file: %s (%d bytes)\n"@0xffffff800924ac04
- * "\n<<GTP-DBG>>:"@0xffffff800924ac62
- * "0x%02x,"@0xffffff800924ac70
- * "<<GTP-ERR>>[%s:%d] Illegal config file!\n"@0xffffff800924ac39
- * "<<GTP-ERR>>[%s:%d] I2c Transfer error! (%d)\n"@0xffffff800924ac78
- * "<<GTP-ERR>>[%s:%d] I2c transfer error! (%d)\n"@0xffffff800924acb2
- * "<<GTP-ERR>>[%s:%d] Hardware Info:%08X\n"@0xffffff800924b67d
- * "<<GTP-ERR>>[%s:%d] I2c failed%d.\n"@0xffffff800924b6a4
- * "<<GTP-ERR>>[%s:%d] i2c_read_dbl_check length %d is too long, exceed %zu\n"@0xffffff800924aced
- * "<<GTP-ERR>>[%s:%d] i2c read 0x%04X, %d bytes, double check failed!\n"@0xffffff800924ad4e
- * "<<GTP-INF>>[%s:%d] X_MAX = %d, Y_MAX = %d, TRIGGER = 0x%02x\n"@0xffffff800924ad92
- * "<<GTP-INF>>[%s:%d] X_MAX=%d,Y_MAX=%d,TRIGGER=0x%02x,WAKEUP_LEVEL=%d\n"@0xffffff800924addd
- * "<<GTP-DBG>>[%s:%d]Set reset status.\n"@0xffffff800924b52a
- * "<<GTP-INF>>[%s:%d] GTP RESET!\n"@0xffffff800924ae32
- * "<<GTP-ERR>>[%s:%d] Read version failed!(checksum error)\n"@0xffffff800924ae63
- * "<<GTP-ERR>>[%s:%d] Read version failed!\n"@0xffffff800924aeae
- * "<<GTP-DBG>>[%s:%d]Read version : %d\n"@0xffffff800924aed7
- * "<<GTP-INF>>[%s:%d] IC VERSION:GT%s_%06X(Patch)_%04X(Mask)_%02X(SensorID)\n"@0xffffff800924aefc
- * "<<GTP-ERR>>[%s:%d] I2c communication error.\n"@0xffffff800924af46
- * "<<GTP-INF>>[%s:%d] Chip Type: %s\n"@0xffffff800924af86
- * "GT1X"@0xffffff800924a83f -- 2 occorrenze
- * "GT2X"@0xffffff800924afa8
- * "<<GTP-INF>>[%s:%d] Enter sleep mode!\n"@0xffffff800924b565
- * "<<GTP-ERR>>[%s:%d] Enter sleep mode failed.\n"@0xffffff800924b59c
- * "<<GTP-DBG>>[%s:%d]Wake up begin.\n"@0xffffff800924b5c9
- * "<<GTP-ERR>>[%s:%d] Wake up sleep failed.\n"@0xffffff800924b5fd
- * "<<GTP-INF>>[%s:%d] Wake up end.\n"@0xffffff800924b627
- * "<<GTP-INF>>[%s:%d] force_reset_guitar\n"@0xffffff800924afad
- * "<<GTP-ERR>>[%s:%d] I2C transfer error. errno:%d\n"@0xffffff800924afe5
- * "<<GTP-DBG>>[%s:%d]Request state:0x%02x.\n"@0xffffff800924b031
- * "<<GTP-INF>>[%s:%d] Request Config.\n"@0xffffff800924b05a
- * "<<GTP-INF>>[%s:%d] Send gt1x_config success.\n"@0xffffff800924b07e
- * "<<GTP-INF>>[%s:%d] Request Reset.\n"@0xffffff800924b0ac
- * "<<GTP-INF>>[%s:%d] Request Ref.\n"@0xffffff800924b0cf
- * "<<GTP-INF>>[%s:%d] Request main clock.\n"@0xffffff800924b0f0
- * "<<GTP-ERR>>[%s:%d] Illegal finger number!\n"@0xffffff800924b118
- * "<<GTP-ERR>>[%s:%d] Checksum error[%x]\n"@0xffffff800924b15c
- * "<<GTP-DBG>>[%s:%d]--lan-- Key Down.\n"@0xffffff800924b183
- * "<<GTP-DBG>>[%s:%d]--lan-- Key Up.\n"@0xffffff800924b1a8
- * "<<GTP-DBG>>[%s:%d](%d)(%d,%d)[%d]\n"@0xffffff800924b1cb
- * "<<GTP-DBG>>[%s:%d]Released Touch.\n"@0xffffff800924b1ee
- * "<<GTP-DBG>>[%s:%d]Additional Int Pulse.\n"@0xffffff800924b211
- * "<<GTP-INF>>[%s:%d] Suspend start...\n"@0xffffff800924b23a
- * "<<GTP-DBG>>[%s:%d]0x81AA: 0x%02X\n"@0xffffff800924b26c
- * "<<GTP-INF>>[%s:%d] hotknot is paired!\n"@0xffffff800924b28e
- * "<<GTP-ERR>>[%s:%d] Suspend failed.\n"@0xffffff800924b2b5
- * "<<GTP-INF>>[%s:%d] Suspend end...\n"@0xffffff800924b2d9
- * "<<GTP-INF>>[%s:%d] Resume start...\n"@0xffffff800924b2fc
- * "<<GTP-ERR>>[%s:%d] Resume failed.\n"@0xffffff800924b32c
- * "<<GTP-DBG>>[%s:%d]Resume end.\n"@0xffffff800924b34f
- * "<<GTP-ERR>>[%s:%d] Reset guitar failed!\n"@0xffffff800924b36e
- * "<<GTP-ERR>>[%s:%d] Get verision failed!\n"@0xffffff800924b3a1
- * "<<GTP-ERR>>[%s:%d] chip is not gt5xxx or gt9xx.\n"@0xffffff800924b3ca
- * "<<GTP-ERR>>[%s:%d] Check main system not pass[0x%2X].\n"@0xffffff800924b3fb
- * "<<GTP-ERR>>[%s:%d] Check subsystem not pass[0x%2X].\n"@0xffffff800924b432
- * "<<GTP-ERR>>[%s:%d] Init failed, use default setting\n"@0xffffff800924b467
- * "<<GTP-ERR>>[%s:%d] Get chip type failed!\n"@0xffffff800924b49c
- * "<<GTP-ERR>>[%s:%d] Init panel failed.\n"@0xffffff800924b4c6
- * "gt1x_workthread"@0xffffff800924b4ed
- * "<<GTP-ERR>>[%s:%d] Create workqueue failed!\n"@0xffffff800924b4fd
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /*******************GLOBAL VARIABLE*********************/
-/* g1008a0 -- u8 a 0xffffff800a1008a0, otto byte prima di gt1x_i2c_client
- * ("f9445508 ldr"@0xffffff8008a74170 legge [x8,#2216] = 0xffffff800a1008a8).
- * Il binario non la nomina.  Cio' che di lei e' MISURATO, tutto in
- * gt1x_touch_event_handler: vale 1 mentre un dito e' giu'
- * ("3922811c strb"@0xffffff8008a74b48, w28 = 1) e 0 quando il tocco e'
- * rilasciato ("3922811f strb"@0xffffff8008a74b0c, wzr); se vale non-zero il
- * ramo dei tasti esce subito con 0 ("34000069 cbz"@0xffffff8008a74a3c).
- * NON e' `static`: una `static u8` che assume solo 0 e 1 clang la
- * restringerebbe a `tbz #0`, e qui la lettura e' `ldrb` + `cbz` a byte pieno.
+/*
+ * g1008a0 -- a u8 at 0xffffff800a1008a0, eight bytes before gt1x_i2c_client
+ * ("f9445508 ldr"@0xffffff8008a74170 reads [x8,#2216] = 0xffffff800a1008a8).
+ * The binary does not name it.  What IS MEASURED about it, all in
+ * gt1x_touch_event_handler: it is 1 while a finger is down
+ * ("3922811c strb"@0xffffff8008a74b48, w28 = 1) and 0 when the touch is
+ * released ("3922811f strb"@0xffffff8008a74b0c, wzr); if it is non-zero the
+ * key branch returns 0 at once ("34000069 cbz"@0xffffff8008a74a3c).
+ * It is NOT `static`: a `static u8` taking only 0 and 1 would be
+ * narrowed by clang to `tbz #0`, and here the read is a full-byte `ldrb` + `cbz`.
  */
 u8 g1008a0;
 struct i2c_client *gt1x_i2c_client;
@@ -222,70 +110,55 @@ static ssize_t gt1x_debug_write_proc(struct file *, const char __user *, size_t,
 
 static struct proc_dir_entry *gt1x_debug_proc_entry;
 
-/* DELTA DI HEADER: `gt1x_deinit_node` e' definita non-static in
- * gt1x_extents.c ma `include/gt1x_tpd_common.h` dichiara solo la sua
- * gemella `gt1x_init_node` (riga 314).  Di fabbrica `gt1x_deinit`
- * la chiama -- "97fff4b2 bl"@0xffffff8008a75904 punta a
- * 0xffffff8008a72bcc, che nella mappa e' `gt1x_deinit_node`.  La
- * dichiarazione va nell'header, ed e' lavoro del lotto di merge:
- * qui sta in locale per non toccare un file condiviso.
+/*
+ * HEADER DELTA: `gt1x_deinit_node` is defined non-static in
+ * gt1x_extents.c but `include/gt1x_tpd_common.h` declares only its
+ * twin `gt1x_init_node` (line 314).  In the factory build `gt1x_deinit`
+ * calls it -- "97fff4b2 bl"@0xffffff8008a75904 points to
+ * 0xffffff8008a72bcc, which in the map is `gt1x_deinit_node`.  The
+ * declaration belongs in the header, and that is the merge batch's job:
+ * here it lives locally so as not to touch a shared file.
  */
 extern void gt1x_deinit_node(void);
 
-/* DELTA DI HEADER: `tpd_halt` e' definita in gt1x_tpd.c (riga 49) e
- * `include/gt1x_tpd_common.h` esporta solo la funzione che la legge
- * (`gt1x_is_tpd_halt`, riga 364).  Di fabbrica gt1x_suspend e gt1x_resume
- * la SCRIVONO direttamente: "b909ce68 str"@0xffffff8008a74d68 (w8 = 1) e
- * "b909cd1f str"@0xffffff8008a75290 (wzr), entrambe a [x8,#2508] cioe'
- * 0xffffff800a1009cc, lo stesso indirizzo che tpd_off scrive.
- * La dichiarazione va nell'header, ed e' lavoro del lotto di merge.
+/*
+ * HEADER DELTA: `tpd_halt` is defined in gt1x_tpd.c (line 49) and
+ * `include/gt1x_tpd_common.h` exports only the function that reads it
+ * (`gt1x_is_tpd_halt`, line 364).  In the factory build gt1x_suspend and gt1x_resume
+ * WRITE it directly: "b909ce68 str"@0xffffff8008a74d68 (w8 = 1) and
+ * "b909cd1f str"@0xffffff8008a75290 (wzr), both at [x8,#2508], that is
+ * 0xffffff800a1009cc, the same address tpd_off writes.
+ * The declaration belongs in the header, and that is the merge batch's job.
  */
 extern int tpd_halt;
 
-/* DELTA DI HEADER: `gt1x_gesture_debug` e' definita non-static in gt1x_wtk.c
- * (di fabbrica a 0xffffff8008a72a38) e l'header non la dichiara.  Di fabbrica
- * gt1x_debug_write_proc la chiama: "97fff2cd bl"@0xffffff8008a75f04 punta
- * proprio a 0xffffff8008a72a38.  La dichiarazione va nell'header.
+/*
+ * HEADER DELTA: `gt1x_gesture_debug` is defined non-static in gt1x_wtk.c
+ * (in the factory build at 0xffffff8008a72a38) and the header does not declare it.  In the
+ * factory build gt1x_debug_write_proc calls it: "97fff2cd bl"@0xffffff8008a75f04 points
+ * exactly at 0xffffff8008a72a38.  The declaration belongs in the header.
  */
 extern void gt1x_gesture_debug(int on);
 
-/* g0fc0b8 -- u8 ESTERNO a questo driver, a 0xffffff800a1008b8... no:
- * a 0xffffff800a0fc0b8.  Il binario NON lo nomina e nessuna sezione della
- * mappa lo copre (stock.map ha solo simboli di funzione), quindi il nome
- * qui e' derivato dall'indirizzo e non e' un fatto.
- * Cio' che di lui e' MISURATO -- SEI letture in tutta l'immagine, tutte
- * `ldrb` seguito da `cbz`/`cbnz`, mai una scrittura:
- *   "3942e108 ldrb"@0xffffff80087fca6c  (lcm_suspend)
- *   "3942e108 ldrb"@0xffffff80087fd858  (lcm_suspend, secondo ramo)
- *   "3942e108 ldrb"@0xffffff8008a74d74  (gt1x_suspend)
- *   "3942e108 ldrb"@0xffffff8008a75008  (gt1x_resume)
- *   "3942e108 ldrb"@0xffffff8008a75ef0  (gt1x_debug_write_proc)
- *   "3942e108 ldrb"@0xffffff8008a78028  (tpd_event_handler)
- * Il byte che lo segue, 0xffffff800a0fc0b9, e' il buffer che
- * `fix_tp_proc_info` riempie con __memcpy: sono nello stesso oggetto,
- * che non e' il Goodix.  Restera' IRRISOLTO, ed e' dichiarato.
+/*
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800a1008b8).
  *
- * (Questa nota diceva CINQUE e ne elencava SEI. Rifatta la scansione su
- * tutte le 4.875.132 istruzioni disassemblate dell'immagine, gli accessi a
- * 0xffffff800a0fc0b8 sono sei, esattamente i sei elencati: il numero era
- * sbagliato e le citazioni erano gia' tutte giuste.)
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 extern u8 g0fc0b8;
 
-/* update_info_c16 -- DELTA DI HEADER.  Di fabbrica `struct fw_update_info`
- * ha un `int` in PIU' rispetto ad ALPS, a offset 16, e per lui il campo
- * `firmware` slitta da 16 a 24.  Misurato sull'intera immagine:
- *   offset 24 e' `firmware`  -- "f9438d28 ldr"@0xffffff8008a79458 in
- *     gt1x_update_judge, che poi legge [x8,#12] e [x8,#13], cioe' i campi
- *     di `struct fw_info` che ALPS legge da `update_info.firmware`;
- *   offset 16 e' il campo NUOVO, scritto solo qui
- *     ("b9071128 str"@0xffffff8008a75f30) e letto solo da gt1x_update_judge
- *     ("b9471129 ldr"@0xffffff8008a79638), dove decide se stampare
- *     e aggiornare comunque quando le versioni non lo giustificherebbero.
- * Il binario NON lo nomina: qui e' `c16`, l'offset, e non un nome inventato.
- * L'aggiunta del campo all'header e' lavoro del lotto di merge; finche' non
- * c'e', l'accesso e' scritto per offset -- e' la STESSA parola di memoria,
- * non un ripiego semantico.
+/*
+ * update_info_c16() was reconstructed from the factory kernel disassembly (0xffffff8008a79458).
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define update_info_c16 (*(int *)((char *)&update_info + 16))
 
@@ -474,11 +347,12 @@ static ssize_t gt1x_debug_write_proc(struct file *file,
 	return gt1x_debug_proc(buf, count);
 }
 
-/* gt1x_char2hex -- di fabbrica NON ha simbolo proprio: e' incorporata due
- * volte dentro gt1x_parse_config (0xffffff8008a73a18 e 0xffffff8008a73a50,
- * stessa successione di sei istruzioni).  Il valore d'errore e' 0xFF, e lo
- * prova il controllo del chiamante, che nega e maschera a otto bit:
- *   "2a2c03ee mvn"@0xffffff8008a73a80 seguita da
+/*
+ * gt1x_char2hex -- in the factory build it has NO symbol of its own: it is inlined twice
+ * inside gt1x_parse_config (0xffffff8008a73a18 and 0xffffff8008a73a50,
+ * the same run of six instructions).  The error value is 0xFF, and the
+ * caller's check proves it, negating and masking to eight bits:
+ *   "2a2c03ee mvn"@0xffffff8008a73a80 followed by
  *   "72001ddf tst"@0xffffff8008a73a84  (tst w14, #0xff).
  */
 static u8 gt1x_char2hex(u8 c)
@@ -676,15 +550,14 @@ s32 _do_i2c_write(struct i2c_msg *msg, u16 addr, u8 *buffer, s32 len)
 	return 0;
 }
 
-/* DI FABBRICA E' `static`, e la prova e' doppia: (a) il simbolo non esiste in
- * NESSUN punto della mappa dell'intera immagine, (b) il suo corpo compare
- * incorporato nel chiamante con il PROPRIO __func__.  `static` qui non si
- * puo' scrivere: `include/gt1x_tpd_common.h` la dichiara `extern` e
- * gt1x_tpd.c la chiama, e quell'header e' condiviso -- la modifica e' un
- * DELTA DI HEADER, lavoro del lotto di merge.  L'attributo qui sotto NON
- * genera codice: riproduce la sola decisione dell'inliner che `static`
- * prenderebbe.  Misurato: con l'attributo gt1x_suspend fa 732 e gt1x_resume
- * 816 (esatti); senza, 340 e 312.
+/*
+ * __attribute__() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 __attribute__((always_inline)) s32 gt1x_i2c_test(void)
 {
@@ -818,32 +691,14 @@ s32 gt1x_send_cfg(u8 *config, int cfg_len)
 	return 0;
 }
 
-/* `gt1x_sensor_id_check` (GT5688/gt1x_generic.c:489) NON C'E' PIU', ed e' una
- * SCELTA dichiarata, non una misura.  In ALPS il suo unico chiamante sta
- * dentro #ifdef CONFIG_GTP_DRIVER_SEND_CFG, che il binario impone SPENTA
- * (`gt1x_send_cfg` di fabbrica e' otto byte: "2a1f03e0 mov"@0xffffff8008a74040
- * seguita da "d65f03c0 ret"@0xffffff8008a74044).  Con la CONFIG spenta resta
- * inutilizzata e il -Werror si ferma su «unused function».
- * LA CONSEGNA DI QUESTO LOTTO CHIEDEVA di verificare se i 548 byte mancanti a
- * gt1x_init venissero da lei: NO.  Vengono da due funzioni incorporate --
- * `gt1x_get_chip_type` (__func__ "gt1x_get_chip_type" a
- * "913dcc21 add"@0xffffff8008a756f8, righe 922 e 934) e
- * `gt1x_init_debug_node` (__func__ "gt1x_init_debug_node" a
- * "911c2021 add"@0xffffff8008a7587c, righe 95 e 98) -- e dal ciclo di
- * ritentativi srotolato cinque volte invece di tre.  Chiuso il conto,
- * gt1x_init misura 1528 su 1528 byte.
+/*
+ * gt1x_init_panel() was reconstructed from the factory kernel disassembly (0xffffff8008a74040, 548 bytes).
  *
- * QUESTA NOTA DICEVA «con RESIDUO ZERO di codifica», E NON ERA VERO.
- * Quando e' stata scritta, gt1x_init aveva DICIANNOVE posizioni non
- * classificate, tutte valori di __LINE__ (le righe 2361/2367/2388/2396/2405
- * di fabbrica contro le nostre, e due __func__): la dimensione tornava e il
- * confronto per istruzione no. Il file non aveva nessuna direttiva #line, e
- * le note in testa spostano centinaia di righe.
- * Ora che tools/derivaline.py ricava le #line dal binario la funzione e' a
- * UNA posizione da leggere (347 istruzioni uguali su 382), ma il numero
- * pubblicato era comunque piu' forte della misura che lo sorreggeva.
- * Una `static` mai chiamata non entra nel binario in nessun caso: il binario
- * non puo' dire se il sorgente di fabbrica la contenga.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 s32 gt1x_init_panel(void)
@@ -1108,22 +963,14 @@ s32 gt1x_read_version(struct gt1x_version_info *ver_info)
 		msleep(100);
 	}
 
-	/* DIFETTO TROVATO E NON APPLICATO, e la ragione e' misurata.
-	 * Di fabbrica questo ramo azzera anche sensor_id:
-	 *   "b4000053 cbz"@0xffffff8008a74430  (ver_info != NULL)
-	 *   "3900367f strb"@0xffffff8008a74434 (wzr in [x19,#13], cioe'
-	 *                                       ver_info->sensor_id, offset 13
-	 *                                       nella struct impacchettata)
-	 * cioe'  if (ver_info != NULL) ver_info->sensor_id = 0;
-	 * Scritto DA SOLO costa due istruzioni e porta la funzione da 576 a 584:
-	 * misurato, non dedotto.  Vuol dire che in questa funzione le divergenze
-	 * sono ALMENO DUE, e la seconda e' il telaio di pila -- di fabbrica
-	 * "d101c3ff sub"@0xffffff8008a742b4 riserva 0x70, il nostro 0x80, sedici
-	 * byte in piu' di locali, e da li' discende lo slittamento di TUTTI i
-	 * numeri di registro (residuo 71 su 144 istruzioni).  gt1x_read_version
-	 * non e' nel mandato di questo lotto e misurava 576 su 576 gia' prima:
-	 * la correzione parziale la peggiorerebbe, quindi e' DICHIARATA e non
-	 * applicata.
+	/*
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008a74430).
+	 *
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	if (retry <= 0)
 		return -1;
@@ -1192,15 +1039,14 @@ s32 gt1x_get_chip_type(void)
  *
  * Returns  0--success,non-0--fail.
  */
-/* DI FABBRICA E' `static`, e la prova e' doppia: (a) il simbolo non esiste in
- * NESSUN punto della mappa dell'intera immagine, (b) il suo corpo compare
- * incorporato nel chiamante con il PROPRIO __func__.  `static` qui non si
- * puo' scrivere: `include/gt1x_tpd_common.h` la dichiara `extern` e
- * gt1x_tpd.c la chiama, e quell'header e' condiviso -- la modifica e' un
- * DELTA DI HEADER, lavoro del lotto di merge.  L'attributo qui sotto NON
- * genera codice: riproduce la sola decisione dell'inliner che `static`
- * prenderebbe.  Misurato: con l'attributo gt1x_suspend fa 732 e gt1x_resume
- * 816 (esatti); senza, 340 e 312.
+/*
+ * __attribute__() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 __attribute__((always_inline)) s32 gt1x_enter_sleep(void)
 {
@@ -1223,15 +1069,14 @@ __attribute__((always_inline)) s32 gt1x_enter_sleep(void)
 	return -1;
 }
 
-/* DI FABBRICA E' `static`, e la prova e' doppia: (a) il simbolo non esiste in
- * NESSUN punto della mappa dell'intera immagine, (b) il suo corpo compare
- * incorporato nel chiamante con il PROPRIO __func__.  `static` qui non si
- * puo' scrivere: `include/gt1x_tpd_common.h` la dichiara `extern` e
- * gt1x_tpd.c la chiama, e quell'header e' condiviso -- la modifica e' un
- * DELTA DI HEADER, lavoro del lotto di merge.  L'attributo qui sotto NON
- * genera codice: riproduce la sola decisione dell'inliner che `static`
- * prenderebbe.  Misurato: con l'attributo gt1x_suspend fa 732 e gt1x_resume
- * 816 (esatti); senza, 340 e 312.
+/*
+ * __attribute__() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_generic.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 __attribute__((always_inline)) s32 gt1x_wakeup_sleep(void)
 {
@@ -1423,10 +1268,11 @@ s32 gt1x_request_event_handler(void)
 s32 gt1x_touch_event_handler(u8 *data, struct input_dev *dev,
 			     struct input_dev *pen_dev)
 {
-	/* r8f7f054 -- di fabbrica a 0xffffff8008f7f054, 24 byte di .rodata
-	 * NON rilocati, letti a coppie da "29400500 ldp"@0xffffff8008a74aa8
-	 * con passo 8 ("8b080d28 add"@0xffffff8008a74aa4, x8, lsl #3) e
-	 * passati a gt1x_touch_down come x e y.  Il binario non li nomina.
+	/*
+	 * r8f7f054 -- in the factory build at 0xffffff8008f7f054, 24 bytes of .rodata
+	 * NOT relocated, read in pairs by "29400500 ldp"@0xffffff8008a74aa8
+	 * with stride 8 ("8b080d28 add"@0xffffff8008a74aa4, x8, lsl #3) and
+	 * passed to gt1x_touch_down as x and y.  The binary does not name them.
 	 *   0xffffff8008f7f054: 3c 00 00 00 34 08 00 00   ->   60, 2100
 	 *   0xffffff8008f7f05c: b4 00 00 00 34 08 00 00   ->  180, 2100
 	 *   0xffffff8008f7f064: 2c 01 00 00 34 08 00 00   ->  300, 2100

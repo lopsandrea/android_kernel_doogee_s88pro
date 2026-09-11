@@ -1,10 +1,10 @@
-# ATTENZIONE: `ccflags-y` del Makefile padre non si propaga alle
-# sottodirectory; `subdir-ccflags-y` si', ma SOLO quando kbuild scende dal
-# Makefile padre. Compilando questa sola directory
-# (`make .../charger/mt5725/`) il padre non viene letto, e le sue -I non
-# arrivano. Qui sotto sono ripetute, cosi' il file si compila con le stesse
-# righe di comando in tutti e due i contesti — che e' la condizione perche'
-# la MISURA fatta sulla directory sola valga anche in albero.
+# BEWARE: `ccflags-y` from the parent Makefile does not propagate into
+# subdirectories; `subdir-ccflags-y` does, but ONLY when kbuild descends from the
+# parent Makefile. Building this directory alone
+# (`make .../charger/mt5725/`) never reads the parent, and its -I flags do not
+# arrive. They are repeated below, so the file compiles with the same command
+# lines in both contexts — which is the condition for the MEASUREMENT made on
+# the directory alone to hold in tree as well.
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 ccflags-y += -Werror
 ccflags-y += -I$(srctree)/drivers/power/supply/mediatek/charger

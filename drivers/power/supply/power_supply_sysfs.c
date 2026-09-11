@@ -41,33 +41,13 @@
 static struct device_attribute power_supply_attrs[];
 
 /*
- * LA QUATTORDICESIMA VOCE, E IL PANICO CHE LA SUA ASSENZA HA PRODOTTO.
+ * This section was reconstructed from the factory kernel disassembly.
  *
- * Il 2026-08-31 il primo avvio del kernel ricostruito e' arrivato a 10,16
- * secondi e poi e' morto qui dentro:
- *
- *   Unable to handle kernel paging request at virtual address 6424204024200
- *   PC is at string+0x20/0x70      LR is at vsnprintf+0x294/0x650
- *   sprintf <- power_supply_show_property <- dev_attr_show <- ... <- vfs_read
- *
- * Il servizio HAL della batteria enumera /sys/class/power_supply/ e legge
- * `type` di ognuna. `power_supply_show_property` usa il valore come INDICE in
- * questa tabella, senza controllarlo. `mt_charger_probe` registra
- * un'alimentazione di nome "rvs" con tipo POWER_SUPPLY_TYPE_REVERSE, che vale
- * 13 -- e questa tabella si fermava a dodici. Leggere quel file prendeva gli
- * otto byte DOPO la fine dell'array e li passava a sprintf("%s") come
- * puntatore: 0x0806424204024200, che non e' un indirizzo.
- *
- * La fabbrica la voce ce l'ha, e il nome non e' inventato: la tabella di
- * fabbrica sta a 0xffffff8008f80ab0 e la sua quattordicesima voce e' scritta
- * dalla rilocazione R_AARCH64_RELATIVE che punta a
- * "Reverse_charger"@0xffffff8009255a8f.
- *
- * Il difetto non era nel driver che ha aggiunto il tipo: era che aggiungere un
- * valore a un enum e non aggiungere la stringa corrispondente non produce
- * nessun errore di compilazione, e si vede solo quando qualcuno legge quel
- * file. Nessuno lo aveva letto finche' Android non e' arrivato al punto di
- * farlo.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_power_supply_power_supply_sysfs.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static const char * const power_supply_type_text[] = {
 	"Unknown", "Battery", "UPS", "Mains", "USB",

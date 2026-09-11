@@ -222,10 +222,10 @@ static irqreturn_t mt6370_pmu_irq_handler(int irq, void *priv)
 		goto out_irq_handler;
 	}
 	/*
-	 * Il valore letto non serve a nessuno, ma la LETTURA si': leggere
-	 * MT6370_PMU_REG_IRQIND azzera l'indicatore nell'hardware. Prima la si
-	 * conservava in irq_ind, che nessuno usava piu': clang-17 lo segnala e il
-	 * kernel compila con -Werror.
+	 * Nobody needs the value read, but the READ itself is needed: reading
+	 * MT6370_PMU_REG_IRQIND clears the indicator in the hardware. It used to
+	 * be kept in irq_ind, which nobody used any more: clang-17 reports that
+	 * and the kernel builds with -Werror.
 	 */
 
 	/* read stat before reading irq evt */

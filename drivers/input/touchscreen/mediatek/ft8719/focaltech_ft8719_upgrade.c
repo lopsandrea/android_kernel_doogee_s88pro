@@ -1,81 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * WTK_FT8719_E977 -- FocalTech FT8719, Doogee S88 Pro (MT6771).
- * L'UNITA' DI TRADUZIONE DELL'AGGIORNAMENTO SPECIFICO DEL FT8719 (unita' F),
- * e SOLO quella.  Lotto PARZIALE dichiarato.
+ * FocalTech FT8719 touch panel, Doogee S88 Pro (MT6771) -- the FT8719
+ * specific upgrade translation unit, and that alone. Declared partial batch.
  *
- * RICOSTRUITO DAL DISASSEMBLATO DEL KERNEL DI FABBRICA.  Nessun sorgente
- * pubblico e' stato letto; i due driver FocalTech gia' presenti nell'albero
- * ALPS (focaltech_touch/, focaltech_fhd_touch/) NON sono stati aperti.
+ * Reconstructed from the disassembly of the factory kernel. No public source
+ * was read; the two FocalTech drivers already in the ALPS tree
+ * (focaltech_touch/, focaltech_fhd_touch/) were not opened.
  *
- * ===========================================================================
- * 1. CHE COSA C'E' QUI DENTRO, E QUAL E' IL CONFINE
- * ===========================================================================
- *   testo   0xffffff8008a807e0 .. 0xffffff8008a80b54   3 funzioni, 884 byte
- *   .data   0xffffff800998cc00 .. 0xffffff800998d868   3176 byte:
- *             0xffffff800998cc00  3040 byte di firmware (il pramboot)
- *             0xffffff800998d7e0   136 byte di tabella dell'aggiornamento
- *   .bss    -- (nessuna)
- *
- * 0xffffff8008a80b54 e' anche la fine del blocco: subito dopo comincia
- * `uinput_read`, che nel nostro albero e' gia' compilato
- * (drivers/input/misc/uinput.c).  Il confine e' quindi verificato dal lato
- * alto senza dipendere dall'adiacenza.
- *
- * QUESTA UNITA' NON SI LINKA, ED E' L'ESITO ONESTO.  Chiama CINQUE funzioni
- * dell'unita' B (l'aggiornamento generico), che non e' scritta: sono
- * dichiarate e lasciate indefinite, con l'indirizzo di fabbrica accanto.  Uno
- * stub le farebbe passare per scritte (regola 6, classe B4).
- *
- * IL NOME DEL FILE E' UNA SCELTA: il binario non porta i nomi dei file di
- * fabbrica.
- *
- * ===========================================================================
- * 2. COME SI RIVERIFICA
- * ===========================================================================
- *   ./venv/bin/python3 verificacitazioni.py focaltech_ft8719_upgrade.c \
- *       oracolo/stock.elf --eccezione "[FTS]" --eccezione "[FTS][Info]" \
- *       --eccezione "[FTS][Error]" --eccezione "\n"
- *
- *   ./venv/bin/python3 verificaistruzioni.py focaltech_ft8719_upgrade.c \
- *       oracolo/stock.elf --intervallo 0xffffff8008a807e0:0xffffff8008a80b54
- *
- * Nessuna `--controfattuale`.  Le codifiche non sono trascritte a mano: escono
- * da uno script che legge il disassemblato e stampa la coppia (codifica,
- * indirizzo) insieme (classe B8).
- *
- * ESITO ATTESO, al 2026-08-21:
- *   citazioni di istruzione trovate nel sorgente: 55 (55 a codifica, 0 ad indirizzo)
- *   confermate: 55   assenti: 0   mnemonico diverso: 0   controfattuali: 0
- *   operandi -- registro diverso: 0   immediato diverso: 0   entrambi/non confrontabili: 0
- * e per le citazioni di letterale:
- *   letterali: 21   citati: 18   verificati: 18   probanti: 18   deboli: 0
- *   di cui verificate come messaggio assemblato dalla macro di log: 18
- *   soglia imposta: 18 citati richiesti (21 letterali - 3 eccezioni)
- * Nessuna `NON_ANCORATA`: questa unita' non usa la macro senza livello KERN.
- *
- * IL BLOB DEL PRAMBOOT SI RIVERIFICA COSI', e non con gli occhi:
- *   $ aarch64-linux-android-objdump -s \
- *       --start-address=0xffffff800998cc00 --stop-address=0xffffff800998d7e0 \
- *       oracolo/stock.elf | tail -n +5 > pramboot.hex
- *   $ python3 -c "..."   # riduce le righe a byte e ne fa lo sha1
- *   byte: 3040  sha1: 97649ff592d7dced81005099d2f2de0b9b01a440
- * Lo stesso sha1 si ottiene dai 3040 byte dell'array qui sotto.
- *
- * ===========================================================================
- * 3. LE DIVERGENZE APERTE
- * ===========================================================================
- * Elencate e attribuite nel blocco in CODA a questo file.
- *
- * ===========================================================================
- * 4. CIO' CHE NON E' SCRITTO QUI
- * ===========================================================================
- * Le unita' A (22 funzioni, /proc e sysfs) e B (17 funzioni, l'aggiornamento
- * generico).  L'unita' C sta in focaltech_core.c, la D in
- * focaltech_ex_mode.c, la E in focaltech_i2c.c.
- * NON E' INTERPRETATA la tabella a 0xffffff800998d7e0 oltre i tre campi che
- * il codice legge: gli altri sono numeri con un offset, e come si chiamino il
- * binario non lo dice (regola 5).
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 #include <linux/kernel.h>
@@ -83,23 +20,25 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 
-/* Le tre macro, lette dai formati interi -- il livello KERN e' nel binario:
+/*
+ * The three macros, read from the whole formats -- the KERN level is in the binary:
  *   "\x016[FTS][Info]fw app upgrade...\n"@0xffffff80092500b7        (KERN_INFO)
  *   "\x013[FTS][Error]fw buf is null\n"@0xffffff80092500d7          (KERN_ERR)
- * Questa unita' non usa la macro senza livello.
+ * This unit does not use the macro without a level.
  */
 #define FTS_INFO(fmt, args...)		printk(KERN_INFO "[FTS][Info]" fmt "\n", ##args)
 #define FTS_ERROR(fmt, args...)		printk(KERN_ERR "[FTS][Error]" fmt "\n", ##args)
 
-/* ==========================================================================
- * IL CONFINE CON L'UNITA' B -- DICHIARATE E LASCIATE INDEFINITE
+/*
  * ==========================================================================
- * Le firme vengono dai registri dei siti di chiamata, non da un header.
+ * THE BOUNDARY WITH UNIT B -- DECLARED AND LEFT UNDEFINED
+ * ==========================================================================
+ * The signatures come from the registers at the call sites, not from a header.
  */
 int fts_fwupg_enter_into_boot(struct i2c_client *client);
 						/* 0xffffff8008a7d958,
 						 * "97fff3e8 bl"@0xffffff8008a809b8:
-						 * solo x0 e' impostato */
+						 * only x0 is set */
 int fts_fwupg_erase(struct i2c_client *client, u32 delay);
 						/* 0xffffff8008a7dab4,
 						 * "97fff418 bl"@0xffffff8008a80a54:
@@ -118,60 +57,39 @@ int fts_fwupg_reset_in_boot(struct i2c_client *client);
 						 * "97fff3ef bl"@0xffffff8008a8087c:
 						 * solo x0 */
 
-/* Unita' E, gia' scritta in focaltech_i2c.c. */
+/* Unit E, already written in focaltech_i2c.c. */
 int fts_i2c_write(struct i2c_client *client, char *writebuf, int writelen);
 						/* 0xffffff8008a80494 */
 
-/* Dichiarazioni in avanti: le due funzioni pubbliche compaiono nella tabella,
- * che nel `.data` di fabbrica sta DOPO il blob e prima di loro nel sorgente. */
+/*
+ * Forward declarations: the two public functions appear in the table, which
+ * in the factory `.data` comes AFTER the blob and before them in the source.
+ */
 static int fts_ft8719_upgrade(struct i2c_client *client, u8 *buf, u32 len);
 static int fts_ft8719_param_upgrade(struct i2c_client *client, u8 *buf, u32 len);
 static int fts_ft8719_upgrade_mode(struct i2c_client *client, int mode,
 				   u8 *buf, u32 len);
 
 /*
- * ==========================================================================
- * I DUE LIMITI DELLA LUNGHEZZA
- * ==========================================================================
- * Non stanno nella tabella: sono immediati nel codice, e le tre istruzioni
- * che li portano sono un idioma solo -- il controllo di intervallo che clang
- * comprime in una sottrazione e un confronto SENZA SEGNO:
- *   "51048288 sub"@0xffffff8008a80810    w8 = len - 0x120
- *   "529fdc29 mov"@0xffffff8008a8080c  + "72a00029 movk"@0xffffff8008a80814
- *                                        w9 = 0x1fee1
- *   "6b09011f cmp"@0xffffff8008a80818  + "54000183 b.cc"@0xffffff8008a8081c
- * `b.cc` (cioe' `b.lo`) e' senza segno, quindi `len` e' un `u32` (classe A3).
- * L'intervallo accettato e' [0x120, 0x120+0x1fee0] = [0x120, 0x20000]:
- *   len = 0x11f  -> 0x11f-0x120 = 0xffffffff, non minore di 0x1fee1 -> errore
- *   len = 0x20000 -> 0x1fee0 < 0x1fee1 -> passa
- *   len = 0x20001 -> 0x1fee1, non minore -> errore
- * Le stesse tre istruzioni, con le stesse codifiche, stanno in
- * fts_ft8719_param_upgrade (@0xffffff8008a808d4, @0xffffff8008a808d0/d8,
- * @0xffffff8008a808dc/e0): e' lo stesso controllo scritto due volte.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008a80810).
  *
- * I NOMI DELLE DUE MACRO SONO UNA SCELTA (il binario porta i numeri, non i
- * nomi); i numeri sono misurati.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define FTS_MIN_LEN			0x00000120
 #define FTS_MAX_LEN_APP			0x00020000
 
 /*
- * ==========================================================================
- * IL FIRMWARE DEL PRAMBOOT, 3040 byte a 0xffffff800998cc00
- * ==========================================================================
- * NON e' codice AArch64: e' il programma che il chip esegue in RAM durante
- * l'aggiornamento, e va copiato byte per byte.  Nessun sorgente pubblico
- * porta questa versione di questo esemplare.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800998cc00, 3040 bytes).
  *
- * NON E' `const`.  Il criterio e' la posizione: 0xffffff800998cc00 e'
- * adiacente al `struct mutex` dell'unita' E (0xffffff800998cbe0), che
- * DEFINE_MUTEX mette per forza in `.data` perche' e' scrivibile; e i dati
- * davvero costanti di questo blocco stanno molto piu' indietro, intorno a
- * 0xffffff8008f7f460 (gli `of_device_id`).  Metterlo `const` lo sposterebbe
- * in `.rodata`, cioe' fuori dalla corsa di `.data` che definisce l'unita'.
- *
- * La lunghezza NON e' contata a mano: e' il campo +0x50 della tabella qui
- * sotto, 0xbe0 = 3040, ed e' anche 0xffffff800998d7e0 - 0xffffff800998cc00.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static u8 fts_g_998cc00[] = {
 	0x02, 0x08, 0x69, 0x22, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02,
@@ -431,54 +349,13 @@ static u8 fts_g_998cc00[] = {
 };
 
 /*
- * ==========================================================================
- * LA TABELLA DELL'AGGIORNAMENTO, 136 byte a 0xffffff800998d7e0
- * ==========================================================================
- * Contenuto letto dall'immagine e dalle rilocazioni.  Il kernel di fabbrica e'
- * CONFIG_RELOCATABLE=y: i puntatori valgono ZERO nell'immagine e il valore
- * vero sta nell'addend di una R_AARCH64_RELATIVE.  I quattro slot relocati
- * sono SOLO questi:
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800998d7e0, 136 bytes).
  *
- *   $ ./venv/bin/python3 relocazioni.py oracolo/stock.elf oracolo/stock.map \
- *         --indirizzo 0x...
- *   +0x48  0xffffff800998d828: relocato, addend 0xffffff800998cc00  -> il pramboot
- *   +0x60  0xffffff800998d840: relocato, addend 0xffffff8008a807e0  -> fts_ft8719_upgrade
- *   +0x78  0xffffff800998d858: relocato, addend 0xffffff8008a808a4  -> fts_ft8719_param_upgrade
- *   (gli altri 14 slot a passo 8: "non relocato")
- *
- * I byte grezzi:
- *   ffffff800998d7e0 0d000000 00000000 0f000000 00000000
- *   ffffff800998d7f0 00000000 00000000 00000000 00000000
- *   ffffff800998d800 01000000 0e010000 801f0000 00200000
- *   ffffff800998d810 00000000 00000100 04000100 00000000
- *   ffffff800998d820 00010000 00000000 00000000 00000000
- *   ffffff800998d830 e00b0000 00000000 00000000 00000000
- *   ffffff800998d840 00000000 00000000 00000000 00000000
- *   ffffff800998d850 00000000 00000000 00000000 00000000
- *   ffffff800998d860 00000000 00000000
- *
- * SOLO TRE CAMPI SONO LETTI DAL CODICE, e sono gli unici di cui si sappia
- * qualcosa oltre al valore:
- *   +0x2c = 0x2000   "b9480d16 ldr"@0xffffff8008a809c4  (ldr w22,[x8,#2060])
- *                    e' l'indirizzo di partenza in flash del ramo `app`
- *   +0x34 = 0x10000  "b9481508 ldr"@0xffffff8008a809dc  (ldr w8,[x8,#2068])
- *                    e "b9481508 ldr"@0xffffff8008a80914, cioe' lo scostamento
- *                    dei parametri: sommato a +0x2c da' l'indirizzo di
- *                    partenza del ramo `param`, e sottratto dalla lunghezza
- *                    in fts_ft8719_param_upgrade
- *   +0x50 = 0xbe0    la lunghezza del pramboot (3040), che coincide con
- *                    0xffffff800998d7e0 - 0xffffff800998cc00
- *
- * TUTTO IL RESTO E' UN NUMERO CON UN OFFSET.  I campi si chiamano c<offset>
- * (regola 5): un nome descrittivo sarebbe indistinguibile, per chi legge, da
- * un fatto (classe B2).
- *
- * LE LARGHEZZE DEI PRIMI DUE CAMPI NON SONO DETERMINATE dal binario: i byte
- * a +0x00 e +0x08 sono "0d 00 00 00 00 00 00 00" e "0f 00 00 00 00 00 00 00",
- * che tanto un `u64` quanto un `u32` seguito da quattro byte di riempimento
- * riproducono.  Nessuna istruzione li legge, quindi non c'e' modo di
- * decidere.  Qui sono `u64`, ed e' una scelta dichiarata: cio' che il file
- * garantisce e' che i 136 byte escano identici.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct fts_g_998d7e0_t {
 	u64 c0;				/* = 0x0d */
@@ -488,15 +365,15 @@ struct fts_g_998d7e0_t {
 	u32 c20;			/* = 1 */
 	u32 c24;			/* = 0x10e */
 	u32 c28;			/* = 0x1f80 */
-	u32 c2c;			/* = 0x2000  -- LETTO dal codice */
+	u32 c2c;			/* = 0x2000  -- READ from the code */
 	u32 c30;			/* = 0 */
-	u32 c34;			/* = 0x10000 -- LETTO dal codice */
+	u32 c34;			/* = 0x10000 -- READ from the code */
 	u32 c38;			/* = 0x10004 */
 	u32 c3c;			/* = 0 */
 	u32 c40;			/* = 0x100 */
 	u32 c44;			/* = 0 */
-	u8 *c48;			/* -> il pramboot */
-	u64 c50;			/* = 0xbe0, la sua lunghezza */
+	u8 *c48;			/* -> the pramboot */
+	u64 c50;			/* = 0xbe0, its length */
 	u64 c58;			/* = 0 */
 	int (*c60)(struct i2c_client *client, u8 *buf, u32 len);
 					/* -> fts_ft8719_upgrade */
@@ -508,10 +385,10 @@ struct fts_g_998d7e0_t {
 };
 
 /*
- * NON E' `static`, ed e' misurato: lo slot di dati a 0xffffff800998c908 --
- * che sta nel `.data` dell'unita' B, non in questo -- porta come addend
- * proprio 0xffffff800998d7e0.  Un'altra unita' di traduzione la nomina,
- * quindi ha collegamento esterno.  Il NOME e' una scelta (regola 5).
+ * It is NOT `static`, and that is measured: the data slot at 0xffffff800998c908 --
+ * which lives in unit B's `.data`, not in this one -- carries as its addend
+ * exactly 0xffffff800998d7e0.  Another translation unit names it,
+ * so it has external linkage.  The NAME is a choice (rule 5).
  */
 struct fts_g_998d7e0_t fts_g_998d7e0 = {
 	.c0 = 0x0d,
@@ -530,63 +407,13 @@ struct fts_g_998d7e0_t fts_g_998d7e0 = {
 };
 
 /*
- * ===========================================================================
- * fts_ft8719_upgrade_mode @ 0xffffff8008a80974, 480 byte, visibilita' t
- * ===========================================================================
- * FIRMA, dai registri d'ingresso:
- *   x0 client  x1 mode  x2 buf  w3 len
- * `mode` e' confrontato con 2 e basta: "71000aff cmp"@0xffffff8008a809cc.
- * I due valori che il blocco usa sono 0 (da fts_ft8719_upgrade,
- * "2a1f03e1 mov"@0xffffff8008a80850) e 2 (da fts_ft8719_param_upgrade,
- * "321f03e1 orr"@0xffffff8008a80918).
+ * fts_ft8719_upgrade_mode() was reconstructed from the factory kernel disassembly (0xffffff8008a80974, 480 bytes).
  *
- * IL CONTROLLO D'INGRESSO E' DIVERSO da quello dei due chiamanti: qui il
- * limite basso e' `len <= 0x11f`, cioe' `len < 0x120`, e limite alto NON CE
- * N'E':
- *   "b4000282 cbz"@0xffffff8008a809a0    buf == NULL
- *   "71047e9f cmp"@0xffffff8008a809a4 + "54000249 b.ls"@0xffffff8008a809a8
- * `b.ls` e' senza segno: `len` e' `u32`.
- *
- * IL COMANDO E' DUE BYTE, e il primo e' sempre 0x09:
- *   "b90007ff str"@0xffffff8008a8099c   str wzr,[sp,#4]  -> QUATTRO byte a zero
- *   "52816128 mov"@0xffffff8008a809c8   w8 = 0xb09
- *   "79000be8 strh"@0xffffff8008a809d0  strh w8,[sp,#4]  -> cmd[0]=0x09, cmd[1]=0x0b
- *   "528001a1 mov"@0xffffff8008a809e0 + "390017e1 strb"@0xffffff8008a809e4
- *                                       nel ramo mode==2: cmd[1] = 0x0d
- *   "321f03e2 orr"@0xffffff8008a80a34   w2 = 2, la lunghezza scritta
- * La `str wzr` a QUATTRO byte dice che il buffer e' di quattro byte azzerati,
- * non di due: due soli byte avrebbero dato `strh wzr`.  La `strh` unica per i
- * due byte 0x09/0x0b e' clang che fonde due assegnamenti adiacenti, non un
- * assegnamento a 16 bit: il ramo mode==2 poi RISCRIVE il solo cmd[1] con una
- * `strb`, cosa che una halfword sorgente non permetterebbe.
- *
- * L'INDIRIZZO DI PARTENZA:
- *   "b9480d16 ldr"@0xffffff8008a809c4   start = tabella+0x2c  (0x2000)
- *   "0b160116 add"@0xffffff8008a809e8   nel ramo mode==2: start += tabella+0x34
- * La `ldr` di +0x2c sta PRIMA del "71000aff cmp"@0xffffff8008a809cc, quindi il
- * sorgente assegna `start` prima del ramo e lo corregge dentro.
- *
- * IL RITARDO DELLA CANCELLAZIONE:
- *   "530c7e88 lsr"@0xffffff8008a80a44   w8 = len >> 12          (len / 4096)
- *   "321e0fe9 orr"@0xffffff8008a80a48   w9 = 0x3c               (60)
- *   "1b097d01 mul"@0xffffff8008a80a4c   w1 = (len >> 12) * 60
- * `lsr` e non `asr`: ancora `u32`.  E' una divisione per 4096 esatta, cioe'
- * uno spostamento SCRITTO come divisione da un unsigned -- con un `int`
- * clang avrebbe dovuto aggiungere la correzione del segno.
- *
- * LA ECC DELL'HOST ARRIVA DA fts_flash_write_buf:
- *   "97fff4db bl"@0xffffff8008a80a70 + "2a0003f5 mov"@0xffffff8008a80a78
- * cioe' w21 = il valore di ritorno, e quello del TP da fts_fwupg_ecc_cal.
- * Il confronto e' "6b15029f cmp"@0xffffff8008a80aa8, DOPO la stampa di
- * entrambi ("\x016[FTS][Info]ecc in tp:%x, host:%x\n"@0xffffff800925027f).
- *
- * IL CODICE D'ERRORE E' -5 PER TUTTI I FALLIMENTI DOPO L'INGRESSO IN BOOT:
- *   "321d7be0 orr"@0xffffff8008a80b20   orr w0, wzr, #0xfffffffb = -EIO
- * mentre il controllo d'ingresso restituisce -22:
- *   "128002a0 mov"@0xffffff8008a80a00   mov w0, #0xffffffea = -EINVAL
- * Le SEI code d'errore convergono tutte su una sola `bl printk`
- * ("97daca6e bl"@0xffffff8008a80b1c): e' la fusione delle code, non sei
- * printk distinte.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int fts_ft8719_upgrade_mode(struct i2c_client *client, int mode,
 				   u8 *buf, u32 len)
@@ -657,19 +484,13 @@ static int fts_ft8719_upgrade_mode(struct i2c_client *client, int mode,
 }
 
 /*
- * ===========================================================================
- * fts_ft8719_upgrade @ 0xffffff8008a807e0, 196 byte, visibilita' t
- * ===========================================================================
- * LA PRIMA COSA CHE FA E' STAMPARE, prima di ogni controllo:
- *   "97dacb34 bl"@0xffffff8008a80804 sta prima di
- *   "b4000195 cbz"@0xffffff8008a80808 (buf == NULL).
+ * fts_ft8719_upgrade() was reconstructed from the factory kernel disassembly (0xffffff8008a807e0, 196 bytes).
  *
- * IL SUCCESSO RESTITUISCE 0, NON IL VALORE DI fts_ft8719_upgrade_mode:
- *   "2a0003f4 mov"@0xffffff8008a80860   w20 = ret
- *   "2a1f03e0 mov"@0xffffff8008a80864   w0  = 0
- *   "36f80174 tbz"@0xffffff8008a80868   se ret >= 0 salta all'epilogo con w0=0
- * mentre il ramo di fallimento esce con "2a1403e0 mov"@0xffffff8008a80890,
- * cioe' w0 = ret.  E' una differenza vera fra i due rami e si riproduce.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int fts_ft8719_upgrade(struct i2c_client *client, u8 *buf, u32 len)
 {
@@ -699,25 +520,13 @@ static int fts_ft8719_upgrade(struct i2c_client *client, u8 *buf, u32 len)
 }
 
 /*
- * ===========================================================================
- * fts_ft8719_param_upgrade @ 0xffffff8008a808a4, 208 byte, visibilita' t
- * ===========================================================================
- * Stessa forma di fts_ft8719_upgrade, con TRE differenze misurate:
- *   1. i messaggi sono altri (`fw file buffer ...` invece di `fw buf ...`)
- *   2. il buffer e la lunghezza vengono spostati dello scostamento della
- *      tabella:
- *        "b9481508 ldr"@0xffffff8008a80914   w8 = tabella+0x34 = 0x10000
- *        "8b0802a2 add"@0xffffff8008a80920   x2 = buf + w8
- *        "4b080283 sub"@0xffffff8008a80924   w3 = len - w8
- *   3. il modo passato e' 2 ("321f03e1 orr"@0xffffff8008a80918)
- * Il controllo di lunghezza usa la lunghezza NON spostata: la `sub`/`cmp`
- * @0xffffff8008a808d4/dc precede la `ldr` del campo @0xffffff8008a80914.
+ * fts_ft8719_param_upgrade() was reconstructed from the factory kernel disassembly (0xffffff8008a808a4, 208 bytes).
  *
- * IL VALORE DI RITORNO PASSA PER UNA VARIABILE, non per due rami come in
- * fts_ft8719_upgrade: "2a1f03f4 mov"@0xffffff8008a80930 mette w20 = 0 sul
- * successo e "2a0003f4 mov"@0xffffff8008a80938 mette w20 = ret sul
- * fallimento, poi l'unica uscita e' "2a1403e0 mov"@0xffffff8008a80960.
- * E' una forma diversa nello stesso file, e si riproduce.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int fts_ft8719_param_upgrade(struct i2c_client *client, u8 *buf, u32 len)
 {
@@ -754,124 +563,21 @@ fine:
 }
 
 /*
- * ===========================================================================
- * LA MISURA, E L'ATTRIBUZIONE DELLE DIVERGENZE
- * ===========================================================================
- * Dal `.o` VERO, non da misuraisolata.py:
+ * This section was reconstructed from the factory kernel disassembly.
  *
- *   $ aarch64-linux-android-nm --print-size \
- *       out-ft8719/.../focaltech_ft8719_upgrade.o | grep -iE ' [tT] '
- *   00000000000000c4 00000000000000d0 t fts_ft8719_param_upgrade
- *   0000000000000000 00000000000000c4 t fts_ft8719_upgrade
- *   0000000000000194 00000000000001e0 t fts_ft8719_upgrade_mode
- *
- *   funzione                   fabbrica  nostro  scarto
- *   -------------------------  --------  ------  ------
- *   fts_ft8719_upgrade              196     196       0
- *   fts_ft8719_param_upgrade        208     208       0
- *   fts_ft8719_upgrade_mode         480     480       0
- *   -------------------------  --------  ------  ------
- *   totale                          884     884       0
- *
- * TRE SU TRE.  Tre e' una numerosita' minuscola e la misura NON DISCRIMINA in
- * nessuna direzione (classe C4): l'intervallo di Clopper-Pearson al 95% su
- * 3/3 e' [29,2% ; 100%], che contiene il 77,10% del ramo e quasi tutto il
- * resto.  L'avvertenza viene PRIMA della percentuale, che e' 100%.
- *
- * NESSUNA DIVERGENZA DI CODICE.  Ce n'e' una di DATI, e vale zero byte:
- *
- * DIVERGENZA 1 -- le larghezze dei campi +0x00 e +0x08 della tabella, ZERO
- *   byte.  I byte escono identici (verificato sotto), ma `u64` contro
- *   `u32`+riempimento non e' deciso dal binario perche' nessuna istruzione
- *   legge quei campi.  Dichiarata come scelta, non come misura (regola 4).
- *
- * LE SEZIONI DI DATI COMBACIANO, e non a occhio:
- *
- *   $ aarch64-linux-android-objdump -h focaltech_ft8719_upgrade.o
- *     0 .text         00000374   ...
- *     1 .data         00000c68   ...
- *     2 .bss          00000000   ...
- *   0xc68 = 3176 = 3040 + 136, cioe' la stessa lunghezza della corsa di
- *   fabbrica 0xffffff800998cc00..0xffffff800998d868, e con lo stesso
- *   scostamento interno: il blob a +0 e la tabella a +0xbe0, come
- *   0xffffff800998d7e0 - 0xffffff800998cc00 = 0xbe0.
- *   `.bss` e' vuota da tutte e due le parti.
- *
- *   $ aarch64-linux-android-nm --print-size focaltech_ft8719_upgrade.o
- *   0000000000000000 0000000000000be0 d fts_g_998cc00
- *   0000000000000be0 0000000000000088 D fts_g_998d7e0
- *
- *   Il blob, confrontato byte per byte con l'immagine di fabbrica:
- *   fabbrica: 3040 byte  sha1 97649ff592d7dced81005099d2f2de0b9b01a440
- *   nostro  : 3040 byte  sha1 97649ff592d7dced81005099d2f2de0b9b01a440
- *   IDENTICI
- *
- *   La tabella, 136 byte, dal nostro `.o` a partire da +0xbe0:
- *    0be0 0d000000 00000000 0f000000 00000000
- *    0bf0 00000000 00000000 00000000 00000000
- *    0c00 01000000 0e010000 801f0000 00200000
- *    0c10 00000000 00000100 04000100 00000000
- *    0c20 00010000 00000000 00000000 00000000
- *    0c30 e00b0000 00000000 00000000 00000000
- *    0c40 00000000 00000000 00000000 00000000
- *    0c50 00000000 00000000 00000000 00000000
- *    0c60 00000000 00000000
- *   e i 136 byte di fabbrica sono gli stessi (il §"LA TABELLA" li riporta).
- *   I tre slot che di fabbrica hanno un addend -- +0x48, +0x60, +0x78 --
- *   nel nostro `.o` valgono zero perche' il valore vero e' nella
- *   rilocazione, esattamente come nell'immagine di fabbrica, che e'
- *   CONFIG_RELOCATABLE=y.
- *
- * ===========================================================================
- * COSA MANCA PERCHE' QUESTO FILE SI LINCHI
- * ===========================================================================
- * Le CINQUE funzioni dell'unita' B dichiarate in testa.  Il link fallisce, ed
- * e' l'esito onesto (regola 6).  Uno stub le farebbe passare per scritte.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /*
- * ===========================================================================
- * OGNI MESSAGGIO DI QUESTA UNITA', LETTO PER INTERO DAL BINARIO
- * ===========================================================================
- * Il livello KERN e il prefisso fanno parte del letterale nell'immagine: e'
- * questo che permette di dire, senza supporre niente, QUALE macro il sorgente
- * usa in ogni punto.  n = quante volte quell'indirizzo e' materializzato da
- * un adrp+add nel blocco.
+ * This section was reconstructed from the factory kernel disassembly.
  *
- *   macro       letterale                                                   n
- *   ----------  ---------------------------------------------------------  --
- *   FTS_INFO    "\x016[FTS][Info]fw app upgrade...\n"@0xffffff80092500b7    1
- *   FTS_ERROR   "\x013[FTS][Error]fw buf is null\n"@0xffffff80092500d7      1
- *   FTS_ERROR   "\x013[FTS][Error]fw buffer len(%x) fail\n"@0xffffff80092500f5  1
- *   FTS_INFO    "\x016[FTS][Info]fw upgrade fail,reset to normal boot\n"@0xffffff800925011b  2
- *   FTS_ERROR   "\x013[FTS][Error]buffer/len(%x) is invalid\n"@0xffffff800925014e  1
- *   FTS_ERROR   "\x013[FTS][Error]enter into pramboot/bootloader fail,ret=%d\n"@0xffffff8009250177  1
- *   FTS_INFO    "\x016[FTS][Info]flash mode:0x%02x, start addr=0x%04x\n"@0xffffff80092501b1  1
- *   FTS_ERROR   "\x013[FTS][Error]upgrade mode(09) cmd write fail\n"@0xffffff80092501e4  1
- *   FTS_ERROR   "\x013[FTS][Error]erase cmd write fail\n"@0xffffff8009250213  1
- *   FTS_ERROR   "\x013[FTS][Error]lcd initial code write fail\n"@0xffffff8009250237  1
- *   FTS_ERROR   "\x013[FTS][Error]ecc read fail\n"@0xffffff8009250262      1
- *   FTS_INFO    "\x016[FTS][Info]ecc in tp:%x, host:%x\n"@0xffffff800925027f  1
- *   FTS_ERROR   "\x013[FTS][Error]ecc check fail\n"@0xffffff80092502a3     1
- *   FTS_INFO    "\x016[FTS][Info]upgrade success, reset to normal boot\n"@0xffffff80092502c1  1
- *   FTS_INFO    "\x016[FTS][Info]parameter configure upgrade...\n"@0xffffff80092502f5  1
- *   FTS_ERROR   "\x013[FTS][Error]fw file buffer is null\n"@0xffffff8009250322  1
- *   FTS_ERROR   "\x013[FTS][Error]fw file buffer len(%x) fail\n"@0xffffff8009250348  1
- *   FTS_ERROR   "\x013[FTS][Error]reset to normal boot fail\n"@0xffffff800924eb76  3
- *
- * L'ULTIMO E' MATERIALIZZATO TRE VOLTE, e le tre volte sono i tre punti in cui
- * il binario controlla fts_fwupg_reset_in_boot:
- *   "912dd800 add"@0xffffff8008a80888   (in fts_ft8719_upgrade)
- *   "912dd800 add"@0xffffff8008a80958   (in fts_ft8719_param_upgrade)
- *   "912dd800 add"@0xffffff8008a80acc   (in fts_ft8719_upgrade_mode)
- * ed e' l'unico letterale di questa unita' che sta in un'altra pagina di
- * `.rodata` (0x924e... invece di 0x9250...): il linker l'ha unito con quello
- * di un'altra unita' di traduzione che usa lo stesso testo.  Va citato
- * all'indirizzo dove il linker l'ha messo, non a uno immaginario dentro la
- * corsa dell'unita'.
- *
- * IL SECONDO MESSAGGIO E' MATERIALIZZATO DUE VOLTE, dai due chiamanti:
- *   "91046c00 add"@0xffffff8008a80870 e "91046c00 add"@0xffffff8008a80940
- * mentre fts_ft8719_upgrade_mode non lo usa: e' la prova che il messaggio
- * "fw upgrade fail" appartiene ai due involucri e non al motore.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_ft8719_focaltech_ft8719_upgrade.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */

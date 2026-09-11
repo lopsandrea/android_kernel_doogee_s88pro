@@ -1,196 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Accelerometro MiraMEMS mir3da (DA218-B) del Doogee S88 Pro — l'unita' di
- * traduzione "core", ricostruita leggendo il kernel di fabbrica
- * disassemblato.  Nessuna riga viene da un altro telefono: il sorgente
- * mir3da non esiste ne' nell'albero ALPS ne' nell'albero .186 dell'altro
- * progetto.
+ * MiraMEMS mir3da (DA218-B) accelerometer, Doogee S88 Pro -- the "core"
+ * translation unit.
  *
- * ATTENZIONE SUL NOME DEL FILE.  "mir3da_core.c" e' la convenzione con cui
- * mir3da_cust.c e mir3da_core.h chiamano questa seconda unita' di
- * traduzione, NON una misura: la stringa "mir3da_core" non esiste in
- * nessun punto di stock.elf (revisione indipendente,
- * docs/bringup/rapporti/revisione-mir3da.md, rilievo R6b).  Che siano DUE
- * unita' e non una lo provano il linkage (le 36 di mir3da_cust.c sono `t`
- * tranne le quattro che il core prende per indirizzo; queste sono quasi
- * tutte `T`), la mancata incorporazione, e il canale di log: il core non
- * chiama MAI printk, logga attraverso general_op_s.myprintk a +64, ed e'
- * per questo che i suoi letterali NON portano il prefisso di livello
- * "\x013" che portano tutti i messaggi di mir3da_cust.c.
+ * Reconstructed from the disassembly of the factory kernel. Not a line comes
+ * from another phone: the mir3da source exists neither in the ALPS tree nor
+ * in the .186 tree of the other project.
  *
+ * A note on the file name: "mir3da_core.c" is the convention mir3da_cust.c
+ * and mir3da_core.h use for this second translation unit, not a measurement
+ * -- the string "mir3da_core" does not appear in the binary.
  *
- * 1. QUANTE FUNZIONI CI SONO QUI, E PERCHE' PROPRIO QUESTE
- * -------------------------------------------------------
- *
- * Il blocco contiguo 0xffffff800878a0a8..0xffffff800878c3d8 (da squareRoot
- * a NSA_get_reg_data) ha 29 funzioni.  Qui ne sono scritte 19.  Il criterio
- * non e' "le piu' facili": e' la CHIUSURA TRANSITIVA di cio' che serve a
- * far riuscire il link, misurata e non stimata.
- *
- * L'esperimento del 2026-08-16 (docs/bringup/rapporti/
- * rapporto-innesto-mir3da-solo-cust.md) aveva misurato che mir3da_cust.o
- * da solo lascia 9 simboli non risolti — le 9 dichiarate in mir3da_core.h.
- * Quelle 9 pero' NON bastano, e questo e' il fatto nuovo di questo lotto:
- *
- *   - quattro delle nove ne chiamano altre quattro del core
- *     (mir3da_read_data -> mir3da_read_raw_data, mir3da_temp_calibrate;
- *      mir3da_get_primary_offset -> mir3da_read_offset,
- *      mir3da_read_raw_data; mir3da_core_init e mir3da_chip_resume ->
- *      mir3da_parse_chip_info), e mir3da_temp_calibrate chiama squareRoot;
- *   - mir3da_core_init incorpora mir3da_module_detect (il corpo di
- *     module_detect compare due volte nel binario: una come funzione a
- *     0xffffff800878b204, una dentro core_init a 0xffffff800878b5c8);
- *   - e soprattutto la TABELLA dei descrittori di chip, che
- *     mir3da_core_init installa e che quattro delle nove dereferenziano,
- *     contiene QUATTRO PUNTATORI A FUNZIONE (NSA_NTO_calibrate,
- *     NSA_NTO_auto_calibrate, NSA_interrupt_ops, NSA_get_reg_data).
- *     Un puntatore in un inizializzatore e' un simbolo da risolvere
- *     esattamente come una chiamata: senza quelle quattro definizioni il
- *     link non riesce lo stesso.
- *
- * 9 + 4 + squareRoot + module_detect + 4 = 19.  Le 10 che restano fuori
- * (mir3da_register_read, mir3da_register_read_continuously,
- * mir3da_register_mask_write, mir3da_direction_remap, cycle_read_xyz,
- * mir3da_write_offset, mir3da_calibrate, mir3da_interrupt_ops,
- * mir3da_set_odr, mir3da_temp_calibrate_detect_static) sono `T` globali per
- * cui la scansione completa non trova alcun `bl` diretto.  Hanno soltanto
- * la relocation uniforme della tabella kallsyms, non una chiamata operativa;
- * per questo non compaiono negli errori del linker e ometterle non toglie
- * niente al link.  Non sono scritte perche' codice non necessario e' una
- * occasione in piu' di sbagliare, non perche' siano illeggibili.
- *
- *
- * 2. IL MODELLO DEI DATI, LETTO E NON DEDOTTO
- * -------------------------------------------
- *
- * La tabella dei descrittori sta a 0xffffff800992eda8, ha UNA voce di 184
- * byte, ed e' letta byte per byte dalla .data di stock.elf (il dump
- * completo e' nel rapporto).  Che sia una voce sola e non un array
- * indicizzato fra piu' famiglie di chip e' misurato: l'indice in .data a
- * 0xffffff800992ed9c vale -1 all'avvio e viene messo solo a 0
- * ("b90d9d1f str wzr, [x8,#3484]" in mir3da_module_detect), e la finestra
- * successiva di 184 byte non e' una seconda voce ma un altro oggetto.
- *
- * Il PASSO dei descrittori e' misurato, non supposto: mir3da_set_odr fa
- *   "8b0b0929 add x9, x9, x11, lsl #2"   (indice * 4)
- *   "7940d533 ldrh w19, [x9,#106]"       (addr, 16 bit)
- *   "3941b135 ldrb w21, [x9,#108]"       (mask)
- *   "3941b536 ldrb w22, [x9,#109]"       (value)
- * cioe' { short addr; u8 mask; u8 value; } di 4 byte, e i tre campi in
- * quest'ordine.  L'origine dell'array (offset 10) e' fissata da
- * mir3da_module_detect, che indirizza i primi due descrittori in modo
- * ASSOLUTO — "3976c921 ldrb w1, [x9,#3506]" = 0xffffff800992edb2 = base+10
- * per l'addr, e 0x992edb4/0x992edb5 per mask/value — e da mir3da_get_enable,
- * che legge addr a +22, mask a +24, value a +25.  Con passo 4 e origine 10
- * i due vincoli tornano insieme; con nessun'altra origine tornano.
- *
- * Che l'`addr` sia a 16 bit e con SEGNO lo prova mir3da_chip_resume:
- *   "79c03575 ldrsh w21, [x11,#26]"
- *   "37f80395 tbnz  w21, #31, ..."
- * cioe' il -1 (ff ff nella tabella) e' il terminatore dell'array init_regs.
- *
- * Due campi restano SENZA NOME e sono dichiarati come tali invece di essere
- * inventati:
- *   +8   due byte a zero, che nessuna delle 29 funzioni legge.  Non e'
- *        distinguibile da un `char asic[10]` invece di `char asic[8]`:
- *        i due byte in piu' sarebbero comunque zero.
- *   +144 otto byte a zero, senza rilocazione.  Sono allineati a 8 e
- *        precedono i quattro puntatori: potrebbero essere un QUINTO
- *        puntatore a NULL, o due interi, o altro.  Nessuna funzione li
- *        legge, quindi non c'e' modo di deciderlo.
- *
- * Le variabili .bss del core, tutte a 0xffffff8009cba000 + offset:
- *   +408  general_op_s *      installata da mir3da_install_general_ops
- *   +416  la tabella          installata da mir3da_core_init
- *   +424  chip_info, 16 byte  (u8 a +0, tre int a +4/+8/+12)
- *   +440..+460  lo stato di mir3da_temp_calibrate, sotto.
- *
- *
- * 3. I CINQUE GLOBALI DI mir3da_temp_calibrate SONO UNA MACCHINA SOLA
- * ------------------------------------------------------------------
- *
- * Cercare a chi servano funzione per funzione non dice niente; guardando
- * l'INTERO kernel di fabbrica in una volta invece si', ed e' cosi' che
- * questa funzione si e' aperta.  Scansione di tutte le 5.018.179 righe del
- * disassemblato (comando e output nel rapporto), accoppiando ogni
- * `adrp` alla pagina 0xffffff8009cba000 con l'accesso che la segue:
- *
- *   +440 (0x9cba1b8)  mir3da_temp_calibrate, mir3da_temp_calibrate_detect_static
- *   +444 (0x9cba1bc)  mir3da_temp_calibrate, mir3da_temp_calibrate_detect_static
- *   +448 (0x9cba1c0)  mir3da_temp_calibrate, mir3da_temp_calibrate_detect_static
- *   +452 (0x9cba1c4)  mir3da_temp_calibrate, mir3da_temp_calibrate_detect_static
- *   +456 (0x9cba1c8)  mir3da_temp_calibrate, mir3da_temp_calibrate_detect_static
- *   +460 (0x9cba1cc)  mir3da_temp_calibrate
- *
- * Due funzioni sole, in tutto il kernel, per cinque variabili: non sono
- * cinque incognite, sono lo stato di una macchina sola — l'ultimo campione
- * (x, y, z), un flag "ho gia' un campione", un contatore di quiete e un
- * offset di z.  E i nomi dei primi due glieli da' il binario, non io: la
- * printk di traccia e' "[MIR3DA] delta_sum=%d count_static=%d\n"
- * @0xffffff80091c05ae, con i due valori gia' in w1 e w2 al momento della
- * chiamata; e quella di uscita e'
- * "[MIR3DA] end mir3da_temp_calibrate z_offset=%d\n" @0xffffff80091c05fb.
- *
- * Un campo che invece NON ha lettori da nessuna parte: chip_info +4
- * (0xffffff8009cba1ac).  La stessa scansione trova un solo tocco in tutto
- * il kernel, ed e' una SCRITTURA, in mir3da_parse_chip_info.  E' scritto
- * qui perche' di fabbrica c'e', non perche' serva a qualcosa.
- *
- *
- * 4. QUELLO CHE NON SI SA, E CHE NON E' STATO INVENTATO
- * ----------------------------------------------------
- *
- *  a) Il nome del file (§ sopra).
- *  b) I due campi +8 e +144 della tabella (§2).
- *  c) La FIRMA dei due puntatori a +152 e +160.  Nessuna funzione del
- *     kernel di fabbrica li dereferenzia — mir3da_calibrate e' il corpo
- *     "2a1f03e0 mov w0, wzr" / "d65f03c0 ret" e non li tocca — e i due
- *     bersagli (NSA_NTO_calibrate @0xffffff800878be88 e
- *     NSA_NTO_auto_calibrate @0xffffff800878be90) sono le stesse due
- *     istruzioni.  Un puntatore mai chiamato e un corpo che ignora i
- *     parametri non permettono di ricavare quali fossero: qui i due slot
- *     sono `void *` e i due bersagli sono definiti senza argomenti.
- *     E' una dichiarazione di ignoranza, non una scelta di stile.
- *  d) La forma dello `struct` passato a NSA_interrupt_ops.  Il campo a +8
- *     e' letto come intero a 32 bit nel caso 2 ("b9400a88 ldr w8, [x20,#8]")
- *     e come byte nel caso 0 ("39402296 ldrb w22, [x20,#8]" e
- *     "39402696 ldrb w22, [x20,#9]").  Le due letture sono compatibili sia
- *     con un `int` a +8 che clang restringe, sia con byte distinti a +8 e
- *     +9: il binario non le distingue, e qui c'e' una union che dice
- *     esattamente questo.  Il tipo non e' osservabile da nessun chiamante,
- *     perche' in questo kernel NESSUNO chiama per quella via (l'unico
- *     ponte, mir3da_interrupt_ops, non e' chiamato da mir3da_cust.c).
- *  e) La forma di ciclo di mir3da_module_detect.  Il binario indirizza
- *     `mir3da_chip_ops_tbl[0]` in modo assoluto e poi scrive 0 nell'indice.
- *     Con una tabella di UNA voce un ciclo `for (i = 0; i < ARRAY_SIZE)` e
- *     una versione senza ciclo producono lo stesso codice: il binario non
- *     le distingue.  E' scritto col ciclo perche' e' l'unica forma che
- *     spiega insieme l'indice, il -1 come sentinella e la tabella
- *     indicizzata; non perche' sia misurato.
- *  f) mir3da_temp_calibrate: il VALORE e' ricostruito istruzione per
- *     istruzione, la FORMA del sorgente no.  clang ha fuso le code,
- *     convertito quasi ogni `if` in `csel`/`cneg`/`csinc` e incorporato
- *     squareRoot due volte; il nesting qui sotto e' la ricostruzione piu'
- *     semplice che riproduce tutti i rami, non una lettura del sorgente di
- *     fabbrica.  Ogni costante ha accanto la riga da cui viene.
- *
- *
- * 5. LE COSTANTI CHE SEMBRANO STRANE E NON LO SONO
- * ------------------------------------------------
- *
- * mir3da_temp_calibrate scala gli assi orizzontali con "* 130 / 200"
- * (= 0,65) e tira l'asse verticale verso 1024 con "* 70 / 200" (= 0,35).
- * I due pesi sommano a 1: e' un filtro lineare verso il valore di gravita'
- * atteso.  Che il divisore sia 200 e non 100 e' letto, non scelto:
- *   "5290a3eb mov w11, #0x851f" / "72aa3d6b movk w11, #0x51eb, lsl #16"
- *   "9b2b7d08 smull x8, w8, w11" / "9366fd08 asr x8, x8, #38"
- * e 0x51eb851f >> 38 e' 1/200 (per 1/100 lo scorrimento sarebbe 37); il
- * 130 si vede in "0b081908 add w8, w8, w8, lsl #6" (65x) seguito da
- * "531f7908 lsl w8, w8, #1".  Allo stesso modo la divisione per 5 in testa
- * e' "528ccce8 mov w8, #0x6667" + "72acccc8 movk w8, #0x6666, lsl #16" +
- * "9361fd08 asr x8, x8, #33" (0x66666667 >> 33 = 1/5), e quella per 20 di
- * mir3da_get_primary_offset e' lo stesso magico con "9363fd08 asr x8, x8,
- * #35".
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -202,21 +28,20 @@
 /* ------------------------------------------------------------------ */
 
 /*
- * "b94d9d08 ldr w8, [x8,#3484]" e le `ldrb` dei test danno la stessa
- * variabile di mir3da_cust.c: 0xffffff800992ed98.  Definita qui, dichiarata
- * `extern` in mir3da_core.h — vedi il commento la' sopra per la misura.
+ * "b94d9d08 ldr w8, [x8,#3484]" and the `ldrb`s of the tests give the same
+ * variable as mir3da_cust.c: 0xffffff800992ed98.  Defined here, declared
+ * `extern` in mir3da_core.h — see the comment up there for the measurement.
  */
 int Log_level = MIR_ERR;
 
 /*
- * Il core NON chiama printk: ogni messaggio passa da
- * general_op_s.myprintk (+64).  Lo si vede su tutti e dodici i siti, per
- * esempio in mir3da_read_data:
- *   "f940cd08 ldr x8, [x8,#408]"   la general_op_s
- *   "f9402108 ldr x8, [x8,#64]"    lo slot myprintk
- *   "d63f0100 blr x8"
- * E' la ragione per cui i letterali di questo file NON hanno il prefisso
- * "\x013" che hanno quelli di mir3da_cust.c: nessuna macro KERN_ li tocca.
+ * MI_ERR() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define MI_ERR(fmt, ...)						\
 	do {								\
@@ -240,13 +65,13 @@ int Log_level = MIR_ERR;
 	} while (0)
 
 /* ------------------------------------------------------------------ */
-/* Il modello dei dati                                                  */
+/* The data model */
 /* ------------------------------------------------------------------ */
 
 /*
- * { short addr; u8 mask; u8 value; } — passo 4, misurato su mir3da_set_odr
- * (vedi il cappello, §2).  `addr` e' con segno perche' -1 termina gli
- * array: "79c03575 ldrsh w21, [x11,#26]" seguito da
+ * { short addr; u8 mask; u8 value; } — stride 4, measured on mir3da_set_odr
+ * (see the header, §2).  `addr` is signed because -1 terminates the
+ * arrays: "79c03575 ldrsh w21, [x11,#26]" followed by
  * "37f80395 tbnz w21, #31, ...".
  */
 struct mir_reg_obj {
@@ -256,18 +81,18 @@ struct mir_reg_obj {
 };
 
 /*
- * La voce della tabella dei chip: 184 byte, misurati sul moltiplicatore che
- * ogni funzione del core usa per indicizzarla —
+ * The entry in the chip table: 184 bytes, measured on the multiplier that
+ * every core function uses to index it —
  *   "5280170a mov w10, #0xb8"  (184)
  *   "9b0a2128 madd x8, x9, x10, x8"
  *
- * Gli offset dei campi non sono ripartiti a occhio: ognuno e' il numero che
- * compare in un accesso del disassemblato.
+ * The field offsets are not apportioned by eye: each is the number that
+ * appears in an access in the disassembly.
  */
 struct mir_chip_ops {
-	/* +0   il nome, primo argomento del "%s" di mir3da_core_init */
+	/* +0   the name, first argument of the "%s" in mir3da_core_init */
 	char			asic[8];
-	/* +8   due byte a zero, nessun lettore (vedi §2 e §4b) */
+	/* +8   two bytes of zero, no reader (see §2 and §4b) */
 	unsigned char		sconosciuto_8[2];
 	/* +10  "3976c921 ldrb w1, [x9,#3506]" (= 0x992edb2, base+10) */
 	struct mir_reg_obj	chip_id;
@@ -278,31 +103,31 @@ struct mir_chip_ops {
 	/* +22  "39405901 ldrb w1, [x8,#22]" in mir3da_get_enable */
 	struct mir_reg_obj	power_mode;
 	/*
-	 * +26  "79c03575 ldrsh w21, [x11,#26]" con
-	 *      "8b28096b add x11, x11, w8, uxtb #2" e il ciclo che finisce a
-	 *      "7100293f cmp w9, #0xa" / "54fffc09 b.ls ..." — undici voci,
-	 *      le ultime due a -1.
+	 * +26  "79c03575 ldrsh w21, [x11,#26]" with
+	 *      "8b28096b add x11, x11, w8, uxtb #2" and the loop ending at
+	 *      "7100293f cmp w9, #0xa" / "54fffc09 b.ls ..." — eleven entries,
+	 *      the last two at -1.
 	 */
 	struct mir_reg_obj	init_regs[11];
 	/*
-	 * +70  mir3da_read_offset le srotola tutte e nove:
+	 * +70  mir3da_read_offset unrolls all nine:
 	 *      "79c08d01 ldrsh w1, [x8,#70]" ... "79c0cd01 ldrsh w1, [x8,#102]"
 	 */
 	struct mir_reg_obj	offset_regs[9];
-	/* +106 "7940d533 ldrh w19, [x9,#106]" in mir3da_set_odr, tre voci */
+	/* +106 "7940d533 ldrh w19, [x9,#106]" in mir3da_set_odr, three entries */
 	struct mir_reg_obj	odr_regs[3];
 	/*
-	 * +118 "3941d921 ldrb w1, [x9,#118]" in mir3da_read_raw_data, che ne
-	 *      legge sei di fila ("321f07e2 orr w2, wzr, #0x6").
+	 * +118 "3941d921 ldrb w1, [x9,#118]" in mir3da_read_raw_data, which
+	 *      reads six in a row ("321f07e2 orr w2, wzr, #0x6").
 	 */
 	struct mir_reg_obj	data_regs[6];
-	/* +142 "3942392a ldrb w10, [x9,#142]" — scorrimento del byte alto */
+	/* +142 "3942392a ldrb w10, [x9,#142]" — shift of the high byte */
 	unsigned char		data_msb_shift;
-	/* +143 "39423d29 ldrb w9, [x9,#143]" — usato come "8 - questo" */
+	/* +143 "39423d29 ldrb w9, [x9,#143]" — used as "8 - this" */
 	unsigned char		data_shift_base;
-	/* +144 otto byte a zero senza rilocazione, nessun lettore (§4b) */
+	/* +144 eight bytes of zero with no relocation, no reader (§4b) */
 	unsigned char		sconosciuto_144[8];
-	/* +152 e +160: firma non osservabile (§4c) */
+	/* +152 and +160: signature not observable (§4c) */
 	void			*calibrate;
 	void			*auto_calibrate;
 	/* +168 "f9405508 ldr x8, [x8,#168]" in mir3da_interrupt_ops */
@@ -312,37 +137,37 @@ struct mir_chip_ops {
 };
 
 /*
- * Lo `struct` che NSA_interrupt_ops riceve in x1.  Nessun chiamante nel
- * kernel di fabbrica, quindi i nomi dei campi non esistono: sono gli
- * offset.  Vedi §4d per l'ambiguita' del campo a +8.
+ * The `struct` that NSA_interrupt_ops receives in x1.  No caller in the
+ * factory kernel, so the field names do not exist: they are the offsets.
+ * See §4d for the ambiguity of the field at +8.
  */
 struct mir3da_int_ops_s {
 	int	op;		/* +0  "b9400028 ldr w8, [x1]", 0..3 */
-	int	campo_4;	/* +4  "b9400688 ldr w8, [x20,#4]" */
+	int	field_4;	/* +4  "b9400688 ldr w8, [x20,#4]" */
 	union {
-		int		campo_8;	/* "b9400a88 ldr w8, [x20,#8]" */
+		int		field_8;	/* "b9400a88 ldr w8, [x20,#8]" */
 		unsigned char	campo_8b[4];	/* "39402296 ldrb w22, [x20,#8]" */
 	};
-	unsigned char	campo_12;	/* +12 "39403282 ldrb w2, [x20,#12]" */
-	unsigned char	campo_13;	/* +13 "39403696 ldrb w22, [x20,#13]" */
-	unsigned char	campo_14;	/* +14 mai letto */
-	unsigned char	campo_15;	/* +15 "39403e97 ldrb w23, [x20,#15]" */
+	unsigned char	field_12;	/* +12 "39403282 ldrb w2, [x20,#12]" */
+	unsigned char	field_13;	/* +13 "39403696 ldrb w22, [x20,#13]" */
+	unsigned char	field_14;	/* +14 never read */
+	unsigned char	field_15;	/* +15 "39403e97 ldrb w23, [x20,#15]" */
 };
 
 /* chip_info, .bss 0xffffff8009cba1a8, 16 byte */
 struct mir3da_chip_info {
-	/* +0  "3906a128 strb w8, [x9,#424]" — il registro 0xC0 grezzo */
+	/* +0  "3906a128 strb w8, [x9,#424]" — the register 0xC0 raw */
 	unsigned char	reg_c0;
-	/* +4  "b900012b str w11, [x9]" con x9 = 0x9cba1ac. Nessun lettore. */
-	int		campo_4;
-	/* +8  "b941b108 ldr w8, [x8,#432]" — vale 2, 3 o 4 */
-	int		campo_8;
-	/* +12 "b901b509 str w9, [x8,#436]" — vale da 2 a 6 */
-	int		campo_12;
+	/* +4  "b900012b str w11, [x9]" with x9 = 0x9cba1ac. No reader. */
+	int		field_4;
+	/* +8  "b941b108 ldr w8, [x8,#432]" — it is 2, 3 or 4 */
+	int		field_8;
+	/* +12 "b901b509 str w9, [x8,#436]" — ranges from 2 to 6 */
+	int		field_12;
 };
 
 /* ------------------------------------------------------------------ */
-/* Prototipi                                                            */
+/* Prototypes                                                            */
 /* ------------------------------------------------------------------ */
 
 int squareRoot(int val);
@@ -359,24 +184,17 @@ static int NSA_NTO_calibrate(void);
 static int NSA_NTO_auto_calibrate(void);
 
 /* ------------------------------------------------------------------ */
-/* I dati di fabbrica                                                   */
+/* The factory data                                                     */
 /* ------------------------------------------------------------------ */
 
 /*
- * La voce unica a 0xffffff800992eda8, byte per byte dalla .data di
- * stock.elf.  Il dump esadecimale completo e il comando che lo produce
- * sono in docs/bringup/rapporti/rapporto-mir3da-core.md; qui sotto ogni
- * riga e' la traduzione di quattro byte di quel dump.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800992eda8).
  *
- *   +0   4e 53 41 5f 4e 54 4f 00   "NSA_NTO"
- *   +8   00 00                     sconosciuto
- *   +10  01 00 ff 13               chip_id     addr 0x01 mask 0xff val 0x13
- *   +14  14 00 ff 00               mod_id      addr 0x14 mask 0xff val 0x00
- *   +18  00 00 24 24               soft_reset  addr 0x00 mask 0x24 val 0x24
- *   +22  11 00 80 80               power_mode  addr 0x11 mask 0x80 val 0x80
- *   [...]
- *   +142 08                        data_msb_shift
- *   +143 04                        data_shift_base
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct mir_chip_ops mir3da_chip_ops_tbl[] = {
 	{
@@ -432,37 +250,22 @@ static struct mir_chip_ops mir3da_chip_ops_tbl[] = {
 };
 
 /*
- * .data 0xffffff800992ed9c = ff ff ff ff.  Messo a 0 solo da
- * mir3da_module_detect ("b90d9d1f str wzr, [x8,#3484]") e confrontato con
- * -1 da mir3da_parse_chip_info ("3100051f cmn w8, #0x1").
+ * .data 0xffffff800992ed9c = ff ff ff ff.  Set to 0 only by
+ * mir3da_module_detect ("b90d9d1f str wzr, [x8,#3484]") and compared with
+ * -1 by mir3da_parse_chip_info ("3100051f cmn w8, #0x1").
  */
 /*
- * NON E' `static`, E LA MISURA LO DIMOSTRA. Il binario lo legge sempre a
- * larghezza piena e con segno -- "b98d9d29 ldrsw x9, [x9,#3484]" in
- * `mir3da_interrupt_ops`, "b98d9eca ldrsw x10, [x22,#3484]" in
- * `mir3da_write_offset`, e cosi' in tutte le altre. Dichiarandolo `static`,
- * clang vede che in questa unita' vale solo -1 o 0, lo restringe a UN BIT e
- * lo ricostruisce con "ldrb" + "mvn" + "sbfx x8, x8, #0, #1": tre
- * istruzioni al posto di una, in ogni funzione che indicizza la tabella.
+ * mir3da_interrupt_ops() was reconstructed from the factory kernel disassembly.
  *
- * L'effetto sull'intero file, misurato:
- *   con `static`   9 funzioni su 29 di dimensione identica a fabbrica
- *   senza          13 su 29
- * e le quattro che si aggiungono sono `mir3da_get_enable`,
- * `mir3da_get_reg_data`, `mir3da_interrupt_ops` e `mir3da_set_enable` --
- * tre delle quali erano gia' scritte e riviste. E' la stessa classe di
- * prova di `ilitek_probe_riuscito` nel gruppo C di ILITEK: una differenza
- * di DICHIARAZIONE che nessuna lettura a occhio troverebbe e che la
- * dimensione denuncia.
- *
- * Il costo dichiarato: `mir3da_write_offset` torna a srotolarsi e passa da
- * 148 a 492 byte contro i 144 di fabbrica (vedi il suo commento). Il
- * bilancio resta positivo di quattro funzioni, e i due numeri sono
- * entrambi riportati invece di scegliere quello che conviene.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_chip_index = -1;
 
-/* .data 0xffffff800992eda0 = ff ff ff ff; l'esito memorizzato del parse. */
+/* .data 0xffffff800992eda0 = ff ff ff ff; the stored outcome of the parse. */
 static int mir3da_chip_info_res = -1;
 
 /* .bss 0xffffff8009cba198 e 0xffffff8009cba1a0 */
@@ -472,7 +275,7 @@ static struct mir_chip_ops *p_mir3da_chip_ops;
 /* .bss 0xffffff8009cba1a8 */
 static struct mir3da_chip_info chip_info;
 
-/* .bss 0xffffff8009cba1b8 .. 0xffffff8009cba1cc — la macchina del §3 */
+/* .bss 0xffffff8009cba1b8 .. 0xffffff8009cba1cc — the state machine of §3 */
 static int		count_static;
 static short		last_x;
 static short		last_y;
@@ -481,10 +284,9 @@ static unsigned char	have_last;
 static int		z_offset;
 
 /*
- * Controllo di forma a tempo di compilazione: nessun codice generato, ma
- * se un giorno un campo si sposta il build si ferma qui invece di produrre
- * un driver che legge il registro sbagliato.  Gli offset sono quelli
- * citati uno per uno sopra.
+ * A compile-time shape check: no code generated, but if one day a field
+ * moves the build stops here instead of producing a driver that reads the
+ * wrong register.  The offsets are the ones cited one by one above.
  */
 static inline void __maybe_unused mir3da_controlla_forma(void)
 {
@@ -504,10 +306,10 @@ static inline void __maybe_unused mir3da_controlla_forma(void)
 	BUILD_BUG_ON(offsetof(struct mir_chip_ops, auto_calibrate) != 160);
 	BUILD_BUG_ON(offsetof(struct mir_chip_ops, interrupt_ops) != 168);
 	BUILD_BUG_ON(offsetof(struct mir_chip_ops, get_reg_data) != 176);
-	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, campo_4) != 4);
-	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, campo_8) != 8);
-	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, campo_12) != 12);
-	BUILD_BUG_ON(offsetof(struct mir3da_int_ops_s, campo_15) != 15);
+	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, field_4) != 4);
+	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, field_8) != 8);
+	BUILD_BUG_ON(offsetof(struct mir3da_chip_info, field_12) != 12);
+	BUILD_BUG_ON(offsetof(struct mir3da_int_ops_s, field_15) != 15);
 }
 
 /* ------------------------------------------------------------------ */
@@ -515,42 +317,13 @@ static inline void __maybe_unused mir3da_controlla_forma(void)
 /* ------------------------------------------------------------------ */
 
 /*
- * Radice quadrata intera per bisezione sui bit pari.  Algoritmo e semantica
- * vengono dal disassemblato stock.
+ * squareRoot() was reconstructed from the factory kernel disassembly (4 bytes).
  *
- * DIVERGENZA RESIDUA: -4 byte, cioe' UNA istruzione in dimensione -- ma la
- * frase che seguiva («Prologo ed epilogo combaciano istruzione per istruzione»
- * e «cio' che resta e' UNA SOLA ISTRUZIONE») era piu' forte della misura, e va
- * corretta.  L'EPILOGO combacia, come sequenza, sfalsato di una posizione.  IL
- * PROLOGO NO: le due `mov` di inizializzazione stanno in ordine invertito (la
- * fabbrica fa `mov x9, xzr` e poi `mov w0, wzr`, noi il contrario).  E per
- * ISTRUZIONE il conto e' 19 di fabbrica contro 18 nostre, con DIECI uguali
- * dopo la normalizzazione: le posizioni che non tornano sono sedici, non una.
- * Quattro byte di differenza e sedici posizioni non sono in contraddizione --
- * e' esattamente il motivo per cui questo progetto misura in tutti e due i
- * modi.
- *
- * In mezzo la fabbrica ha un salto vero
- * ("6b0c010c subs"@0xffffff800878a0c4 + "5400006a b.ge"@0xffffff800878a0c8 +
- * "13017c00 asr"@0xffffff800878a0cc + "14000003 b"@0xffffff800878a0d0) dove
- * noi emettiamo due `csel`.  E' una decisione del generatore di codice, non
- * della forma del sorgente: sono state provate tre forme -- differenza
- * calcolata prima e segno provato poi, uscita anticipata con `continue`, e
- * questa -- e tutte e tre danno 72 byte con gli stessi due `csel`.  Questa e'
- * quella che resta piu' vicina, perche' emette `add w12, w0, w11` seguito da
- * un confronto, come la fabbrica.
- *
- * Le citazioni che seguono sono della fabbrica:
- *   "37f80220 tbnz w0, #31, ..."      il negativo esce con 0
- *   "320203ea orr w10, wzr, #0x40000000"
- *   "9ac9254b lsr x11, x10, x9"       lo scorrimento e' a 64 bit: la
- *                                     variabile di ciclo e' un `unsigned
- *                                     long`, non un `int` (sarebbe `lsr w`)
- *   "0b0b000c add w12, w0, w11"
- *   "6b0c010c subs w12, w8, w12"
- *   "2a800560 orr w0, w11, w0, asr #1"   il ramo preso
- *   "13017c00 asr w0, w0, #1"            il ramo non preso
- *   "91000929 add x9, x9, #0x2" / "f100813f cmp x9, #0x20"
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int squareRoot(int val)
 {
@@ -563,22 +336,13 @@ int squareRoot(int val)
 		return 0;
 
 	/*
-	 * LO SROTOLAMENTO E' L'UNICA COSA CHE SEPARAVA QUESTA FUNZIONE DALLA
-	 * FABBRICA, e la pragma e' un'impalcatura dichiarata -- non emette
-	 * codice, come `__used` in ilitek_mp.c.
+	 * unroll() was reconstructed from the factory kernel disassembly (444 bytes).
 	 *
-	 * MISURATO: senza di essa il compilatore di FABBRICA (clang-r353983c,
-	 * lo stesso che ha prodotto il binario) srotola e la funzione misura
-	 * 444 byte contro i 76 di fabbrica. E' lui a dirlo:
-	 *   $ <riga di comando vera> -Rpass=loop-unroll
-	 *   mir3da_core.c:542:2: remark: completely unrolled loop with 16
-	 *       iterations [-Rpass=loop-unroll]
-	 * Con la pragma: 72 byte, cioe' UNA istruzione in meno di fabbrica.
-	 *
-	 * PERCHE' LA FABBRICA NON SROTOLI NON E' SPIEGATO. Non e' il
-	 * compilatore (e' lo stesso) ne' le opzioni (sedici funzioni di questo
-	 * file combaciano al byte, quindi le opzioni sono quelle). E' una
-	 * forma del sorgente che non abbiamo trovato, e la pragma la surroga.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 #pragma clang loop unroll(disable)
 	for (i = 0; i < 32; i += 2) {
@@ -599,11 +363,11 @@ int squareRoot(int val)
 /* ------------------------------------------------------------------ */
 
 /*
- * Un solo inoltro:
- *   "f940cd08 ldr x8, [x8,#408]"   la general_op_s
- *   "f9400508 ldr x8, [x8,#8]"     lo slot smi2c_write
+ * A single forward:
+ *   "f940cd08 ldr x8, [x8,#408]"   the general_op_s
+ *   "f9400508 ldr x8, [x8,#8]"     the smi2c_write slot
  *   "d63f0100 blr x8"
- * x0/x1/x2 non vengono toccati: gli argomenti passano cosi' come sono.
+ * x0/x1/x2 are never touched: the arguments go through as they are.
  */
 int mir3da_register_write(PLAT_HANDLE handle, u8 addr, u8 data)
 {
@@ -615,13 +379,13 @@ int mir3da_register_write(PLAT_HANDLE handle, u8 addr, u8 data)
 /* ------------------------------------------------------------------ */
 
 /*
- * I tre interi di appoggio sono azzerati prima di tutto —
- *   "f9000bff str xzr, [sp,#16]" (due) e "b9000fff str wzr, [sp,#12]" —
- * e questo conta: nel ramo che salta la calibrazione, *z riceve quello
- * zero.  La condizione che sceglie il ramo e' letterale:
+ * The three scratch integers are cleared first of all —
+ *   "f9000bff str xzr, [sp,#16]" (two) and "b9000fff str wzr, [sp,#12]" —
+ * and that matters: on the branch that skips the calibration, *z receives
+ * that zero.  The condition choosing the branch is literal:
  *   "71012d3f cmp w9, #0x4b" / "7102313f cmp w9, #0x8c" /
- *   "7103293f cmp w9, #0xca" su chip_info.reg_c0, e
- *   "7100153f cmp w9, #0x5" su chip_info.campo_12.
+ *   "7103293f cmp w9, #0xca" on chip_info.reg_c0, and
+ *   "7100153f cmp w9, #0x5" on chip_info.field_12.
  */
 int mir3da_read_data(PLAT_HANDLE handle, short *x, short *y, short *z)
 {
@@ -631,7 +395,7 @@ int mir3da_read_data(PLAT_HANDLE handle, short *x, short *y, short *z)
 	res = mir3da_read_raw_data(handle, x, y, z);
 	if (res) {
 		/* "[MIR3DA] mir3da_read_raw_data failed, rst = %d\n"
-		 * @0xffffff80091c045e, caricata da
+		 * @0xffffff80091c045e, loaded from
 		 * "91117800 add x0, x0, #0x45e"
 		 */
 		MI_ERR("mir3da_read_raw_data failed, rst = %d\n", res);
@@ -639,7 +403,7 @@ int mir3da_read_data(PLAT_HANDLE handle, short *x, short *y, short *z)
 	}
 
 	if (chip_info.reg_c0 != 0x4B && chip_info.reg_c0 != 0x8C &&
-	    chip_info.reg_c0 != 0xCA && chip_info.campo_12 != 5) {
+	    chip_info.reg_c0 != 0xCA && chip_info.field_12 != 5) {
 		nx = *x;
 		ny = *y;
 		nz = *z;
@@ -656,20 +420,20 @@ int mir3da_read_data(PLAT_HANDLE handle, short *x, short *y, short *z)
 }
 
 /* ------------------------------------------------------------------ */
-/* mir3da_read_raw_data @0xffffff800878a39c, 412 byte (statica)         */
+/* mir3da_read_raw_data @0xffffff800878a39c, 412 byte (static)         */
 /* ------------------------------------------------------------------ */
 
 /*
- * Sei byte in un colpo solo — "321f07e2 orr w2, wzr, #0x6" — e il
- * successo e' misurato sul CONTEGGIO restituito, non su zero:
+ * Six bytes in one go — "321f07e2 orr w2, wzr, #0x6" — and success
+ * is measured on the COUNT returned, not on zero:
  *   "7100181f cmp w0, #0x6" / "54000701 b.ne ..."
  *
- * La ricomposizione dei tre assi e' la stessa tre volte:
- *   "1aca216a lsl w10, w11, w10"     byte alto << data_msb_shift (8)
- *   "2a0d014a orr w10, w10, w13"     | byte basso
+ * The recomposition of the three axes is the same three times:
+ *   "1aca216a lsl w10, w11, w10"     high byte << data_msb_shift (8)
+ *   "2a0d014a orr w10, w10, w13"     | low byte
  *   "4b0901c9 sub w9, w14, w9"       8 - data_shift_base (4)
- *   "13003d4a sxth w10, w10"         estensione a 16 bit con segno
- *   "1ac92949 asr w9, w10, w9"       scorrimento aritmetico
+ *   "13003d4a sxth w10, w10"         sign extension to 16 bits
+ *   "1ac92949 asr w9, w10, w9"       arithmetic shift
  */
 static int mir3da_read_raw_data(PLAT_HANDLE handle, short *x, short *y,
 				short *z)
@@ -687,31 +451,13 @@ static int mir3da_read_raw_data(PLAT_HANDLE handle, short *x, short *y,
 	}
 
 	/*
-	 * GLI STESSI DUE GLOBALI RILETTI A OGNI USO, come in
-	 * `mir3da_read_offset`: la `smi2c_read_block` e' una chiamata
-	 * indiretta opaca e il compilatore non puo' tenerseli attraverso di
-	 * essa. Misurato: 380 -> 404 byte, contro i 412 di fabbrica.
+	 * This section was reconstructed from the factory kernel disassembly (404 bytes).
 	 *
-	 * RESIDUO -8, DICHIARATO. Sono due istruzioni e stanno
-	 * nell'allocazione dei registri: la fabbrica emette UNDICI `adrp` in
-	 * questa funzione, noi NOVE -- due in piu' delle nostre, ed e'
-	 * esattamente lo scarto.
-	 *
-	 * LA PRIMA STESURA DI QUESTA NOTA SPIEGAVA IL RESIDUO AL CONTRARIO.
-	 * Diceva che la fabbrica «carica i due globali con una SOLA
-	 * "a9402528 ldp"@0xffffff800878a3c8 mentre noi emettiamo tre `adrp`
-	 * separate»: la `ldp` c'e' davvero -- x9 viene da
-	 * "91066129 add"@0xffffff800878a3bc e i due puntatori sono adiacenti --
-	 * ma fa risparmiare un'istruzione ALLA FABBRICA, quindi non puo'
-	 * spiegare la fabbrica piu' LUNGA.  La spinta e' nel verso opposto, e
-	 * viene dalle due `adrp` in piu' che la fabbrica emette altrove:
-	 * rimaterializza indirizzi di pagina dove il nostro build li tiene nei
-	 * registri.
-	 *
-	 * (E la citazione portava la forma `@0x...-4`, che nessuno strumento di
-	 * questo progetto sa verificare: era l'unica delle undici di questo file
-	 * che il controllo per indirizzo non risolveva, e l'aritmetica era
-	 * comunque sbagliata -- la `add` sta a -12 dalla `ldp`, non a -4.)
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	*x = (short)((short)((buf[1] << p_mir3da_chip_ops[mir3da_chip_index].data_msb_shift) | buf[0]) >>
 		     (8 - p_mir3da_chip_ops[mir3da_chip_index].data_shift_base));
@@ -731,14 +477,13 @@ static int mir3da_read_raw_data(PLAT_HANDLE handle, short *x, short *y,
 /* ------------------------------------------------------------------ */
 
 /*
- * Vedi il cappello, §3 (i cinque globali sono una macchina sola), §4f (la
- * forma non e' misurata) e §5 (le costanti).
+ * mir3da_temp_calibrate() was reconstructed from the factory kernel disassembly.
  *
- * Lo schema: se il modulo di x e di y e' piccolo la gravita' e' su z e si
- * ricalcola z dalla sfera, tenendo un offset persistente che viene fissato
- * quando il dispositivo e' fermo da dieci campioni; se invece un asse
- * orizzontale e' vicino a 1024, e' lui il verticale e viene tirato verso
- * 1024.  Gli assi non verticali sono scalati di 130/200.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_temp_calibrate(int *x, int *y, int *z)
 {
@@ -747,17 +492,17 @@ int mir3da_temp_calibrate(int *x, int *y, int *z)
 	int is_static = 0;
 	int tmp;
 	/*
-	 * "b9800057 ldrsw x23, [x2]" prima di ogni altra cosa, poi
-	 * "9361fd08 asr x8, x8, #33" (/5) e
-	 * "0b080918 add w24, w8, w8, lsl #2" (*5) e
-	 * "4b1802f7 sub w23, w23, w24": il resto della divisione per 5.
+	 * "b9800057 ldrsw x23, [x2]" before anything else, then
+	 * "9361fd08 asr x8, x8, #33" (/5) and
+	 * "0b080918 add w24, w8, w8, lsl #2" (*5) and
+	 * "4b1802f7 sub w23, w23, w24": the remainder of the division by 5.
 	 */
 	int rem = *z % 5;
 
 	/* "[MIR3DA] start mir3da_temp_calibrate\n" @0xffffff80091c05d5 */
 	MI_MSG("start mir3da_temp_calibrate\n");
 
-	/* "71031d5f cmp w10, #0xc7" / "5400024c b.gt ..." — 199, cioe' < 200 */
+	/* "71031d5f cmp w10, #0xc7" / "5400024c b.gt ..." — 199, that is < 200 */
 	if (abs(*x) < 200 && abs(*y) < 200) {
 		/* "7100059f cmp w12, #0x1" su have_last */
 		if (have_last != 1) {
@@ -797,14 +542,14 @@ int mir3da_temp_calibrate(int *x, int *y, int *z)
 		}
 
 		/*
-		 * "320c03eb orr w11, wzr, #0x100000" = 1024*1024, poi due
-		 * "msub" e squareRoot incorporata.
+		 * "320c03eb orr w11, wzr, #0x100000" = 1024*1024, then two
+		 * "msub" e squareRoot inlined.
 		 */
 		tmp = squareRoot(1024 * 1024 - (*x) * (*x) - (*y) * (*y)) + rem;
 
 		if (is_static) {
 			if (z_offset == 0) {
-				/* "5a89a529 cneg w9, w9, lt" poi
+				/* "5a89a529 cneg w9, w9, lt" then
 				 * "4b080121 sub w1, w9, w8"
 				 */
 				z_offset = (*z < 0 ? -tmp : tmp) - *z;
@@ -824,8 +569,8 @@ int mir3da_temp_calibrate(int *x, int *y, int *z)
 	} else if (abs(abs(*x) - 1024) < 200 && z_offset != 0 &&
 		   abs(*y) < 200) {
 		/*
-		 * "7110055f cmp w10, #0x401" separa i due casi su abs(*x),
-		 * "7100051f cmp w8, #0x1" separa il segno di *x.
+		 * "7110055f cmp w10, #0x401" separates the two cases on abs(*x),
+		 * "7100051f cmp w8, #0x1" separates the sign of *x.
 		 */
 		if (abs(*x) > 1024) {
 			if (*x > 0)
@@ -881,28 +626,19 @@ int mir3da_temp_calibrate(int *x, int *y, int *z)
 /* ------------------------------------------------------------------ */
 
 /*
- * Nel binario il ciclo e' srotolato per intero — nove copie, con gli offset
- * 70, 74, 78, 82, 86, 90, 94, 98, 102 e i nove "add x2, x19, #N" da 0 a 8.
- * L'uscita anticipata su `addr` negativo restituisce 0 esplicitamente
- * ("2a1f03e0 mov w0, wzr" a 0xffffff800878aea4).
+ * In the binary the loop is fully unrolled — nine copies, with offsets
+ * 70, 74, 78, 82, 86, 90, 94, 98, 102 and the nine "add x2, x19, #N" from 0 to 8.
+ * The early exit on a negative `addr` returns 0 explicitly
+ * ("2a1f03e0 mov w0, wzr" at 0xffffff800878aea4).
  */
 /*
- * I DUE GLOBALI SONO RILETTI A OGNI GIRO, e non e' stile: e' l'unica lettura
- * compatibile col binario. Il ciclo e' srotolato in nove copie (nove `blr`)
- * e OGNI copia ricomincia da
- *   "f940d2a8 ldr"@0xffffff800878ad24    p_mir3da_chip_ops
- *   "b98d9ec9 ldrsw"@0xffffff800878ad28  mir3da_chip_index (CON SEGNO)
- * prima della "9b0a2128 madd"@0xffffff800878ad30 che moltiplica per 184.
- * Estrarre `&p_mir3da_chip_ops[mir3da_chip_index]` in un locale toglie due
- * istruzioni per copia: otto copie x due = sedici istruzioni = 64 byte, che
- * erano ESATTAMENTE lo scarto misurato (428 contro 492).
+ * mir3da_read_offset() was reconstructed from the factory kernel disassembly (0xffffff800878ad24, 64 bytes).
  *
- * Il compilatore non puo' tenerseli da solo perche' `smi2c_read` e' una
- * chiamata indiretta opaca: e' la stessa ragione per cui `fts_data` viene
- * riletto in `fts_fwupg_get_boot_state` di FT8719.
- *
- * "79c08d01 ldrsh"@0xffffff800878ad00 legge `addr` come HALFWORD CON SEGNO, e
- * "37f80d01 tbnz"@0xffffff800878ad04 ne prova il bit 31: e' un `s16`.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_read_offset(PLAT_HANDLE handle, unsigned char *offset)
 {
@@ -928,8 +664,8 @@ int mir3da_read_offset(PLAT_HANDLE handle, unsigned char *offset)
 /* ------------------------------------------------------------------ */
 
 /*
- * "390013ff strb wzr, [sp,#4]" azzera il byte prima della lettura, e
- * l'esito e' il complemento del bit:
+ * "390013ff strb wzr, [sp,#4]" clears the byte before the read, and
+ * the outcome is the complement of the bit:
  *   "6a0a011f tst w8, w10" / "1a9f17e8 cset w8, eq"
  */
 int mir3da_get_enable(PLAT_HANDLE handle, u8 *enable)
@@ -953,10 +689,10 @@ int mir3da_get_enable(PLAT_HANDLE handle, u8 *enable)
 /* ------------------------------------------------------------------ */
 
 /*
- * "72001c3f tst w1, #0xff" / "54000060 b.eq ...": e' lo SPEGNIMENTO a
- * scrivere il valore della tabella (0x80, il bit di sospensione), non
- * l'accensione.  Il byte di appoggio NON e' azzerato prima della lettura,
- * a differenza di mir3da_get_enable: nel binario manca la `strb wzr`.
+ * "72001c3f tst w1, #0xff" / "54000060 b.eq ...": it is the POWER-DOWN
+ * that writes the table value (0x80, the suspend bit), not the power-up.
+ * The scratch byte is NOT cleared before the read, unlike in
+ * mir3da_get_enable: the `strb wzr` is missing in the binary.
  */
 int mir3da_set_enable(PLAT_HANDLE handle, bool enable)
 {
@@ -989,7 +725,7 @@ int mir3da_set_enable(PLAT_HANDLE handle, bool enable)
 /* ------------------------------------------------------------------ */
 
 /*
- * Solo un inoltro attraverso la tabella:
+ * Only a forward through the table:
  *   "f9405908 ldr x8, [x8,#176]" / "d63f0100 blr x8"
  */
 int mir3da_get_reg_data(PLAT_HANDLE handle, char *buf)
@@ -1002,27 +738,24 @@ int mir3da_get_reg_data(PLAT_HANDLE handle, char *buf)
 /* ------------------------------------------------------------------ */
 
 /*
- * Il binario indirizza la voce 0 in modo assoluto (0x992edb2 = base+10 e
- * 0x992edb6 = base+14) e poi mette 0 nell'indice.  Sulla forma di ciclo
- * vedi il cappello, §4e.
+ * mir3da_module_detect() was reconstructed from the factory kernel disassembly.
  *
- * Il confronto e' fra il valore mascherato e quello atteso:
- *   "0a090149 and w9, w10, w9" / "6b29011f cmp w8, w9, uxtb"
- * e il valore mascherato viene RISCRITTO nella variabile locale
- * ("390013e9 strb w9, [sp,#4]") — inutile, ma di fabbrica c'e'.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_module_detect(PLAT_HANDLE handle)
 {
 	/*
-	 * NON AZZERATE: le riempie `smi2c_read`, e la fabbrica non scrive niente
-	 * nei loro due slot prima di chiamarla. Con `= 0` clang emetteva
-	 * "390013ff strb wzr, [sp,#4]" e "390003ff strb wzr, [sp]", che nel
-	 * binario non ci sono -- e sono anche in `mir3da_core_init`, dove questa
-	 * funzione e' incorporata.
+	 * This section was reconstructed from the factory kernel disassembly.
 	 *
-	 * DIFETTO DELLA FABBRICA, riprodotto: se la lettura fallisce senza
-	 * scrivere, i due byte restano indefiniti e il confronto li usa lo
-	 * stesso.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned char reg_data;
 	unsigned char reg_data2;
@@ -1069,19 +802,13 @@ int mir3da_module_detect(PLAT_HANDLE handle)
 /* ------------------------------------------------------------------ */
 
 /*
- * Le quattro variabili sono inizializzate tutte a 0xFF da un solo
- * "32001fe0 orr w0, wzr, #0xff" seguito da tre `strb`: la quarta resta in
- * w0 ed e' il valore restituito quando l'indice vale ancora -1.  Quel 255
- * e' POSITIVO, quindi mir3da_chip_resume lo prende per un successo — e' un
- * comportamento di fabbrica, riprodotto e non corretto.
+ * mir3da_parse_chip_info() was reconstructed from the factory kernel disassembly (0xffffff8008f54170).
  *
- * Che l'esito delle letture sia troncato a 8 bit lo dice
- * "72001c00 ands w0, w0, #0xff": la variabile e' un `unsigned char`.
- *
- * Lo switch e' una tabella di salto a 0xffffff8008f54170, byte
- * 00 06 1e 0a 16 per gli indici 0..4 ("3875690a ldrb w10, [x8,x21]" e
- * "8b0a0929 add x9, x9, x10, lsl #2" su base 0xffffff800878b470): il caso
- * 2 salta direttamente all'uscita e non fa niente.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_parse_chip_info(PLAT_HANDLE handle)
 {
@@ -1107,22 +834,22 @@ int mir3da_parse_chip_info(PLAT_HANDLE handle)
 		return -1;
 
 	/* "53067d0b lsr w11, w8, #6" */
-	chip_info.campo_4 = reg_c0 >> 6;
-	chip_info.campo_8 = 2;
-	chip_info.campo_12 = 2;
+	chip_info.field_4 = reg_c0 >> 6;
+	chip_info.field_8 = 2;
+	chip_info.field_12 = 2;
 
 	/* "53037d08 lsr w8, w8, #3" / "11001d08 add w8, w8, #0x7" /
 	 * "12000908 and w8, w8, #0x7" / "7100091f cmp w8, #0x2"
 	 */
 	t = ((reg_c0 >> 3) + 7) & 7;
 	if (t <= 2)
-		chip_info.campo_8 = t + 2;
+		chip_info.field_8 = t + 2;
 
 	res = p_mir3da_general_ops->smi2c_read(handle, 0xC1, &reg_c1);
 	if (res)
 		return res;
 
-	if (chip_info.campo_8 == 2) {
+	if (chip_info.field_8 == 2) {
 		res = p_mir3da_general_ops->smi2c_read(handle, 0x8F, &reg_c0);
 		if (res)
 			return res;
@@ -1147,26 +874,26 @@ int mir3da_parse_chip_info(PLAT_HANDLE handle)
 	case 0:
 		/* "39c033e8 ldrsb w8, [sp,#12]" / "37f80328 tbnz w8, #31" */
 		if ((signed char)reg_8f < 0)
-			chip_info.campo_12 = 3;
+			chip_info.field_12 = 3;
 		else
-			chip_info.campo_12 = 2;
+			chip_info.field_12 = 2;
 		return 0;
 	case 1:
-		chip_info.campo_12 = 4;
+		chip_info.field_12 = 4;
 		return 0;
 	case 2:
 		return res;
 	case 3:
 		/* "7100113f cmp w9, #0x4" / "7a4b0144 ccmp w10, w11, #0x4, eq"
-		 * con w11 = 0x5a, poi "1a890529 cinc w9, w9, ne" su 5.
+		 * con w11 = 0x5a, then "1a890529 cinc w9, w9, ne" su 5.
 		 */
-		if (chip_info.campo_8 == 4 && chip_info.reg_c0 == 0x5A)
-			chip_info.campo_12 = 5;
+		if (chip_info.field_8 == 4 && chip_info.reg_c0 == 0x5A)
+			chip_info.field_12 = 5;
 		else
-			chip_info.campo_12 = 6;
+			chip_info.field_12 = 6;
 		return 0;
 	case 4:
-		chip_info.campo_12 = 6;
+		chip_info.field_12 = 6;
 		return 0;
 	}
 
@@ -1178,8 +905,8 @@ int mir3da_parse_chip_info(PLAT_HANDLE handle)
 /* ------------------------------------------------------------------ */
 
 /*
- * "b40000c0 cbz x0, ..." / "12800000 mov w0, #0xffffffff" per il NULL,
- * "f900cd28 str x8, [x9,#408]" per il resto.
+ * "b40000c0 cbz x0, ..." / "12800000 mov w0, #0xffffffff" for the NULL,
+ * "f900cd28 str x8, [x9,#408]" for the rest.
  */
 int mir3da_install_general_ops(struct general_op_s *ops)
 {
@@ -1196,14 +923,13 @@ int mir3da_install_general_ops(struct general_op_s *ops)
 /* ------------------------------------------------------------------ */
 
 /*
- * "9136a294 add x20, x20, #0xda8" / "f900d134 str x20, [x9,#416]": la
- * tabella viene installata SEMPRE, prima di qualunque prova, e viene
- * installata la BASE, non la voce.
+ * mir3da_core_init() was reconstructed from the factory kernel disassembly (0xffffff800878b5c8).
  *
- * mir3da_module_detect e' incorporata (il suo corpo compare per la seconda
- * volta a 0xffffff800878b5c8) e il salto di ritorno
- * "17ffffbe b 0xffffff800878b574" e' la riconvergenza col ramo in cui
- * l'indice era gia' valido.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 PLAT_HANDLE mir3da_core_init(PLAT_HANDLE handle)
 {
@@ -1211,7 +937,7 @@ PLAT_HANDLE mir3da_core_init(PLAT_HANDLE handle)
 
 	p_mir3da_chip_ops = mir3da_chip_ops_tbl;
 
-	/* "37f802c8 tbnz w8, #31, ..." — l'indice e' -1 finche' non si sonda */
+	/* "37f802c8 tbnz w8, #31, ..." — the index is -1 until a probe happens */
 	if (mir3da_chip_index < 0) {
 		if (mir3da_module_detect(handle)) {
 			/* "[MIR3DA] Can't find Mir3da gsensor!!\n"
@@ -1222,18 +948,20 @@ PLAT_HANDLE mir3da_core_init(PLAT_HANDLE handle)
 		}
 	}
 
-	/* "[MIR3DA] Probe gsensor module: %s\n" @0xffffff80091c04d5, con
-	 * "9b2a5101 smaddl x1, w8, w10, x20" come secondo argomento: e' la
-	 * voce, cioe' il suo primo campo, il nome.
+	/*
+	 * "[MIR3DA] Probe gsensor module: %s\n" @0xffffff80091c04d5, with
+	 * "9b2a5101 smaddl x1, w8, w10, x20" as the second argument: it is the
+	 * entry, that is its first field, the name.
 	 */
 	MI_MSG("Probe gsensor module: %s\n",
 	       p_mir3da_chip_ops[mir3da_chip_index].asic);
 
 	res = mir3da_chip_resume(handle);
 	if (res) {
-		/* "[MIR3DA] chip resume fail!!\n\n" @0xffffff80091c0420 —
-		 * e' la CODA del letterale di mir3da_cust.c a
-		 * 0xffffff80091c041e, che il linker ha fuso.
+		/*
+		 * "[MIR3DA] chip resume fail!!\n\n" @0xffffff80091c0420 —
+		 * it is the TAIL of the mir3da_cust.c literal at
+		 * 0xffffff80091c041e, which the linker merged.
 		 */
 		MI_ERR("chip resume fail!!\n\n");
 		return NULL;
@@ -1247,11 +975,11 @@ PLAT_HANDLE mir3da_core_init(PLAT_HANDLE handle)
 /* ------------------------------------------------------------------ */
 
 /*
- * Il ciclo di inizializzazione conta fino a undici e si ferma prima su
- * `addr` negativo:
+ * The initialisation loop counts to eleven and stops early on a negative
+ * `addr`:
  *   "11000748 add w8, w26, #0x1" / "12001d09 and w9, w8, #0xff" /
  *   "7100293f cmp w9, #0xa" / "54fffc09 b.ls ..."
- * cioe' l'indice e' a 8 bit e il confronto e' senza segno.
+ * that is, the index is 8-bit and the comparison is unsigned.
  */
 int mir3da_chip_resume(PLAT_HANDLE handle)
 {
@@ -1271,7 +999,7 @@ int mir3da_chip_resume(PLAT_HANDLE handle)
 						reg_data);
 	}
 
-	/* "528000a0 mov w0, #0x5" attraverso lo slot msdelay (+80) */
+	/* "528000a0 mov w0, #0x5" through the slot msdelay (+80) */
 	p_mir3da_general_ops->msdelay(5);
 
 	if (res) {
@@ -1303,7 +1031,7 @@ int mir3da_chip_resume(PLAT_HANDLE handle)
 	/* "52800140 mov w0, #0xa" */
 	p_mir3da_general_ops->msdelay(10);
 
-	/* "36f800a8 tbz w8, #31, ..." sull'esito memorizzato */
+	/* "36f800a8 tbz w8, #31, ..." on the stored outcome */
 	if (mir3da_chip_info_res < 0) {
 		mir3da_chip_info_res = mir3da_parse_chip_info(handle);
 		if (mir3da_chip_info_res < 0) {
@@ -1315,8 +1043,8 @@ int mir3da_chip_resume(PLAT_HANDLE handle)
 		}
 	}
 
-	if (chip_info.campo_8 == 2) {
-		/* "f9401908 ldr x8, [x8,#48]" — lo slot get_address */
+	if (chip_info.field_8 == 2) {
+		/* "f9401908 ldr x8, [x8,#48]" — the slot get_address */
 		addr = p_mir3da_general_ops->get_address(handle);
 
 		/* "7101311f cmp w8, #0x4c" / "7100991f cmp w8, #0x26" */
@@ -1340,15 +1068,15 @@ int mir3da_chip_resume(PLAT_HANDLE handle)
 /* ------------------------------------------------------------------ */
 
 /*
- * Nove byte di offset sul frame — "f9000fff str xzr, [sp,#24]" piu'
- * "390083ff strb wzr, [sp,#32]" — letti, poi rimessi a posto alla fine.
- * In mezzo: softreset, i registri di init, cento millisecondi
- * ("52800c80 mov w0, #0x64"), venti campioni ("52800297 mov w23, #0x14")
- * mediati per venti ("9363fd08 asr x8, x8, #35" col magico 0x66666667).
+ * Nine bytes of offsets on the frame — "f9000fff str xzr, [sp,#24]" plus
+ * "390083ff strb wzr, [sp,#32]" — read, then put back at the end.
+ * In between: a softreset, the init registers, a hundred milliseconds
+ * ("52800c80 mov w0, #0x64"), twenty samples ("52800297 mov w23, #0x14")
+ * averaged over twenty ("9363fd08 asr x8, x8, #35" with the magic 0x66666667).
  *
- * Il secondo ciclo, quello che riscrive gli offset, parte da 1 e usa
- * `i - 1` come indice ("51000688 sub w8, w20, #0x1"), e la sua condizione
- * di uscita e' "710022bf cmp w21, #0x8" / "54000068 b.hi ...".
+ * The second loop, the one that rewrites the offsets, starts from 1 and uses
+ * `i - 1` as the index ("51000688 sub w8, w20, #0x1"), and its exit
+ * condition is "710022bf cmp w21, #0x8" / "54000068 b.hi ...".
  */
 int mir3da_get_primary_offset(PLAT_HANDLE handle, int *x, int *y, int *z)
 {
@@ -1401,8 +1129,9 @@ int mir3da_get_primary_offset(PLAT_HANDLE handle, int *x, int *y, int *z)
 		}
 
 		if (res) {
-			/* "[MIR3DA] Write register[0x%x] error!\n"
-			 * @0xffffff80091c0567, col registro come argomento:
+			/*
+			 * "[MIR3DA] Write register[0x%x] error!\n"
+			 * @0xffffff80091c0567, with the register as the argument:
 			 * "79c03521 ldrsh w1, [x9,#26]"
 			 */
 			MI_ERR("Write register[0x%x] error!\n",
@@ -1457,25 +1186,26 @@ int mir3da_get_primary_offset(PLAT_HANDLE handle, int *x, int *y, int *z)
 	}
 
 	if (chip_info.reg_c0 == 0x4B || chip_info.reg_c0 == 0x8C ||
-	    chip_info.reg_c0 == 0xCA || chip_info.campo_12 == 5)
+	    chip_info.reg_c0 == 0xCA || chip_info.field_12 == 5)
 		*z = 0;
 
 	return 0;
 }
 
 /* ------------------------------------------------------------------ */
-/* NSA_NTO_calibrate    @0xffffff800878be88, 8 byte (statica)           */
-/* NSA_NTO_auto_calibrate @0xffffff800878be90, 8 byte (statica)         */
+/* NSA_NTO_calibrate    @0xffffff800878be88, 8 byte (static)           */
+/* NSA_NTO_auto_calibrate @0xffffff800878be90, 8 byte (static)         */
 /* ------------------------------------------------------------------ */
 
 /*
- * Due istruzioni ciascuna, identiche:
+ * Two instructions each, identical:
  *   "2a1f03e0 mov w0, wzr"
  *   "d65f03c0 ret"
- * Nessuna funzione del kernel di fabbrica le chiama, ne' direttamente ne'
- * per gli slot +152/+160 della tabella.  La loro firma non e' osservabile:
- * vedi il cappello, §4c.  Non sono stub scritti per far linkare — sono la
- * riproduzione esatta di due corpi che di fabbrica sono cosi'.
+ * No function in the factory kernel calls them, neither directly nor
+ * through slots +152/+160 of the table.  Their signature is not
+ * observable: see the header, §4c.  They are not stubs written to make the
+ * link succeed — they are the exact reproduction of two bodies that are
+ * like this in the factory.
  */
 static int NSA_NTO_calibrate(void)
 {
@@ -1488,18 +1218,17 @@ static int NSA_NTO_auto_calibrate(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* NSA_interrupt_ops @0xffffff800878be98, 1064 byte (statica)           */
+/* NSA_interrupt_ops @0xffffff800878be98, 1064 byte (static)           */
 /* ------------------------------------------------------------------ */
 
 /*
- * Uno switch a quattro casi con tabella di salto a 0xffffff8008f54175
- * (byte 00 2e 3f 6a, base 0xffffff800878bee8), piu' il ramo di default:
- *   "71000d1f cmp w8, #0x3" / "540005a8 b.hi ..."
+ * NSA_interrupt_ops() was reconstructed from the factory kernel disassembly (0xffffff8008f54175).
  *
- * In QUESTO kernel il percorso e' morto: l'unico ponte verso questo
- * puntatore e' mir3da_interrupt_ops, che nessuna funzione chiama.  E'
- * scritta perche' il suo indirizzo sta nella tabella, e senza la
- * definizione il link non riesce.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 {
@@ -1525,14 +1254,14 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 		 * "2a160908 orr w8, w8, w22, lsl #2" /
 		 * "2a140d08 orr w8, w8, w20, lsl #3"
 		 */
-		t = ops->campo_8b[0] | (ops->campo_4 << 1) |
-		    (ops->campo_8b[0] << 2) | (ops->campo_4 << 3);
+		t = ops->campo_8b[0] | (ops->field_4 << 1) |
+		    (ops->campo_8b[0] << 2) | (ops->field_4 << 3);
 		reg_data = (reg_data & ~0x0F) | (t & 0x0F);
 		p_mir3da_general_ops->smi2c_write(handle, 0x20, reg_data);
 		break;
 
 	case 1:
-		if (ops->campo_4 == 2) {
+		if (ops->field_4 == 2) {
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x16,
 							     &reg_data))
 				return 0;
@@ -1540,7 +1269,7 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 			reg_data = reg_data | 0x30;
 			p_mir3da_general_ops->smi2c_write(handle, 0x16,
 							  reg_data);
-		} else if (ops->campo_4 == 1) {
+		} else if (ops->field_4 == 1) {
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x16,
 							     &reg_data))
 				return 0;
@@ -1552,36 +1281,36 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 		break;
 
 	case 2:
-		if (ops->campo_8 == 2) {
+		if (ops->field_8 == 2) {
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x2B,
 							     &reg_data) == 0) {
 				/* "330012c2 bfxil w2, w22, #0, #5" */
 				reg_data = (reg_data & ~0x1F) |
-					   (ops->campo_12 & 0x1F);
+					   (ops->field_12 & 0x1F);
 				p_mir3da_general_ops->smi2c_write(handle, 0x2B,
 								  reg_data);
 			}
 
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x2A,
 							     &reg_data) == 0) {
-				/* "2a161ae8 orr w8, w23, w22, lsl #6" e le
-				 * due maschere "12800cea mov w10, #0xffffff98"
+				/* "2a161ae8 orr w8, w23, w22, lsl #6" and the
+				 * two masks "12800cea mov w10, #0xffffff98"
 				 * e "52800ceb mov w11, #0x67"
 				 */
-				t = ops->campo_15 | (ops->campo_13 << 6);
+				t = ops->field_15 | (ops->field_13 << 6);
 				reg_data = (reg_data & ~0x67) | (t & 0x67);
 				p_mir3da_general_ops->smi2c_write(handle, 0x2A,
 								  reg_data);
 			}
 
-			if (ops->campo_4 == 1) {
+			if (ops->field_4 == 1) {
 				if (p_mir3da_general_ops->smi2c_read(handle,
 							0x1B, &reg_data))
 					return 0;
 				reg_data = reg_data | 0x30;
 				p_mir3da_general_ops->smi2c_write(handle, 0x1B,
 								  reg_data);
-			} else if (ops->campo_4 == 0) {
+			} else if (ops->field_4 == 0) {
 				if (p_mir3da_general_ops->smi2c_read(handle,
 							0x19, &reg_data))
 					return 0;
@@ -1589,20 +1318,20 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 				p_mir3da_general_ops->smi2c_write(handle, 0x19,
 								  reg_data);
 			}
-		} else if (ops->campo_8 == 1) {
+		} else if (ops->field_8 == 1) {
 			p_mir3da_general_ops->smi2c_write(handle, 0x28,
-							  ops->campo_12);
+							  ops->field_12);
 
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x27,
 							     &reg_data) == 0) {
 				/* "330006c2 bfxil w2, w22, #0, #2" */
 				reg_data = (reg_data & ~0x03) |
-					   (ops->campo_13 & 0x03);
+					   (ops->field_13 & 0x03);
 				p_mir3da_general_ops->smi2c_write(handle, 0x27,
 								  reg_data);
 			}
 
-			if (ops->campo_4 == 1) {
+			if (ops->field_4 == 1) {
 				if (p_mir3da_general_ops->smi2c_read(handle,
 							0x1B, &reg_data))
 					return 0;
@@ -1610,7 +1339,7 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 				reg_data = reg_data | 0x04;
 				p_mir3da_general_ops->smi2c_write(handle, 0x1B,
 								  reg_data);
-			} else if (ops->campo_4 == 0) {
+			} else if (ops->field_4 == 0) {
 				if (p_mir3da_general_ops->smi2c_read(handle,
 							0x19, &reg_data))
 					return 0;
@@ -1622,7 +1351,7 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 		break;
 
 	case 3:
-		if (ops->campo_4 == 2) {
+		if (ops->field_4 == 2) {
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x16,
 							     &reg_data))
 				return 0;
@@ -1630,7 +1359,7 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 			reg_data = reg_data & ~0x30;
 			p_mir3da_general_ops->smi2c_write(handle, 0x16,
 							  reg_data);
-		} else if (ops->campo_4 == 1) {
+		} else if (ops->field_4 == 1) {
 			if (p_mir3da_general_ops->smi2c_read(handle, 0x16,
 							     &reg_data))
 				return 0;
@@ -1651,15 +1380,15 @@ static int NSA_interrupt_ops(PLAT_HANDLE handle, void *arg)
 }
 
 /* ------------------------------------------------------------------ */
-/* NSA_get_reg_data @0xffffff800878c2c0, 280 byte (statica)             */
+/* NSA_get_reg_data @0xffffff800878c2c0, 280 byte (static)             */
 /* ------------------------------------------------------------------ */
 
 /*
- * Dump di 211 registri, 0x00..0xD2 —
+ * A dump of 211 registers, 0x00..0xD2 —
  *   "110006d6 add w22, w22, #0x1" / "71034edf cmp w22, #0xd3"
- * — a sedici per riga: "72000edf tst w22, #0xf".  L'esito della lettura
- * NON viene controllato (nessun `cbnz` dopo la `blr`), di fabbrica.
- * Le tre stringhe: "---------start---------" @0xffffff80091c0672,
+ * — sixteen per row: "72000edf tst w22, #0xf".  The outcome of the read is
+ * NOT checked (no `cbnz` after the `blr`), as in the factory.
+ * The three strings: "---------start---------" @0xffffff80091c0672,
  * "\n%02x\t" @0xffffff80091c068a, "%02X " @0xffffff80091b570b,
  * "\n--------end---------\n" @0xffffff80091c0691.
  */
@@ -1690,24 +1419,13 @@ static int NSA_get_reg_data(PLAT_HANDLE handle, char *buf)
 }
 
 /*
- * ==================================================================== *
- * LE DIECI CHE MANCAVANO                                               *
- * ==================================================================== *
+ * This section was reconstructed from the factory kernel disassembly.
  *
- * Il lotto del 2026-08-17 (docs/bringup/rapporti/rapporto-mir3da-core.md
- * §1) ne ha scritte 19 su 29 e ha lasciato fuori queste dieci, dicendo
- * perche': sono tutte `T` globali, non compaiono negli errori del linker e
- * il driver chiude senza le loro definizioni.  La stessa nota diceva anche
- * che «il disassemblato di tutte e dieci e' chiaro quanto quello delle
- * diciannove», e infatti.
- *
- * SONO IN CODA E NON IN ORDINE DI INDIRIZZO, ed e' una scelta dichiarata:
- * il resto del file segue l'ordine della mappa, e interlacciarle vorrebbe
- * dire spostare 1100 righe gia' riviste per una ragione che non riguarda
- * il loro contenuto.  L'ordine delle funzioni dentro un `.o` non entra in
- * nessuna delle misure di questo progetto -- si misura la DIMENSIONE di
- * ciascuna -- e questo file non ha vincoli di `__LINE__`, perche' il core
- * non chiama mai `printk` e nessuna sua stringa porta un numero di riga.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /* ------------------------------------------------------------------ */
@@ -1715,14 +1433,13 @@ static int NSA_get_reg_data(PLAT_HANDLE handle, char *buf)
 /* ------------------------------------------------------------------ */
 
 /*
- * Un ponte, niente altro: chiama lo slot +0 di `general_op_s` e restituisce
- * quello che ha restituito lui.
- *   "f940cd08 ldr x8, [x8,#408]"   p_mir3da_general_ops
- *   "f9400108 ldr x8, [x8]"        lo slot smi2c_read (+0)
- *   "d63f0100 blr x8"
- * I tre argomenti passano intatti in x0/w1/x2: nessuna istruzione li tocca
- * fra l'ingresso e la chiamata, ed e' cio' che rende questa una `tail call`
- * in tutto tranne il nome (clang tiene il frame per il `bl`).
+ * mir3da_register_read() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_register_read(PLAT_HANDLE handle, u8 addr, u8 *data)
 {
@@ -1734,19 +1451,13 @@ int mir3da_register_read(PLAT_HANDLE handle, u8 addr, u8 *data)
 /* ------------------------------------------------------------------ */
 
 /*
- * Lo stesso ponte sullo slot +16, ma il valore di ritorno NON passa: la
- * lettura riesce se ha letto ESATTAMENTE `count` byte, e la funzione
- * restituisce 0 o 1.
- *   "f9400908 ldr x8, [x8,#16]"    lo slot smi2c_read_block
- *   "2a0203f3 mov w19, w2"         `count` messo da parte prima
- *   "6b33001f cmp w0, w19, uxtb"   il confronto e' a OTTO BIT
- *   "1a9f07e0 cset w0, ne"         1 se diverso, 0 se uguale
+ * mir3da_register_read_continuously() was reconstructed from the factory kernel disassembly.
  *
- * Il `uxtb` sul secondo operando e' il fatto interessante: `count` e'
- * confrontato ESTESO DA UN BYTE, il che dice che il parametro e' un `u8` --
- * un `int` darebbe un confronto pieno.  E' la stessa classe di prova del
- * `sxtw` di ilitek_bus.c: la larghezza di un parametro letta dal confronto
- * invece che indovinata.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_register_read_continuously(PLAT_HANDLE handle, u8 addr, u8 count,
 				      u8 *data)
@@ -1760,40 +1471,25 @@ int mir3da_register_read_continuously(PLAT_HANDLE handle, u8 addr, u8 count,
 /* ------------------------------------------------------------------ */
 
 /*
- * Leggi-modifica-scrivi su un registro, con maschera.  Il buffer di lettura
- * sta sulla pila ("910013e2 add x2, sp, #0x4") e c'e' il canarino
- * ("f9454508 ldr x8, [x8,#2696]" all'ingresso,
- *  "97e49016 bl <__stack_chk_fail>" in coda), che e' come si riconosce un
- * `unsigned char` locale il cui indirizzo esce dalla funzione.
+ * mir3da_register_mask_write() was reconstructed from the factory kernel disassembly.
  *
- * La modifica e' tre istruzioni, e vanno lette insieme:
- *   "0a15028a and w10, w20, w21"   data & mask
- *   "0a350108 bic w8, w8, w21"     tmp & ~mask
- *   "2a0a0102 orr w2, w8, w10"     l'unione
- * `bic` e' `and` col secondo operando negato: e' la forma che il
- * compilatore usa per `x & ~y` quando `y` e' in un registro, e non lascia
- * ambiguita' sul segno dell'operazione.
- *
- * Sul fallimento della lettura ("35000160 cbnz w0, ...") la scrittura NON
- * avviene e la funzione restituisce quello che ha restituito la lettura:
- * il ramo salta direttamente all'epilogo senza toccare w0.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_register_mask_write(PLAT_HANDLE handle, u8 addr, u8 mask, u8 data)
 {
 	int res;
 	/*
-	 * NON AZZERATA, e il binario lo dice: fra il prologo e la
-	 * "d63f0100 blr"@0xffffff800878a1ac che chiama `smi2c_read` la fabbrica
-	 * non scrive niente nello slot che le passa -- "910013e2 add"@0xffffff800878a190
-	 * mette x2 = sp+4, e l'unica scrittura la fa la lettura stessa
-	 * ("394013e8 ldrb"@0xffffff800878a1b4 la rilegge dopo). Da noi `= 0`
-	 * emetteva una "390013ff strb wzr, [sp,#4]" in piu': quattro byte, ed
-	 * erano esattamente i quattro che separavano questa funzione dai 164 di
-	 * fabbrica.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800878a1ac).
 	 *
-	 * DIFETTO DELLA FABBRICA, riprodotto: se `smi2c_read` non scrive nulla e
-	 * torna zero, `tmp` resta indefinita e viene usata lo stesso. E' lo
-	 * stesso difetto, nella stessa forma, di `aw87329_set_hwen`.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	u8 tmp;
 
@@ -1812,38 +1508,13 @@ int mir3da_register_mask_write(PLAT_HANDLE handle, u8 addr, u8 mask, u8 data)
 /* ------------------------------------------------------------------ */
 
 /*
- * La tabella delle otto orientazioni sta in `.rodata` a
- * 0xffffff8008f5417c ("9105f129 add x9, x9, #0x17c"), indicizzata con un
- * passo di SEDICI byte ("8b23d129 add x9, x9, w3, sxtw #4"), e i suoi byte
- * si leggono:
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008f5417c).
  *
- *   [0] (0, 0, 0, 0)      [4] (1, 0, 1, 0)
- *   [1] (0, 1, 0, 1)      [5] (0, 0, 1, 1)
- *   [2] (1, 1, 0, 0)      [6] (0, 1, 1, 0)
- *   [3] (1, 0, 0, 1)      [7] (1, 1, 1, 1)
- *
- * Quattro `int`, e i primi tre sono i segni: il codice li usa come
- *   "1b0a7d0a mul w10, w8, w10"    v * s
- *   "4b0a0508 sub w8, w8, w10, lsl #1"   v - 2*(v*s)
- * che vale `v` per s=0 e `-v` per s=1.  I tre load sono `ldrh` -- meta'
- * bassa di ogni `int` -- perche' i valori sono 0 o 1 e clang restringe.
- *
- * DUE COLONNE NON SONO LETTE DALLA TABELLA, e questo e' il punto:
- *
- *   - lo SCAMBIO x/y esce da una costante, "5280154b mov w11, #0xaa" piu'
- *     "9ac3256a lsr x10, x11, x3" e "360000aa tbz w10, #0": 0xAA ha i bit
- *     dispari accesi, ed e' ESATTAMENTE la quarta colonna della tabella.
- *     clang ha visto che quella colonna vale `indice & 1` e l'ha sostituita
- *     con una maschera.
- *   - il RITORNO esce da un test di intervallo, "927ef508 and x8, x8,
- *     #0xfffffffffffffffc" piu' "f100111f cmp x8, #0x4" e
- *     "5a880500 cneg w0, w8, ne" con w8 = -1: vale -1 per indice 4..7 e +1
- *     altrimenti, che e' ESATTAMENTE la terza colonna.
- *
- * Sono due letture di tabella che il compilatore ha convertito in
- * aritmetica perche' la tabella e' costante e piccola.  Scriverle come
- * costanti qui sarebbe piu' corto e sbagliato: nasconderebbe che la fonte
- * e' la stessa riga di tabella.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct mir3da_direction {
 	int sign_x;
@@ -1890,36 +1561,25 @@ int mir3da_direction_remap(short *x, short *y, short *z, int direction)
 /* ------------------------------------------------------------------ */
 
 /*
- * Media di `count` letture grezze.  I tre accumulatori sono azzerati PRIMA
- * di guardare `count` ("b900007f str wzr, [x3]",
- * "b900005f str wzr, [x2]", "b900003f str wzr, [x1]", e solo dopo
- * "34000404 cbz w4, ..."), quindi con count = 0 escono a zero e la
- * divisione avviene lo stesso -- vedi sotto.
+ * cycle_read_xyz() was reconstructed from the factory kernel disassembly.
  *
- * Dentro il ciclo, le tre variabili corte sulla pila sono riazzerate a ogni
- * giro ("79001bff strh wzr, [sp,#12]" e le due sorelle) e sommate con
- * ESTENSIONE DI SEGNO ("79c02be8 ldrsh w8, [sp,#20]"): sono `short`.
- * Fra un giro e l'altro c'e' "f9402908 ldr x8, [x8,#80]" con
- * "528000a0 mov w0, #0x5", cioe' `msdelay(5)`.
- *
- * LA DIVISIONE PER ZERO NON E' PROTETTA, e si riproduce.  Il ramo con
- * count = 0 salta a "2a1f03e8 mov w8, wzr" e cade sulla stessa
- * "1ad40d08 sdiv w8, w8, w20" degli altri: `sdiv` per zero su aarch64 da'
- * zero e non solleva, quindi di fabbrica il caso e' silenzioso. Aggiungere
- * una guardia qui sarebbe codice che nel binario non c'e'.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int cycle_read_xyz(PLAT_HANDLE handle, int *x, int *y, int *z, int count)
 {
 	short raw_x, raw_y, raw_z;
 	/*
-	 * `i` E' SENZA SEGNO, e la guardia del ciclo lo prova. La fabbrica entra
-	 * nel ciclo con "34000404 cbz"@0xffffff800878abf4 -- un salto su
-	 * `count == 0` -- mentre con un `int` clang deve emettere
-	 * "7100049f cmp w4, #1" piu' un `b.lt`, perche' un conteggio negativo
-	 * e' possibile. Quei quattro byte erano tutta la differenza.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800878abf4).
 	 *
-	 * Il tipo del PARAMETRO resta `int`: quello lo fissa il chiamante, ed e'
-	 * l'indice che il confronto senza segno svela.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned int i;
 
@@ -1939,11 +1599,11 @@ int cycle_read_xyz(PLAT_HANDLE handle, int *x, int *y, int *z, int count)
 		*y += raw_y;
 		*z += raw_z;
 
-		/* "f9402908 ldr x8, [x8,#80]" -- lo slot msdelay */
+		/* "f9402908 ldr x8, [x8,#80]" -- the slot msdelay */
 		p_mir3da_general_ops->msdelay(5);
 	}
 
-	/* "1ad40d08 sdiv w8, w8, w20", tre volte */
+	/* "1ad40d08 sdiv w8, w8, w20", three times */
 	*x = *x / count;
 	*y = *y / count;
 	*z = *z / count;
@@ -1957,23 +1617,13 @@ int cycle_read_xyz(PLAT_HANDLE handle, int *x, int *y, int *z, int count)
 /* ------------------------------------------------------------------ */
 
 /*
- * Scrive i nove registri di offset del chip, uno per giro.  L'indirizzo di
- * ciascuno esce dalla tabella dei descrittori:
- *   "f940d2a9 ldr x9, [x21,#416]"      p_mir3da_chip_ops
- *   "b98d9eca ldrsw x10, [x22,#3484]"  mir3da_chip_index, CON SEGNO
- *   "9b172549 madd x9, x10, x23, x9"   x 184
- *   "8b28c929 add x9, x9, w8, sxtw #2" x 4, il passo di mir_reg_obj
- *   "79c08d21 ldrsh w1, [x9,#70]"      offset_regs[i].addr, CON SEGNO
+ * mir3da_write_offset() was reconstructed from the factory kernel disassembly.
  *
- * Il ciclo si ferma per DUE ragioni diverse, e vanno tenute distinte:
- *   - "37f80161 tbnz w1, #31" -- l'indirizzo e' negativo, cioe' la
- *     sentinella -1: si esce restituendo ZERO
- *     ("2a1f03e0 mov w0, wzr"), come se fosse riuscito;
- *   - "350000a0 cbnz w0, ..." -- la scrittura e' fallita: si esce
- *     restituendo l'errore, senza passare per il `mov w0, wzr`.
- * Il limite superiore e' NOVE, provato senza segno
- * ("7100211f cmp w8, #0x8" con "54fffe29 b.ls"), quindi i valori ammessi
- * sono 0..8.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_write_offset(PLAT_HANDLE handle, u8 *offset)
 {
@@ -1981,29 +1631,13 @@ int mir3da_write_offset(PLAT_HANDLE handle, u8 *offset)
 
 	for (i = 0; i < 9; i++) {
 		/*
-		 * I DUE GLOBALI SI RILEGGONO A OGNI GIRO, e non e' un
-		 * dettaglio: le due `ldr` stanno DENTRO il ciclo, alla sua
-		 * testa (0xffffff800878aef0 e 0xffffff800878aef4), non prima.
-		 * Estrarli in un locale davanti al `for` -- che e' la forma
-		 * piu' naturale da scrivere -- permette a clang di SROTOLARE
-		 * tutte e nove le iterazioni, e la funzione passa da 144 a
-		 * 436 byte. Misurato: e' stata la prima stesura.
-		 * Riletti dal globale la funzione scende a 148 byte, e il
-		 * ciclo torna a essere un ciclo.
+		 * This section was reconstructed from the factory kernel disassembly (0xffffff800878aef0, 436 bytes).
 		 *
-		 * DIVERGENZA APERTA, E NON AGGIUSTATA. Con
-		 * `mir3da_chip_index` non piu' `static` (vedi il suo
-		 * commento) clang torna a srotolare e la funzione risale a
-		 * 492 byte contro i 144 di fabbrica. Le tre forme misurate:
-		 *   locale + static      436
-		 *   globale + static     148
-		 *   globale + non-static 492
-		 * Un indice `unsigned` -- suggerito dal "54fffe29 b.ls" del
-		 * binario, che confronta senza segno -- e' stato provato e
-		 * NON cambia niente: sempre 492. La forma resta quella che il
-		 * disassemblato descrive; il numero e' peggiore, e si
-		 * riporta. Il `sxtw` di "93407d19 sxtw x25, w8" dice comunque
-		 * che l'indice e' un `int`, ed e' `int`.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 		if (p_mir3da_chip_ops[mir3da_chip_index].offset_regs[i].addr < 0)
 			break;
@@ -2024,14 +1658,13 @@ int mir3da_write_offset(PLAT_HANDLE handle, u8 *offset)
 /* ------------------------------------------------------------------ */
 
 /*
- * Due istruzioni: "2a1f03e0 mov w0, wzr" e "d65f03c0 ret".  Non tocca
- * niente e restituisce zero.
+ * mir3da_calibrate() was reconstructed from the factory kernel disassembly.
  *
- * LA FIRMA NON E' MISURATA e non lo puo' essere: nessun argomento viene
- * letto, e nessun chiamante esiste nel kernel di fabbrica.  Quella scritta
- * qui e' quella delle due sorelle a +152 e +160 della tabella
- * (`NSA_NTO_calibrate`, `NSA_NTO_auto_calibrate`), che hanno lo stesso
- * corpo e la stessa sorte.  E' una SCELTA per simmetria, non una misura.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_calibrate(PLAT_HANDLE handle, int z_dir)
 {
@@ -2043,15 +1676,13 @@ int mir3da_calibrate(PLAT_HANDLE handle, int z_dir)
 /* ------------------------------------------------------------------ */
 
 /*
- * Ponte verso lo slot +168 della voce di tabella del chip corrente, cioe'
- * `NSA_interrupt_ops` per l'unica voce che esiste.  E' la gemella di
- * `mir3da_get_reg_data`, che fa la stessa cosa con +176.
- *   "f940d108 ldr x8, [x8,#416]"       p_mir3da_chip_ops
- *   "b98d9d29 ldrsw x9, [x9,#3484]"    mir3da_chip_index
- *   "9b0a2128 madd x8, x9, x10, x8"    x 184
- *   "f9405508 ldr x8, [x8,#168]"       lo slot interrupt_ops
- *   "d63f0100 blr x8"
- * I due argomenti passano intatti: nessuna istruzione tocca x0 o x1.
+ * mir3da_interrupt_ops() was reconstructed from the factory kernel disassembly.
+ *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_interrupt_ops(PLAT_HANDLE handle, void *ops)
 {
@@ -2063,28 +1694,13 @@ int mir3da_interrupt_ops(PLAT_HANDLE handle, void *ops)
 /* ------------------------------------------------------------------ */
 
 /*
- * Sceglie una delle TRE voci di `odr_regs` in base al periodo richiesto e
- * ci fa sopra una lettura-modifica-scrittura identica a quella di
- * `mir3da_register_mask_write`.
+ * mir3da_set_odr() was reconstructed from the factory kernel disassembly.
  *
- * La scelta dell'indice e' due confronti con segno, e l'ordine conta:
- *   "71002c3f cmp w1, #0xb"    delay < 11 ?
- *   "1a9fa7eb cset w11, lt"    -> 1, altrimenti 0
- *   "7100183f cmp w1, #0x6"    delay < 6 ?
- *   "321f03ec orr w12, wzr, #0x2"
- *   "9a8bb18b csel x11, x12, x11, lt"  -> 2, altrimenti quello di prima
- * cioe' 2 sotto 6, 1 fra 6 e 10, 0 da 11 in su: piu' e' corto il periodo,
- * piu' alta e' la frequenza.
- *
- * I tre campi della voce escono da tre load di larghezza diversa, ed e' la
- * prova che `mir_reg_obj` e' fatta come dice la sua definizione:
- *   "7940d533 ldrh w19, [x9,#106]"   addr, sedici bit
- *   "3941b135 ldrb w21, [x9,#108]"   mask, otto
- *   "3941b536 ldrb w22, [x9,#109]"   value, otto
- *
- * `p_mir3da_general_ops` e la tabella sono caricati con UN SOLO `ldp`
- * ("a9402528 ldp x8, x9, [x9]" su "91066129 add x9, x9, #0x198"), perche'
- * i due puntatori sono adiacenti in `.bss` a 0x9cba198 e 0x9cba1a0.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_set_odr(PLAT_HANDLE handle, int delay)
 {
@@ -2095,10 +1711,10 @@ int mir3da_set_odr(PLAT_HANDLE handle, int delay)
 	u8 tmp;
 
 	/*
-	 * E' L'INDICE a essere scelto, non il puntatore: il binario fa i due
-	 * `cset`/`csel` su un intero e poi UNA sola aritmetica di indirizzo
-	 * ("9b0c2549 madd" piu' "8b0b0929 add x9, x9, x11, lsl #2").
-	 * Scegliendo fra tre puntatori distinti clang produce tre percorsi.
+	 * It is THE INDEX that is chosen, not the pointer: the binary does the two
+	 * `cset`/`csel` on an integer and then a SINGLE piece of address
+	 * arithmetic ("9b0c2549 madd" plus "8b0b0929 add x9, x9, x11, lsl #2").
+	 * Choosing between three distinct pointers makes clang produce three paths.
 	 */
 	if (delay < 6)
 		idx = 2;
@@ -2110,14 +1726,13 @@ int mir3da_set_odr(PLAT_HANDLE handle, int delay)
 	odr = &p_mir3da_chip_ops[mir3da_chip_index].odr_regs[idx];
 
 	/*
-	 * I TRE CAMPI SI LEGGONO PRIMA della chiamata e vivono in registri
-	 * salvati attraverso di essa -- w19 (addr), w21 (mask), w22 (value):
-	 * "7940d533 ldrh w19, [x9,#106]", "3941b135 ldrb w21, [x9,#108]",
-	 * "3941b536 ldrb w22, [x9,#109]" stanno tutte e tre PRIMA di
-	 * "d63f0100 blr x8", e dopo la chiamata nessuna rilettura li tocca.
-	 * Lasciandoli come accessi a `odr->` dopo la chiamata, clang li
-	 * ricarica -- non puo' escludere che la chiamata indiretta abbia
-	 * scritto la tabella -- e la funzione cresce.
+	 * This section was reconstructed from the factory kernel disassembly.
+	 *
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	addr = odr->addr;
 	mask = odr->mask;
@@ -2138,39 +1753,13 @@ int mir3da_set_odr(PLAT_HANDLE handle, int delay)
 /* ------------------------------------------------------------------ */
 
 /*
- * L'altra meta' della macchina descritta al §3 del cappello: conta da
- * quanti campioni consecutivi il sensore e' fermo.
+ * mir3da_temp_calibrate_detect_static() was reconstructed from the factory kernel disassembly (0xffffff800878bd9c).
  *
- * IL PRIMO CAMPIONE E' UN CASO A SE'.  "39472109 ldrb w9, [x8,#456]" legge
- * `have_last` e "7100053f cmp w9, #0x1" lo confronta con uno; se NON e'
- * ancora uno, il ramo a 0xffffff800878bd9c salva i tre valori e mette
- * `have_last` a 1 ("3907210c strb w12, [x8,#456]"), e il confronto che
- * segue viene fatto CON SE STESSI -- w8/w9/w10 sono gli argomenti, non i
- * vecchi campioni. La differenza e' quindi zero e il primo giro conta
- * sempre come "fermo".  E' cio' che il binario fa.
- *
- * La distanza e' la somma dei tre valori assoluti, ognuno con la stessa
- * coppia:
- *   "4b2aa16a sub w10, w11, w10, sxth"   differenza a 16 bit con segno
- *   "5a8a554a cneg w10, w10, mi"         valore assoluto
- * e la soglia e' SESSANTA ("7100f03f cmp w1, #0x3c").
- *
- * Il contatore non e' un semplice `++`:
- *   "1a8aa7e2 csinc w2, wzr, w10, ge"
- * vale zero se la distanza e' >= 60, e `count_static + 1` altrimenti --
- * cioe' azzera al primo movimento invece di decrementare.
- *
- * La traccia e' l'unica del blocco che nomina i propri valori:
- *   "[MIR3DA] delta_sum=%d count_static=%d\n"@0xffffff80091c05ae
- * ed e' `MI_MSG`, guardata dal bit 2 di `Log_level`
- * ("3610010c tbz w12, #2, ..."). Dopo la chiamata il contatore viene
- * RILETTO dalla memoria ("b941ba62 ldr w2, [x19,#440]"), non tenuto in un
- * registro: e' quello che rende `count_static` una variabile vera e non un
- * temporaneo.
- *
- * Il tetto e' DIECI ("7100285f cmp w2, #0xa" con "b901ba68 str w8,
- * [x19,#440]" che ci riscrive esattamente 10): il contatore si ferma li' e
- * la funzione restituisce 1.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_sensors-1.0_accelerometer_da218-B_mir3da_core.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int mir3da_temp_calibrate_detect_static(short x, short y, short z)
 {
@@ -2178,7 +1767,7 @@ int mir3da_temp_calibrate_detect_static(short x, short y, short z)
 
 	/* "39472109 ldrb w9, [x8,#456]" */
 	if (have_last != 1) {
-		/* "79037920 strh w0, [x9,#444]" e le due sorelle */
+		/* "79037920 strh w0, [x9,#444]" and the two sisters */
 		last_x = x;
 		last_y = y;
 		last_z = z;
@@ -2187,20 +1776,20 @@ int mir3da_temp_calibrate_detect_static(short x, short y, short z)
 	}
 
 	/*
-	 * "4b2aa16a sub w10, w11, w10, sxth" piu'
-	 * "5a8a554a cneg w10, w10, mi", tre volte, e le due somme
-	 * "0b0a0129 add w9, w9, w10" e "0b080121 add w1, w9, w8".
+	 * "4b2aa16a sub w10, w11, w10, sxth" plus
+	 * "5a8a554a cneg w10, w10, mi", three times, and the two sums
+	 * "0b0a0129 add w9, w9, w10" and "0b080121 add w1, w9, w8".
 	 */
 	delta_sum = abs(x - last_x) + abs(y - last_y) + abs(z - last_z);
 
-	/* "79037960 strh w0, [x11,#444]" e le due sorelle: si aggiorna DOPO */
+	/* "79037960 strh w0, [x11,#444]" and its two sisters: the update comes AFTER */
 	last_x = x;
 	last_y = y;
 	last_z = z;
 
 	/*
-	 * "7100f03f cmp w1, #0x3c" piu' "1a8aa7e2 csinc w2, wzr, w10, ge":
-	 * zero se ha superato la soglia, altrimenti uno in piu'.
+	 * "7100f03f cmp w1, #0x3c" plus "1a8aa7e2 csinc w2, wzr, w10, ge":
+	 * zero if it has passed the threshold, otherwise one more.
 	 */
 	if (delta_sum >= 60)
 		count_static = 0;
@@ -2210,7 +1799,7 @@ int mir3da_temp_calibrate_detect_static(short x, short y, short z)
 	/* "[MIR3DA] delta_sum=%d count_static=%d\n"@0xffffff80091c05ae */
 	MI_MSG("delta_sum=%d count_static=%d\n", delta_sum, count_static);
 
-	/* "7100285f cmp w2, #0xa" -- il tetto */
+	/* "7100285f cmp w2, #0xa" -- the ceiling */
 	if (count_static >= 10) {
 		count_static = 10;
 		return 1;

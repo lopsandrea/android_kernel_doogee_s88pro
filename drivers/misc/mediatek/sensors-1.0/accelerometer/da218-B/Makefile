@@ -1,26 +1,25 @@
-# Accelerometro MiraMEMS mir3da (DA218-B) del Doogee S88 Pro.
+# MiraMEMS mir3da (DA218-B) accelerometer, Doogee S88 Pro.
 #
-# Il nome della directory e' quello di fabbrica, letto dal __FILE__ che
-# l'ASSERT di mir3da_reg_data_store lascia nel binario:
+# The directory name is the factory one, read from the __FILE__ that the
+# ASSERT in mir3da_reg_data_store leaves in the binary:
 #   .../drivers/misc/mediatek/sensors-1.0/accelerometer/da218-B/mir3da_cust.c
 #
-# DUE unita' di traduzione, come di fabbrica: mir3da_cust.c (37 funzioni su
-# 37, scritte) e il core (19 delle 29 del blocco).  Il nome "mir3da_core.c"
-# e' la convenzione del driver MiraMEMS a monte, NON una misura: la stringa
-# "mir3da_core" non esiste in stock.elf (revisione indipendente,
-# docs/bringup/rapporti/revisione-mir3da.md, rilievo R6b).
+# TWO translation units, as in the factory build: mir3da_cust.c (37 functions out
+# of 37, written) and the core (19 of the block's 29). The name "mir3da_core.c"
+# is the convention of the upstream MiraMEMS driver, NOT a measurement: the string
+# "mir3da_core" does not exist in stock.elf (independent review,
+# docs/bringup/rapporti/revisione-mir3da.md, finding R6b).
 #
-# Che siano due oggetti separati e non uno solo lo prova la MODULE_VERSION
-# built-in di mir3da_cust.c, il cui campo .module_name vale "mir3da_cust":
-# KBUILD_MODNAME e' per file oggetto.
+# That they are two separate objects and not one is proven by the built-in
+# MODULE_VERSION of mir3da_cust.c, whose .module_name field is "mir3da_cust":
+# KBUILD_MODNAME is per object file.
 #
-# Dal 2026-08-16 il driver e' INNESTATO: il Kconfig e il Makefile padre di
-# accelerometer/ lo raggiungono, CONFIG_WTK_DA218B=y (che il config di
-# fabbrica ha alla riga 1557 di e977_dg_m13_71_q0.config) non viene piu'
-# scartato da olddefconfig, e il link riesce.  Le 10 funzioni del core che
-# restano fuori sono globali che nessun altro oggetto chiama: non compaiono
-# in nessun errore del linker.  L'elenco e la ragione sono nel cappello di
-# mir3da_core.c, §1.
+# Since 2026-08-16 the driver is HOOKED UP: the Kconfig and the parent Makefile of
+# accelerometer/ reach it, CONFIG_WTK_DA218B=y (which the factory config has at
+# line 1557 of e977_dg_m13_71_q0.config) is no longer discarded by olddefconfig,
+# and the link succeeds. The 10 core functions left out are globals no other
+# object calls: they appear in no linker error. The list and the reason are in
+# the header of mir3da_core.c, §1.
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sensors-1.0/accelerometer/inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sensors-1.0/hwmon/include

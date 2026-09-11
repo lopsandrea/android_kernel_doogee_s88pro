@@ -74,42 +74,23 @@ unsigned char UcH1LvlMod;  /* H1 level coef mode */
 #endif
 
 /*
- * QUI NON C'E' PIU' UNA SCELTA A COMPILAZIONE, CE N'E' UNA A ESECUZIONE.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008748518).
  *
- * Il prologo di SetH1cMod legge g9c96cbc una volta sola
- * ("3972f309 ldrb"@0xffffff8008748518) e poi fa quattro csel di seguito,
- * tenendo gli esiti in x21, x19, x23 e x20 per tutta la funzione:
- *
- *   "9a880155 csel"@0xffffff8008748534  x21 = MAXLMT
- *   "9a890113 csel"@0xffffff8008748548  x19 = CHGCOEF
- *   "9a8a0117 csel"@0xffffff8008748558  x23 = CHGCOEF_MOV
- *   "9a8b0194 csel"@0xffffff8008748560  x20 = MINLMT
- *
- * Chi e' chi si legge dal registro del chip a cui il valore viene scritto:
- * x20 va a gxlmt6L ("528205a0 mov"@0xffffff80087485a4, 0x102D), x21 a
- * gxlmt6H (0x102E), x19 a gxmg (0x10AA), x23 a gxmg nel ramo MOVMODE.
- *
- * Dei sei valori dei due #if di ALPS ne sopravvive UNO SOLO, 0x40400000, ed
- * e' il MAXLMT di CORRECT_1DEG: la fabbrica e' partita da quel ramo. Gli
- * altri cinque sono stati ritarati e non compaiono piu' da nessuna parte.
- * Per questo il #ifdef sparisce invece di restare accanto: tenerlo
- * suggerirebbe che una delle due colonne sia ancora quella di ALPS.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #ifdef H1COEF_CHANGER
 /*
- * static, E NON PER PULIZIA: static E' QUEL CHE RENDE POSSIBILE IL csel.
+ * This section was reconstructed from the factory kernel disassembly (92 bytes).
  *
- * La fabbrica legge g9c96cbc UNA VOLTA per funzione e tiene gli esiti in
- * registri conservati attraverso le chiamate a RamWrite32A. Un compilatore
- * puo' farlo solo se sa che nessuna di quelle chiamate puo' cambiare la
- * variabile, e lo sa solo se la variabile e' interna al file e non ne esce
- * mai l'indirizzo.
- *
- * Con la stessa variabile globale il codice cresce di 92 byte in SetH1cMod e
- * di 12 in S2cPro: una rilettura dopo ogni bl. Non e' una scelta di stile,
- * e' la differenza fra combaciare e non combaciare.
- *
- * g9c96cb8 invece resta globale, perche' OisIni.c lo legge.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 unsigned char g9c96cbc;
 #define MAXLMT ((g9c96cbc == 2) ? 0x40400000 : 0x40333333)
@@ -149,20 +130,13 @@ const unsigned long ClGyyZom[ZOOMTBL] = {
 /* DI Coefficient Setting Value */
 #define COEFTBL 7
 /*
- * DUE TABELLE, NON UNA, E I VALORI SONO SCRITTI IN CHIARO.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008f4c650, 8 bytes).
  *
- * Sono 2 x 7 x 8 byte contigui in .rodata, letti dal binario:
- * a 0xffffff8008f4c650 sette volte 0x3F7FFD00, a 0xffffff8008f4c688 sette
- * volte 0x3F7FFE00. Otto byte per voce, e lo conferma l'indicizzazione
- * ("f8697901 ldr"@0xffffff8008748e6c scorre di 3): unsigned long.
- *
- * Qui i valori NON possono venire da DIFIL_S2 come in ALPS, perche' DIFIL_S2
- * adesso e' una scelta a esecuzione e un inizializzatore statico vuole una
- * costante. E' il motivo per cui le tabelle sono due invece di una sola con
- * la macro dentro: la fabbrica ha dovuto separarle per la stessa ragione.
- *
- * g8f4c650 sta PRIMA perche' sta prima in .rodata, e l'ordine di .rodata e'
- * quello di definizione.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define COEFTBL_VAL_2 0x3F7FFD00
 
@@ -212,28 +186,13 @@ unsigned short TneRun(void)
 		DrvPwmSw(Mpwm); /* PWM mode */
 
 	/*
-	 * LA TARATURA DEL PUNTO MEDIO, che ALPS non chiama -- e IL SUO ESITO
-	 * ENTRA NELLA SOMMA FINALE, al posto di UsOscSts.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff80087463f8).
 	 *
-	 * "9000aa88 adrp"@0xffffff80087463f8 rilegge il globale che SelectModule
-	 * scrive, "7100091f cmp"@0xffffff8008746400 lo confronta con 2, e sul
-	 * ramo uguale chiama. E' l'unico posto in tutto stock.elf da cui
-	 * AfMidOffAdj venga chiamata.
-	 *
-	 * Che finisca in UsOscSts e non in una variabile nuova lo dice
-	 * l'aritmetica. La fabbrica conserva "51001017 sub"@0xffffff800874640c,
-	 * cioe' `esito - 4`, e sull'altro ramo mette 0xfffe
-	 * ("321f3bf7 orr"@0xffffff8008746414), che e' -2; poi in coda somma tre
-	 * termini soli, "0b3302e8 add"@0xffffff80087465dc e la successiva:
-	 * quel valore piu' UcHlxSts piu' UcHlySts.
-	 *
-	 * La formula di ALPS, con UcAtxSts e UcAtySts pari a EXE_END, si riduce
-	 * a Hlx + Hly + UsOscSts - 4. Le due cose coincidono se e solo se il
-	 * termine conservato e' UsOscSts - 4 -- ed e' proprio quel che la `sub`
-	 * calcola. Sul ramo diverso, UsOscSts = EXE_END da' 2 - 4 = -2 = 0xfffe.
-	 *
-	 * L'assegnamento a UsOscSts piu' in alto resta dov'e': viene sovrascritto
-	 * qui e clang lo butta via, esattamente come fa la fabbrica.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	if (g9c96cb8 == 2)
 		UsOscSts = AfMidOffAdj();
@@ -359,7 +318,7 @@ unsigned long TnePtp(unsigned char UcDirSel, unsigned char UcBfrAft)
 {
 	union UnDwdVal StTneVal;
 
-	MesFil(THROUGH); /* ë™íËópÉtÉB?É^Å[Çê›íËÇ∑ÇÈÅB */
+	MesFil(THROUGH); /* ÔøΩÔøΩÔøΩÔøΩpÔøΩtÔøΩB?ÔøΩ^ÔøΩ[ÔøΩÔøΩ›íËÇ∑ÔøΩÔøΩB */
 
 	if (!UcDirSel) {
 		RamWrite32A_LC898122AF(sxsin, HALL_H_VAL); /* 0x10D5 */
@@ -1413,7 +1372,7 @@ unsigned char TneGvc(void)
 	RegWriteA_LC898122AF(WC_MES1ADD1, 0x00); /* 0x0195 */
 	ClrGyr(0x1000, CLR_FRAM1);		 /* Measure Filter RAM Clear */
 	StAdjPar.StGvcOff.UsGyoVal = (unsigned short)GenMes(AD3Z, 0);
-	/* 64âÒÇÃïΩãœílë™íË     GYRMON2(0x1111) <- GYADZ(0x14CA) */
+	/* 64ÔøΩÔøΩÃïÔøΩÔøΩœílÔøΩÔøΩÔøΩÔøΩ     GYRMON2(0x1111) <- GYADZ(0x14CA) */
 	RegWriteA_LC898122AF(IZBH,
 			     (unsigned char)(StAdjPar.StGvcOff.UsGyoVal >> 8));
 	/* 0x02A2               Set Offset High byte */
@@ -1473,14 +1432,13 @@ void GyrCon(unsigned char UcGyrCon)
 #ifdef GAIN_CONT
 	/* Gain3 Register */
 	/*
-	 * RIATTIVATA, e GAIN_CONT era gia' definita in Ois.h: era la CHIAMATA a
-	 * essere commentata, non il blocco che la contiene.
+	 * AutoGainControlSw() was reconstructed from the factory kernel disassembly (0xffffff80087483b8).
 	 *
-	 * "94000945 bl"@0xffffff80087483b8 la chiama con w0 = 1 subito prima di
-	 * ClrGyr, dentro OisEna -- dove GyrCon e' incorporata. Le tre chiamate di
-	 * questa funzione mancavano a quattro misure insieme: GyrCon -32,
-	 * OisEna -8, OisEnaLin -8 e RtnCen -8, quest'ultima perche' chiama
-	 * GyrCon(OFF) e se la fa incorporare.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	AutoGainControlSw(ON);	/* Auto Gain Control Mode ON */
 #endif
@@ -1554,22 +1512,13 @@ void TimPro(void)
 void S2cPro(unsigned char uc_mode)
 {
 	/*
-	 * LA SCELTA SI FA UNA VOLTA SOLA, E NON E' PULIZIA.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008748468).
 	 *
-	 * La fabbrica legge g9c96cbc e fa il csel PRIMA del ramo
-	 * ("3972f108 ldrb"@0xffffff8008748468, "9a8b0153 csel"@0xffffff8008748480),
-	 * poi passa il risultato due volte con `mov x1, x19`. Scrivendo DIFIL_S2
-	 * direttamente nelle due chiamate il compilatore rilegge il byte e
-	 * rifa' il confronto dopo ogni bl -- dodici byte in piu' -- perche' non
-	 * puo' escludere che RamWrite32A cambi la variabile.
-	 *
-	 * `static` NON basta a fargliela escludere, ed e' stato provato: chi
-	 * scrive la variabile e' SelectModule, che ha collegamento esterno, e
-	 * una chiamata esterna qualunque potrebbe arrivarci. Il compilatore ha
-	 * ragione a rileggere; la fabbrica non gli fa la domanda.
-	 *
-	 * Il nome della locale e' nostro: una locale non lascia traccia nel
-	 * binario, e qui l'unica cosa misurata e' che ce ne sia UNA.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	unsigned long UlDifSel = DIFIL_S2;
 
@@ -1577,14 +1526,14 @@ void S2cPro(unsigned char uc_mode)
 #ifdef H1COEF_CHANGER
 		SetH1cMod(S2MODE); /* cancel Lvl change */
 #endif
-		/* HPFÅ®Through Setting */
+		/* HPFÔøΩÔøΩThrough Setting */
 		RegWriteA_LC898122AF(WG_SHTON, 0x11);     /* 0x0107 */
 		RamWrite32A_LC898122AF(gxh1c, UlDifSel);  /* 0x1012 */
 		RamWrite32A_LC898122AF(gyh1c, UlDifSel);  /* 0x1112 */
 	} else {
 		RamWrite32A_LC898122AF(gxh1c, UlH1Coefval); /* 0x1012 */
 		RamWrite32A_LC898122AF(gyh1c, UlH1Coefval); /* 0x1112 */
-		/* HPFÅ®Through Setting */
+		/* HPFÔøΩÔøΩThrough Setting */
 		RegWriteA_LC898122AF(WG_SHTON, 0x00); /* 0x0107 */
 
 #ifdef H1COEF_CHANGER
@@ -1708,7 +1657,7 @@ void SetSinWavePara(unsigned char UcTableVal, unsigned char UcMethodVal)
 		MesFil(NOISE); /* LPF */
 #endif
 
-	if (UsFreqDat == 0xFFFF) { /* Sineîg?é~ */
+	if (UsFreqDat == 0xFFFF) { /* SineÔøΩg?ÔøΩ~ */
 
 		RegReadA_LC898122AF(WH_EQSWX, &UcEqSwX); /* 0x0170       */
 		RegReadA_LC898122AF(WH_EQSWY, &UcEqSwY); /* 0x0171       */
@@ -2159,7 +2108,7 @@ void SetZsp(unsigned char UcZoomStepDat)
 
 	/* Zoom Step */
 	if (UcZoomStepDat > (ZOOMTBL - 1))
-		UcZoomStepDat = (ZOOMTBL - 1); /* è„å¿ÇZOOMTBL-1Ç…ê›íËÇ∑ÇÈ */
+		UcZoomStepDat = (ZOOMTBL - 1); /* ÔøΩÔøΩÔøΩÔøΩÔøΩZOOMTBL-1ÔøΩ…ê›íËÇ∑ÔøΩÔøΩ */
 
 	if (UcZoomStepDat == 0) {       /* initial setting        */
 		UlGyrZmx = ClGyxZom[0]; /* Same Wide Coefficient */
@@ -2324,7 +2273,7 @@ const signed char ScCselRate[CRATETABLE] = {
 
 #define START_RSEL 0x04 /* Typ */
 #define START_CSEL 0x08 /* Typ bit4:OSCPMSEL */
-#define MEAS_MAX 32     /* è„å¿32âÒ */
+#define MEAS_MAX 32     /* ÔøΩÔøΩÔøΩ32ÔøΩÔøΩ */
 /* Measure Status (UcClkJdg) */
 #define UNDR_MEAS 0x00
 #define FIX_MEAS 0x01
@@ -2399,7 +2348,7 @@ unsigned short OscAdj(void)
 				UcMeasFlg |= (RSELFX | RSEL2ND);
 			else
 				UcMeasFlg |= RSEL1ST;
-			ScTblRate_Now = ScRselRate[UcOscrsel]; /* ç°ÇÃRate */
+			ScTblRate_Now = ScRselRate[UcOscrsel]; /* ÔøΩÔøΩÔøΩÔøΩRate */
 			ScTblRate_Tgt = ScTblRate_Now + (short)FcalB;
 			if (ScTblRate_Now > ScTblRate_Tgt) {
 				while (1) {
@@ -2889,7 +2838,7 @@ unsigned char TneHvc(void)
 
 	WitTim_LC898122AF(500);
 
-	/* ïΩãœílë™íË */
+	/* ÔøΩÔøΩÔøΩœílÔøΩÔøΩÔøΩÔøΩ */
 
 	MesFil(THROUGH); /* Set Measure Filter */
 
@@ -2941,7 +2890,7 @@ void SetGcf(unsigned char UcSetNum)
 
 	/* Zoom Step */
 	if (UcSetNum > (COEFTBL - 1))
-		UcSetNum = (COEFTBL - 1); /* è„å¿ÇCOEFTBL-1Ç…ê›íËÇ∑ÇÈ */
+		UcSetNum = (COEFTBL - 1); /* ÔøΩÔøΩÔøΩÔøΩÔøΩCOEFTBL-1ÔøΩ…ê›íËÇ∑ÔøΩÔøΩ */
 
 	UlH1Coefval = ((g9c96cbc == 2) ? g8f4c650 : ClDiCof)[UcSetNum];
 
@@ -2959,10 +2908,10 @@ void SetGcf(unsigned char UcSetNum)
 void SetH1cMod(unsigned char UcSetNum)
 {
 	/*
-	 * Quattro csel di seguito in cima, prima dello switch, e poi nessuna
-	 * rilettura: "3972f309 ldrb"@0xffffff8008748518 e' l'unico accesso a
-	 * g9c96cbc di tutta la funzione. Vale la stessa ragione di S2cPro --
-	 * senza le locali sono novantadue byte in piu'.
+	 * Four csels in a row at the top, before the switch, and then no
+	 * re-read: "3972f309 ldrb"@0xffffff8008748518 is the only access to
+	 * g9c96cbc in the whole function. The same reasoning as S2cPro applies --
+	 * without the locals it is ninety-two bytes more.
 	 */
 	unsigned long UlMaxLmt = MAXLMT;
 	unsigned long UlMinLmt = MINLMT;
@@ -3057,40 +3006,32 @@ unsigned short RdFwVr(void)
 	unsigned short UsVerVal;
 
 	/*
-	 * SOLO FW_VER: la fabbrica restituisce 0x1E, non 0x061E. Il nostro
-	 * build dava 0x0603, che ha la stessa DIMENSIONE -- otto byte in
-	 * tutti e due i casi -- e per questo la misura in byte non l'ha mai
-	 * segnalato. L'ha trovato il confronto istruzione per istruzione.
+	 * ONLY FW_VER: the factory returns 0x1E, not 0x061E. Our build
+	 * gave 0x0603, which is the same SIZE -- eight bytes either way --
+	 * and that is why the size measurement never flagged it. The
+	 * instruction-by-instruction comparison found it.
 	 */
 	UsVerVal = (unsigned short)FW_VER;
 	return UsVerVal;
 }
 
 /*
- * Tre funzioni OIS che ALPS non ha, ricostruite dal binario.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff80087490cc, 36 bytes).
  *
- *   stock.map: 0xffffff80087490cc SelectModule    36 byte
- *   stock.map: 0xffffff8008749038 SetDOFSTDAF    148 byte
- *   stock.map: 0xffffff800874adb8 RemOff         356 byte
- *
- * Le chiama LC898122AF_Ioctl_Main, ed e' per questo che vengono prima
- * dell'Ioctl e non dopo: senza di loro quello non si puo' scrivere.
- *
- * I TRE GLOBALI NON SONO `static`, ed e' una necessita' non una scelta.
- * SelectModule scrive e basta -- nessuna di queste tre funzioni rilegge quel
- * che scrive -- e su una variabile `static` mai letta clang butta via le
- * scritture, e con loro la funzione. Restano globali finche' non si sa chi
- * altro le legge; il binario non nomina i dati, quindi il nome e' l'indirizzo
- * (regola 5).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 unsigned char g9c96cb8;
 unsigned char g9c96cbc;
 
 /*
- * "1a9f3408 csinc"@0xffffff80087490e0 e' tutta la funzione: se
- * (UcSelPrm - 1) & 0xff sta sotto 2 -- cioe' se il parametro e' 1 o 2 --
- * scrive il parametro, altrimenti scrive 1. Poi due `strb` allo stesso
- * valore, a 0xffffff8009c96cb8 e 0xffffff8009c96cbc.
+ * "1a9f3408 csinc"@0xffffff80087490e0 is the whole function: if
+ * (UcSelPrm - 1) & 0xff is below 2 -- that is, if the parameter is 1 or 2 --
+ * it writes the parameter, otherwise it writes 1. Then two `strb`s of the
+ * same value, at 0xffffff8009c96cb8 and 0xffffff8009c96cbc.
  */
 void SelectModule(unsigned char UcSelPrm)
 {
@@ -3109,18 +3050,13 @@ void SelectModule(unsigned char UcSelPrm)
 }
 
 /*
- * Due strade, scelte da un globale confrontato con 0x93
- * ("71024d1f cmp"@0xffffff8008749060).
+ * SetDOFSTDAF() was reconstructed from the factory kernel disassembly (0xffffff8008749060).
  *
- * Sul ramo uguale legge prima il registro 0x83, scrive 0x84 col parametro
- * spostato di tre bit e mascherato con 0xffffffc0
- * ("531d7268 lsl"@0xffffff8008749074 e la `and` dopo), poi rimette in 0x83 i
- * bit 4..6 di quel che aveva letto piu' i tre bit bassi del parametro --
- * "33000a61 bfxil"@0xffffff8008749090, che e' un innesto di campo e non una
- * `or` qualunque.
- *
- * Sul ramo diverso scrive solo 0x84, col parametro spostato di tre bit e
- * SENZA maschera: "531d7261 lsl"@0xffffff8008749098.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 void SetDOFSTDAF(unsigned char UcSetDat)
 {
@@ -3137,23 +3073,20 @@ void SetDOFSTDAF(unsigned char UcSetDat)
 }
 
 /*
- * Altre quattro OIS che ALPS non ha.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800874ad84, 52 bytes).
  *
- *   stock.map: 0xffffff800874ad84 SetTregAf        52 byte
- *   stock.map: 0xffffff8008748fd4 MesMSABS1AV     100 byte
- *   stock.map: 0xffffff8008748ea8 GetDOFSTDAF     144 byte
- *   stock.map: 0xffffff8008748f38 SetDOFSTDAF_WT  156 byte
- *
- * Nessuna di queste quattro viene chiamata da quel che abbiamo: restano
- * perche' sono globali, come DW9714AF_PowerDown. Di fabbrica e' lo stesso --
- * in stock.elf non c'e' una `bl` verso nessuna delle quattro.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /*
- * MesMSABS1AV restituisce quel che ha letto: "f94003e0 ldr"@0xffffff8008749014
- * carica in x0, dal buffer in pila, il valore appena messo li' da
- * RamRead32A_LC898122AF, e subito dopo c'e' l'uscita. Sessantaquattro bit,
- * non trentadue -- e' una `ldr` su x, non su w.
+ * MesMSABS1AV returns what it has read: "f94003e0 ldr"@0xffffff8008749014
+ * loads into x0, from the buffer on the stack, the value
+ * RamRead32A_LC898122AF has just put there, and the exit comes right after.
+ * Sixty-four bits, not thirty-two -- it is an `ldr` on x, not on w.
  */
 unsigned long MesMSABS1AV(void)
 {
@@ -3169,13 +3102,14 @@ unsigned long MesMSABS1AV(void)
 }
 
 /*
- * GetDOFSTDAF e' l'inverso di SetDOFSTDAF, e ne condivide il bivio sullo
- * stesso globale confrontato con 0x93.
+ * GetDOFSTDAF is the inverse of SetDOFSTDAF, and shares its fork on the
+ * same global compared with 0x93.
  *
- * "33000920 bfxil"@0xffffff8008748ef8 innesta i tre bit bassi del registro
- * 0x83 dentro il risultato, che porta gia' i bit del registro 0x84 spostati
- * di tre e mascherati con 0x18. Un `|` fra due valori interi avrebbe dato
- * altro: bfxil dice che il campo di destinazione e' largo esattamente tre bit.
+ * "33000920 bfxil"@0xffffff8008748ef8 grafts the low three bits of register
+ * 0x83 into the result, which already carries the bits of register 0x84
+ * shifted by three and masked with 0x18. An `|` between two integers would
+ * have given something else: bfxil says the destination field is exactly
+ * three bits wide.
  */
 unsigned char GetDOFSTDAF(void)
 {
@@ -3195,10 +3129,10 @@ unsigned char GetDOFSTDAF(void)
 }
 
 /*
- * SetDOFSTDAF_WT e' SetDOFSTDAF piu' un'attesa in coda:
- * "52801f40 mov"@0xffffff8008748fa4 mette w0 a 250 e chiama
- * WitTim_LC898122AF -- che di fabbrica e' vuota, quindi quei 250
- * millisecondi non esistono. Si riproduce com'e' (regola 7).
+ * SetDOFSTDAF_WT is SetDOFSTDAF plus a wait at the tail:
+ * "52801f40 mov"@0xffffff8008748fa4 sets w0 to 250 and calls
+ * WitTim_LC898122AF -- which in the factory build is empty, so those 250
+ * milliseconds do not exist. Reproduced as it stands (rule 7).
  */
 void SetDOFSTDAF_WT(unsigned char UcSetDat)
 {
@@ -3217,50 +3151,21 @@ void SetDOFSTDAF_WT(unsigned char UcSetDat)
 }
 
 /*
- * IL GLOBALE CHE AfMidOffAdj LASCIA DIETRO DI SE'.
- * "39324157 strb"@0xffffff8008746a54 lo scrive a 0xffffff8009c96c90, e nessuna
- * delle funzioni che abbiamo lo rilegge: resta globale per lo stesso motivo
- * degli altri tre (una `static` mai letta si porta via le scritture).
+ * THE GLOBAL AfMidOffAdj LEAVES BEHIND IT.
+ * "39324157 strb"@0xffffff8008746a54 writes it at 0xffffff8009c96c90, and none
+ * of the functions we have reads it back: it stays global for the same reason
+ * as the other three (a `static` that is never read takes the writes with it).
  */
 unsigned char g9c96c90;
 
 /*
- * stock.map: 0xffffff8008746654 AfMidOffAdj, 1300 byte -- la taratura del
- * punto medio dell'autofocus.
+ * AfMidOffAdj() was reconstructed from the factory kernel disassembly (0xffffff8008746654, 1300 bytes).
  *
- * Salva cinque registri, ne forza altri, misura due volte due punti, ricava
- * una pendenza, e rimette tutto com'era.
- *
- * ## Le tre cose che il binario ha detto
- *
- * LA DIVISIONE E' PER TRENTUNO, e non c'e' nessun 31 nel codice: c'e'
- * "52810869 mov"@0xffffff8008746838 con movk #0x8421, cioe' il moltiplicatore
- * magico 0x84210843, seguito da smull, dal ritaglio della parola alta,
- * dall'addendo e da uno scorrimento di quattro
- * ("13047e76 asr"@0xffffff8008746854). Il divisore si ricava all'indietro:
- * 2^36 / (2^32 + 0x84210843 come intero con segno) = 31 esatto. La correzione
- * di segno arriva piu' tardi, a "0b537ed6 add"@0xffffff80087468a8.
- *
- * Trentuno e' anche la distanza fra i due punti misurati -- SetDOFSTDAF(0x00)
- * e SetDOFSTDAF(0x1F) -- quindi e' una pendenza, non una costante a caso.
- *
- * LA SECONDA DIVISIONE INVECE E' UNA `sdiv` VERA
- * ("1ad60d36 sdiv"@0xffffff8008746958), perche' il divisore e' la pendenza
- * appena calcolata e non si conosce a compilazione.
- *
- * DUE LETTURE NON SERVONO A NIENTE. "97fff86e bl"@0xffffff8008746a24 e la
- * successiva leggono i registri 0x83 e 0x84 in due slot di pila che nessuno
- * rilegge piu'. Non sono un GetDOFSTDAF incorporato -- quello ha il bivio su
- * 0x93 e qui non c'e'. Sono due letture morte, difetto di fabbrica, e si
- * riproducono (regola 7).
- *
- * ## Cosa restituisce
- *
- * 0x0802 oppure 0x0002, scelto senza salti da due `csel`
- * ("1a880129 csel"@0xffffff8008746a44 e "1a89c113 csel"@0xffffff8008746a50):
- * il primo guarda se la pendenza ha bit sopra 0xE0, il secondo se l'ultima
- * misura supera la penultima. E lo stesso valore decide, in coda, quale dei
- * due DOFSTDAF rimettere.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_OisCmd.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 unsigned short AfMidOffAdj(void)
 {
@@ -3331,12 +3236,12 @@ unsigned short AfMidOffAdj(void)
 	RegReadA_LC898122AF(0x0084, &UcRegDat84);
 
 	/*
-	 * DUE `if` SEPARATI, non un `||`. La fabbrica emette due `csel`
-	 * in catena -- "1a880129 csel"@0xffffff8008746a44 e
-	 * "1a89c113 csel"@0xffffff8008746a50 -- che e' la forma di due
-	 * assegnamenti successivi allo stesso valore. Un `||` da' invece due
-	 * `cset` e una `orr`, cioe' due istruzioni in piu': erano tutti e
-	 * otto i byte che mancavano.
+	 * TWO SEPARATE `if`s, not an `||`. The factory emits two `csel`s
+	 * in a chain -- "1a880129 csel"@0xffffff8008746a44 and
+	 * "1a89c113 csel"@0xffffff8008746a50 -- which is the shape of two
+	 * successive assignments of the same value. An `||` gives two
+	 * `cset`s and an `orr` instead, that is two instructions more: those were
+	 * all eight of the missing bytes.
 	 */
 	if (SlSlope & 0xE0)
 		UsResult = 0x0802;

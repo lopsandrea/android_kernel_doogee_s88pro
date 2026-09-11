@@ -300,14 +300,14 @@
 #define GC0329_SENSOR_ID                        0xC0
 #define GC0310_SENSOR_ID                        0xa310
 /*
- * 0x232A, e lo dice il confronto in GC032AGetSensorID
- * ("52846542 mov"@0xffffff800872dfa8): l'identificativo si legge dai
- * registri 0xF0 e 0xF1 e si confronta con questo.
+ * 0x232A, and the comparison in GC032AGetSensorID says so
+ * ("52846542 mov"@0xffffff800872dfa8): the identifier is read from
+ * registers 0xF0 and 0xF1 and compared with this.
  */
 #define GC032A_SENSOR_ID                        0x232a
 /*
- * 0x8044: e' il valore che `open` confronta con la coppia letta dai
- * registri 0xf0 e 0xf1, e che `feature_control` porta in giro --
+ * 0x8044: it is the value `open` compares with the pair read from
+ * registers 0xf0 and 0xf1, and that `feature_control` carries around --
  * "52881aa8 mov"@0xffffff800871c30c.
  */
 #define GC8034_SENSOR_ID                        0x8044
@@ -376,13 +376,13 @@
 #define SENSOR_DRVNAME_IMX258_MIPI_MONO         "imx258_mipi_mono"
 #define SENSOR_DRVNAME_IMX230_MIPI_RAW          "imx230_mipi_raw"
 /*
- * Il secondo fornitore di modulo per lo stesso sensore. Il nome deve
- * combaciare con quello in CONFIG_CUSTOM_KERNEL_IMGSENSOR, perche' e' cosi'
- * che imgsensor_set_driver sceglie il driver.
+ * The second module vendor for the same sensor. The name has to
+ * match the one in CONFIG_CUSTOM_KERNEL_IMGSENSOR, because that is how
+ * imgsensor_set_driver picks the driver.
  *
- * L'identificatore e' quello del chip -- e' lo stesso silicio -- e la
- * lista ammette duplicati: 0x0012, 0x00B1 e 0x08aa compaiono gia'
- * due volte a testa in questo file.
+ * The identifier is the chip's -- it is the same silicon -- and the
+ * list allows duplicates: 0x0012, 0x00B1 and 0x08aa already appear
+ * twice each in this file.
  */
 #define SENSOR_DRVNAME_IMX230XINFENGDA_MIPI_RAW "imx230xinfengda_mipi_raw"
 #define SENSOR_DRVNAME_IMX220_MIPI_RAW          "imx220_mipi_raw"

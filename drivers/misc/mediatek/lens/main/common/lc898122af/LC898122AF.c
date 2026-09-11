@@ -108,15 +108,13 @@ void RamReadA_LC898122AF(unsigned short RamAddr, void *ReadData)
 	pRcvBuff = (unsigned long *)ReadData;
 
 	/*
-	 * DI FABBRICA QUESTA RIGA NON E' COMMENTATA, e in questa funzione
-	 * soltanto: "52800489 mov"@0xffffff8008744830 mette w9 a 0x24 e
-	 * "79000509 strh"@0xffffff8008744844 lo scrive in client->addr. Sono le
-	 * due istruzioni -- otto byte -- che ci mancavano.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008744830).
 	 *
-	 * Le altre cinque della famiglia (RamWriteA, RamWrite32A, RamRead32A,
-	 * RegWriteA, RegReadA) misurano esatte senza toccarle, quindi li' il
-	 * commento c'e' anche di fabbrica. E' una differenza di UNA funzione,
-	 * non del file: chi ha riattivato la riga l'ha fatto qui e basta.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	g_pstAF_I2Cclient->addr = (AF_I2C_SLAVE_ADDR >> 1);
 
@@ -184,14 +182,13 @@ void RamRead32A_LC898122AF(unsigned short RamAddr, void *ReadData)
 void WitTim_LC898122AF(unsigned short UsWitTim)
 {
 	/*
-	 * VUOTA DI FABBRICA. "d65f03c0 ret"@0xffffff800874aa8c e' l'intero
-	 * corpo: quattro byte, nessun msleep. Chi l'ha tolto ha lasciato la
-	 * funzione e le sue chiamate al loro posto, e adesso l'attesa che il
-	 * chip si aspetta fra due scritture non c'e' piu'. E' un difetto di
-	 * fabbrica e si riproduce (regola 7).
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800874aa8c).
 	 *
-	 * Il parametro resta perche' resta nel binario: i chiamanti caricano
-	 * ancora w0 prima della bl.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 }
 
@@ -200,30 +197,13 @@ void LC898prtvalue(unsigned short prtvalue)
 	LOG_INF("printvalue ======%x\n", prtvalue);
 }
 /*
- * Le tre scritture "parola-piu'-qualcosa", aggiunte di fabbrica.
+ * s4AF_Write_Word_Byte() was reconstructed from the factory kernel disassembly (0xffffff8008744cb8, 156 bytes).
  *
- * Stanno subito dopo RegReadA_LC898122AF e prima di LC898122AF_Ioctl_Main:
- *   stock.map: 0xffffff8008744cb8 s4AF_Write_Word_Byte   156 byte
- *   stock.map: 0xffffff8008744d54 s4AF_Write_Word_Word   160 byte
- *   stock.map: 0xffffff8008744df4 s4AF_Write_Word_DWord  176 byte
- *
- * Tutte e tre compongono un buffer in pila, mettono l'indirizzo I2C a 0x24
- * ("52800489 mov"@0xffffff8008744cec, cioe' AF_I2C_SLAVE_ADDR 0x48 diviso
- * due) e mandano. Cambia solo quanti byte:
- *
- *   Byte   3: addr>>8, addr, dato          "320007e2 orr"@0xffffff8008744cd0
- *   Word   4: addr>>8, addr, dato>>8, dato "321e03e2 orr"@0xffffff8008744d70
- *   DWord  6: addr>>8, addr, poi il dato   "321f07e2 orr"@0xffffff8008744e0c
- *             a byte dal piu' significativo
- *
- * NESSUNA DELLE TRE RESTITUISCE UN VALORE. Sul cammino d'uscita non c'e'
- * nessuna scrittura di w0 -- ne' un `mov w0, wzr` ne' un `mov w0, #-1` -- e
- * quel che il chiamante troverebbe in w0 e' il resto di i2c_master_send. Si
- * scrivono `void`, che e' quel che il binario mostra.
- *
- * Il dato della DWord e' a SESSANTAQUATTRO BIT: "d350fc29 lsr"@0xffffff8008744e08
- * e "d358fc28 lsr"@0xffffff8008744e2c sono scorrimenti su x1, non su w1. Un
- * u32 avrebbe dato le forme a 32 bit.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 void s4AF_Write_Word_Byte(unsigned short a_u2Addr, unsigned char a_u1Data)
 {
@@ -260,10 +240,10 @@ void s4AF_Write_Word_DWord(unsigned short a_u2Addr, unsigned long a_u4Data)
 }
 
 /*
- * ACCESA. In ALPS questa funzione sta dentro un `#if 0`, e con lei tutto il
- * blocco di initAF che la usa. La fabbrica le ha accese tutte e due, e si
- * vede: "94000488 bl"@0xffffff8008745084 e la seconda a 0xffffff800874509c
- * chiamano proprio questa, dentro LC898122AF_Ioctl_Main.
+ * TURNED ON. In ALPS this function sits inside an `#if 0`, and with it the whole
+ * initAF block that uses it. The factory has turned both on, and it
+ * shows: "94000488 bl"@0xffffff8008745084 and the second at 0xffffff800874509c
+ * call exactly this one, inside LC898122AF_Ioctl_Main.
  */
 static unsigned char s4LC898OTP_ReadReg(unsigned short RegAddr)
 {
@@ -325,26 +305,13 @@ static void LC898122_write_settings(unsigned short n,
 				    struct lc898122_setting *tbl);
 
 /*
- * LA TABELLA DI INIZIALIZZAZIONE OIS, 635 voci, estratta dai dati di fabbrica.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800991d3f0, 15,248 bytes).
  *
- * IL NOME E' L'INDIRIZZO (regola 5): sta a 0xffffff800991d3f0 e stock.map non
- * ha simboli di dato. La riceve LC898122_write_settings, chiamata dall'Ioctl
- * subito prima di tutto il resto dell'accensione.
- *
- * COME SI SA CHE E' INTEGRA. L'ELF e' ricostruito da kallsyms e i dati hanno
- * dei buchi -- si vede sulle stringhe, che tornano indietro con dei caratteri
- * mancanti. Qui no, e non e' una speranza: 15.248 byte letti su 15.248
- * attesi, la copertura di objdump avanza di sedici byte per riga senza salti,
- * e soprattutto la STRUTTURA regge su tutte e 635 le voci --
- *
- *   il campo a +4 vale 2 in tutte e 635;
- *   width vale solo 1, 2 o 4 (300, 24 e 311 volte), che sono esattamente i
- *     tre casi su cui LC898122_write_settings dispaccia;
- *   delay vale solo 0, 2 o 10 (627, 5 e 3 volte).
- *
- * Se mancasse anche un solo byte, l'allineamento slitterebbe e questi tre
- * insiemi si sporcherebbero subito. E' il controllo che rende la tabella
- * usabile invece che verosimile.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct {
 	unsigned short n;
@@ -991,56 +958,33 @@ static struct {
 };
 
 /*
- * LA POSIZIONE BERSAGLIO, distinta da g_u4CurrPosition.
+ * THE TARGET POSITION, distinct from g_u4CurrPosition.
  *
- * moveAF la scrive sotto lucchetto, poi la rilegge per comporre il valore da
- * mandare, e solo dopo la copia in g_u4CurrPosition -- tre accessi a un
- * indirizzo che non e' quello di g_u4CurrPosition ("f9062ad3 str"@0xffffff8008745544
- * contro "f9062688 str"@0xffffff80087455b4). Il nome e' l'indirizzo (regola 5).
+ * moveAF writes it under the lock, then reads it back to compose the value to
+ * send, and only then copies it into g_u4CurrPosition -- three accesses to an
+ * address that is not g_u4CurrPosition's ("f9062ad3 str"@0xffffff8008745544
+ * against "f9062688 str"@0xffffff80087455b4). The name is the address (rule 5).
  */
 static unsigned long g9c96c50;
 
 /*
- * L'accensione dell'OIS. NON ESISTE come simbolo in stock.map perche' e'
- * statica e ha un chiamante solo, quindi clang la incorpora tutta dentro
- * LC898122AF_Ioctl_Main -- ma il binario dice lo stesso che c'e': la stampa a
- * "97f457a7 bl"@0xffffff80087457e0 porta __func__ = "LC898122_init"
- * (0xffffff80091ae72b), e un __func__ e' il nome della funzione in cui la
- * riga e' scritta, non di quella in cui finisce.
+ * LC898122_init() was reconstructed from the factory kernel disassembly (0xffffff80087457e0).
  *
- * Rimpiazza initAF di ALPS, che di fabbrica non esiste piu': era chiamata da
- * LC898122AF_SetI2Cclient, e li' adesso non c'e' nessuna chiamata
- * ("f9061500 str"@0xffffff800874619c e le due dopo, poi `ret`: trentadue byte
- * in tutto).
- *
- * IL BLOCCO OTP E' QUELLO CHE ALPS TIENE SOTTO `#if 0`, acceso. Gli otto
- * indirizzi scritti dopo RamAccFixMod(1) -- 0x1479, 0x14F9, 0x147A, 0x14FA,
- * 0x1450, 0x14D0, 0x10D3, 0x11D3 -- sono gli stessi otto, nello stesso
- * ordine, dei commenti dentro quel `#if 0`. Cambiano gli indirizzi OTP da cui
- * il dato viene (0x11 in su invece di 0x30 in su) e l'ordine dei due byte:
- * ALPS scrive (ReadReg(a) << 8) + ReadReg(a+1), la fabbrica il contrario.
- *
- * COME SI DISTINGUE QUALE AIUTANTE VIENE CHIAMATO, visto che sono tutti
- * incorporati: dal descrittore di pr_debug del ramo d'errore, che appartiene
- * a UNA riga di sorgente e quindi identifica la funzione.
- *
- *   +3106  RamWriteA_LC898122AF     (scritture da 4 byte, 0x1479 e sorelle)
- *   +3146  RamWrite32A_LC898122AF   (da 6 byte, 0x1020 e 0x1120)
- *   +3266  RegWriteA_LC898122AF     (da 3 byte, 0x0250 e sorelle)
- *   +3426  s4AF_Write_Word_Word     (da 4 byte, ma altra funzione: 0x0380)
- *
- * Senza questo, 0x1479 e 0x0380 si sarebbero scritti con la stessa funzione:
- * il buffer che producono e' identico.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static void LC898122_init(void)
 {
 	unsigned char ucOtp[33] = {0};
 	/*
-	 * INIZIALIZZATA, e si vede dall'azzeramento: la fabbrica pulisce
-	 * TRENTASEI byte -- "b90033ff str"@0xffffff8008745074 e' una parola,
-	 * non un byte -- mentre l'array da solo ne vuole trentatre'. I tre in
-	 * piu' coprono questa variabile, che sta subito dopo, e clang li fonde
-	 * in una scrittura sola solo se e' inizializzata anche lei.
+	 * INITIALISED, and the clearing shows it: the factory wipes
+	 * THIRTY-SIX bytes -- "b90033ff str"@0xffffff8008745074 is a word,
+	 * not a byte -- while the array on its own wants thirty-three. The three
+	 * extra cover this variable, which sits right after, and clang merges them
+	 * into a single write only if it is initialised too.
 	 */
 	unsigned char ucAfOtp = 0;
 	unsigned char UcRegDat;
@@ -1112,16 +1056,13 @@ static void LC898122_init(void)
 	RtnCen(0);
 
 	/*
-	 * CENTOCINQUANTA MILLISECONDI, e il binario lo dice con un ciclo:
-	 * "928012b5 mov"@0xffffff80087454d0 mette x21 a -150 e
-	 * "b10006b5 adds"@0xffffff80087454e0 lo incrementa finche' non riporta,
-	 * cioe' centocinquanta giri attorno a un __const_udelay(0x418958) --
-	 * che e' udelay(1000).
+	 * mdelay() was reconstructed from the factory kernel disassembly (0xffffff80087454d0).
 	 *
-	 * E' esattamente cio' che mdelay espande sopra MAX_UDELAY_MS: per un
-	 * argomento maggiore di cinque diventa `while (__ms--) udelay(1000);`.
-	 * Scrivere udelay(150000) avrebbe dato una chiamata sola con un altro
-	 * immediato.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	mdelay(150);
 
@@ -1130,18 +1071,13 @@ static void LC898122_init(void)
 }
 
 /*
- * IL CONTROLLO DI INTERVALLO C'E' E ALPS NON CE L'HA:
- * "eb13011f cmp"@0xffffff8008744f04 confronta g_u4AF_MACRO col parametro e
- * "eb13011f cmp"@0xffffff8008744f14 fa lo stesso con g_u4AF_INF; i due rami
- * portano allo stesso posto, che mette x0 a -22 ("928002a0 mov"@0xffffff80087456f0)
- * -- cioe' -EINVAL.
+ * moveAF() was reconstructed from the factory kernel disassembly (0xffffff8008744f04).
  *
- * IL VALORE MANDATO AL CHIP e' 0x6400 piu' la posizione moltiplicata per 32:
- * "0b081528 add"@0xffffff8008745568 e' proprio `w9 + (w8 << 5)` con w9 =
- * 0x6400.
- *
- * La posizione zero non passa di li': ha un ramo suo
- * ("b4001033 cbz"@0xffffff800874551c) che manda 0x7080 e basta.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static inline int moveAF(unsigned long a_u4Position)
 {
@@ -1240,65 +1176,23 @@ long LC898122AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 /* 3.Only called once on last time. */
 /* Q1 : Try release multiple times. */
 /*
- * La tabella di registri e il motore che la scrive, aggiunte di fabbrica.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008745afc, 844 bytes).
  *
- * L'ordine e' quello del binario: LC898122AF_Ioctl_Main, poi
- * stock.map: 0xffffff8008745afc LC898122_PowerDown, poi
- * stock.map: 0xffffff8008745b28 LC898122_write_settings (statica, 844 byte),
- * poi LC898122AF_Release_Main.
- *
- * ## Il disegno della voce, letto dagli offset
- *
- * "b9401263 ldr"@0xffffff8008745c30 legge [x19,#16] e ci fa uno switch su
- * 4, 2, 1; "79402a60 ldrh"@0xffffff8008745db4 legge [x19,#20]; e
- * "91006273 add"@0xffffff8008745de0 avanza di 0x18. Quindi: campi a 0, 8,
- * 16 e 20, e passo 24.
- *
- * Il campo a +4 NON VIENE MAI LETTO da questa funzione. Nella tabella vale 2
- * in tutte e due le voci, ma da qui non si puo' dire cosa sia: si chiama c4
- * (regola 5), che e' il suo offset e non una supposizione.
- *
- * ## Perche' `width` e' proprio il numero di byte di dato
- *
- * Non e' un'etichetta scelta: i tre rami scrivono 3, 4 e 6 byte
- * ("320007e2 orr"@0xffffff8008745c60, "321e03e2 orr"@0xffffff8008745cc8,
- * "321f07e2 orr"@0xffffff8008745d48) a fronte di width 1, 2 e 4, e due byte
- * se ne vanno sempre nell'indirizzo.
- *
- * ## LE TRE CHIAMATE SONO INCORPORATE, E LO DICONO LE STRINGHE
- *
- * Nel binario qui dentro non c'e' nessuna `bl` verso s4AF_Write_Word_Byte e
- * sorelle -- ma il messaggio d'errore di ogni ramo porta il __func__ della
- * funzione che l'ha stampato, e sono tre __func__ consecutivi in .rodata:
- *
- *   "s4AF_Write_Word_Byte"@0xffffff80091ae522
- *   "s4AF_Write_Word_Word"@0xffffff80091ae537   (frammentaria nell'ELF
- *   "s4AF_Write_Word_DWord"@0xffffff80091ae54c   ricostruito, ma le
- *                                                lunghezze combaciano)
- *
- * Cioe' il sorgente chiama le tre funzioni e clang le incorpora. Si scrive
- * la forma naturale e si lascia fare a lui.
- *
- * ## L'attesa
- *
- * "7100541f cmp"@0xffffff8008745db8 confronta con 21: sopra, msleep; sotto e
- * diverso da zero, usleep_range(us, us+1000) con us = attesa*1000
- * ("9b1a7c00 mul"@0xffffff8008745dcc, x26 = 1000).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
 /*
- * IL NOME E' L'INDIRIZZO (regola 5): stock.map non ha simboli di dato, e
- * questa tabella sta a 0xffffff80099231b8. I byte sono questi:
+ * This section was reconstructed from the factory kernel disassembly (0xffffff80099231b8).
  *
- *   +0x00  02000000                        n = 2
- *   +0x08  b5100000 02000000               addr 0x10b5, c4 2
- *   +0x10  00000000 00000000               data 0
- *   +0x18  04000000 00000000               width 4, delay 0
- *   +0x20  b5110000 02000000 ...           la seconda voce, addr 0x11b5
- *
- * NON E' `const`, e si vede: "78408420 ldrh"@0xffffff8008745b0c legge n
- * dalla memoria invece di materializzare un 2 immediato, che e' quel che
- * clang farebbe su un `const` letto per campo.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct {
 	unsigned short n;
@@ -1367,29 +1261,13 @@ int LC898122AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		LOG_INF("Wait\n");
 
 		/*
-		 * LA RAMPA DI SPEGNIMENTO, cinque scritture allo stesso
-		 * registro con cinquanta millisecondi in mezzo. ALPS qui fa
-		 * un'altra cosa (due RamWriteA su TCODEH, poi RtnCen e due
-		 * SrvCon); la fabbrica fa questo.
+		 * s4AF_Write_Word_Word() was reconstructed from the factory kernel disassembly.
 		 *
-		 * I valori si leggono dalle coppie mov/movk che compongono la
-		 * parola scritta in pila. clang fonde i quattro `strb` di
-		 * s4AF_Write_Word_Word in una `str` sola perche' sono tutti
-		 * costanti, e la parola va letta little-endian:
-		 *
-		 *   "52900068 mov"@0xffffff8008745ec8 + movk #0x8070  ->
-		 *      0x80708003 -> byte {03,80,70,80} -> addr 0x0380, dato 0x7080
-		 *   movk #0x406a@0xffffff8008745f08  -> dato 0x6a40
-		 *   movk #0xc067@0xffffff8008745f40  -> dato 0x67c0
-		 *   movk #0xe065@0xffffff8008745f7c  -> dato 0x65e0
-		 *   movk #0xa064@0xffffff8008745fb4  -> dato 0x64a0
-		 *
-		 * CHE SIA s4AF_Write_Word_Word E NON ALTRO lo dice il
-		 * descrittore di pr_debug del ramo d'errore: e' lo stesso
-		 * oggetto (+3426) che usa il ramo `case 2` di
-		 * LC898122_write_settings. Un descrittore appartiene a UNA
-		 * riga di sorgente, quindi le due sono la stessa riga
-		 * incorporata in due posti.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_LC898122AF.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 		s4AF_Write_Word_Word(0x0380, 0x7080);
 		msleep(50);
@@ -1403,12 +1281,12 @@ int LC898122AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		msleep(50);
 
 		/*
-		 * Incorporata: nel binario c'e' `bl LC898122_write_settings`
-		 * seguita da `bl SetStandby` con w0 = 4
-		 * ("321e03e0 orr"@0xffffff8008745ff8), che e' esattamente il
-		 * corpo di LC898122_PowerDown. E' anche il motivo per cui in
-		 * tutto stock.elf non esiste una sola `bl` verso
-		 * LC898122_PowerDown: viene chiamata, ma sempre incorporata.
+		 * Inlined: in the binary there is a `bl LC898122_write_settings`
+		 * followed by a `bl SetStandby` with w0 = 4
+		 * ("321e03e0 orr"@0xffffff8008745ff8), which is exactly the
+		 * body of LC898122_PowerDown. It is also why in
+		 * the whole of stock.elf there is not a single `bl` towards
+		 * LC898122_PowerDown: it is called, but always inlined.
 		 */
 		LC898122_PowerDown();
 	}
@@ -1434,10 +1312,10 @@ int LC898122AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
 	g_pAF_Opened = pAF_Opened;
 
 	/*
-	 * NIENTE initAF QUI. Di fabbrica questa funzione e' trentadue byte:
-	 * tre `str` e un `ret` ("f9061500 str"@0xffffff800874619c e le due
-	 * dopo). L'accensione si e' spostata dentro moveAF, alla prima mossa,
-	 * ed e' guardata da *g_pAF_Opened == 1.
+	 * NO initAF HERE. In the factory build this function is thirty-two bytes:
+	 * three `str`s and a `ret` ("f9061500 str"@0xffffff800874619c and the two
+	 * after it). The power-up has moved inside moveAF, at the first move,
+	 * and is guarded by *g_pAF_Opened == 1.
 	 */
 	return 1;
 }

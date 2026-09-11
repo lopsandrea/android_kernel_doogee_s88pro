@@ -161,39 +161,13 @@ static inline int setAFMacro(unsigned long a_u4Position)
 
 /* ////////////////////////////////////////////////////////////// */
 /*
- * DW9714AF_PowerDown, aggiunta di fabbrica -- e SENZA il suffisso _Main.
+ * DW9714AF_PowerDown() was reconstructed from the factory kernel disassembly (0xffffff800873a460, 148 bytes).
  *
- * stock.map: 0xffffff800873a460 DW9714AF_PowerDown, 148 byte, subito prima di
- * DW9714AF_Ioctl_Main: e' la prima funzione emessa di questo file.
- *
- * IL NOME NON E' UN ERRORE DI TRASCRIZIONE. Ogni altra funzione di ogni altro
- * driver di lente porta il suffisso -- AK7371AF_PowerDown_Main,
- * bu64748af_PowerDown_Main, DW9718SAF_PowerDown_Main, LC898217AF_PowerDown_Main
- * -- perche' lens_list.h le rinomina con una #define. Doogee ha aggiunto la
- * funzione a questo file e NON ha aggiunto la riga a lens_list.h, e il
- * binario lo dice: il simbolo e' nudo. Si riproduce (regola 7).
- *
- * COSA FA, letto dalle costanti:
- *
- *   "321903e8 orr"@0xffffff800873a488   w8 = 0x80
- *   "79000be8 strh"@0xffffff800873a48c  scritto come u16 a [sp,#4], cioe' i
- *                                       due byte {0x80, 0x00} di puSendCmd
- *   "321e07e8 orr"@0xffffff800873a490   w8 = 0xc, AF_I2C_SLAVE_ADDR >> 1
- *
- * s4AF_WriteReg compone puSendCmd come {a_u2Data >> 4, (a_u2Data & 0xF) << 4}:
- * {0x80, 0x00} si risolve all'indietro in a_u2Data = 0x800, unico valore
- * dentro l'intervallo di dieci bit della posizione.
- *
- * NESSUNO LA CHIAMA, nemmeno di fabbrica: cercando un `bl` verso
- * 0xffffff800873a460 in tutto stock.elf non se ne trova neanche uno, e
- * AF_PowerDown chiama LC898217AF_PowerDown_Main, AK7371AF_PowerDown_Main e
- * MAIN2AF_PowerDown ("94002a21 bl"@0xffffff8008737ce4 e le due dopo). Resta
- * perche' e' globale, non perche' serva.
- *
- * Per questo LA FIRMA NON E' MISURABILE: il corpo non legge nessun registro
- * d'argomento e nessun chiamante la vincola. Si scrive `void`, che e' la
- * forma minima compatibile con quel che il binario mostra; se un giorno
- * saltasse fuori un chiamante, sara' lui a dire la firma vera.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_dw9714af_DW9714AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int DW9714AF_PowerDown(void)
 {
@@ -247,19 +221,13 @@ int DW9714AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		LOG_INF("Wait\n");
 
 		/*
-		 * LA RAMPA DI RIENTRO, che ALPS non ha: cinque posizioni in
-		 * discesa con quindici millisecondi in mezzo, invece di una
-		 * scrittura sola.
+		 * s4AF_WriteReg() was reconstructed from the factory kernel disassembly.
 		 *
-		 * I valori si ricavano all'indietro dai byte mandati, perche'
-		 * s4AF_WriteReg compone puSendCmd come
-		 * {a_u2Data >> 4, (a_u2Data & 0xF) << 4}:
-		 *
-		 *   {0x12,0xc0} -> 0x12c    {0x0f,0xa0} -> 0x0fa
-		 *   {0x0c,0x80} -> 0x0c8    {0x09,0x60} -> 0x096
-		 *   {0x06,0x40} -> 0x064
-		 *
-		 * cioe' 300, 250, 200, 150, 100: passi da cinquanta.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_dw9714af_DW9714AF.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 		s4AF_WriteReg(0x12C);
 		msleep(15);
@@ -282,17 +250,13 @@ int DW9714AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 	}
 
 	/*
-	 * FUORI DA TUTTI E DUE GLI `if`: "cbz"@0xffffff800873a8ac salta il
-	 * secondo blocco e atterra qui lo stesso.
+	 * DW9714AF_PowerDown() was reconstructed from the factory kernel disassembly (0xffffff800873a8ac).
 	 *
-	 * E QUESTA E' LA CHIAMATA CHE MANCAVA A DW9714AF_PowerDown. Nella
-	 * nota di quella funzione avevo scritto che non la chiama nessuno,
-	 * "perche' non c'e' un `bl` verso 0xffffff800873a460" -- ed e'
-	 * proprio la deduzione sbagliata che questo progetto si e' gia'
-	 * annotata una volta: una chiamata incorporata non lascia nessuna
-	 * `bl`. Il corpo che segue e' identico a quello di PowerDown, e
-	 * scriverlo come chiamata e' l'unica lettura che spiega perche' quella
-	 * funzione esista.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_dw9714af_DW9714AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	DW9714AF_PowerDown();
 	msleep(10);

@@ -3337,26 +3337,13 @@ int spi_write_then_read(struct spi_device *spi,
 EXPORT_SYMBOL_GPL(spi_write_then_read);
 
 /*
- * IL NODO /proc/wtk_fingerInfo -- AGGIUNTA DI FABBRICA in QUESTO file, non
- * nel driver di impronte. Lo dice l'adiacenza degli indirizzi:
- *   wtk_creat_proc_finger_info @0xffffff800898dac8, subito dopo
- *     spi_write_then_read (0xffffff800898d8e0)
- *   wtk_finger_info_open       @0xffffff800898ff48
- *   wtk_finger_info_show       @0xffffff800898ff6c
+ * wtk_creat_proc_finger_info() was reconstructed from the factory kernel disassembly (0xffffff800898dac8).
  *
- * IL NOME DEL BUFFER E' SCELTO, non misurato: l'oracolo non ha simboli di
- * dato, quindi si usa il suo indirizzo. Il contenuto iniziale invece e'
- * letto dall'immagine -- "unknow" (senza la n finale, refuso di fabbrica) a
- * 0xffffff800995afd0.
- *
- * ANCHE LA DIMENSIONE E' UNA SCELTA. Cio' che e' misurato e' il limite
- * superiore: il primo dato non nullo che segue sta a 0xffffff800995b008,
- * quindi il vettore sta in [0xfd0, 0x008) della pagina dopo ed e' al piu' di
- * 56 byte. Scelto 56, il massimo compatibile con la misura.
- *
- * DIFETTO DI FABBRICA, RIPRODOTTO: nessuno scrive questo buffer. Cercato in
- * tutta l'immagine chi tocchi 0xffffff800995afd0 e l'unica funzione e' la
- * show qui sotto. /proc/wtk_fingerInfo di fabbrica stampa sempre "unknow".
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_spi_spi.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static char g995afd0[56] = "unknow";
 
@@ -3559,9 +3546,11 @@ static int __init spi_init(void)
 {
 	int	status;
 
-	/* IN CIMA, prima della kmalloc: la fabbrica ha
-	 * "97e59e5b bl"@0xffffff800898dae8 verso proc_create come prima
-	 * chiamata di spi_init, e solo dopo la kmem_cache_alloc_trace. */
+	/*
+	 * AT THE TOP, before the kmalloc: the factory has
+	 * "97e59e5b bl"@0xffffff800898dae8 towards proc_create as the first
+	 * call of spi_init, and only afterwards the kmem_cache_alloc_trace.
+	 */
 	wtk_creat_proc_finger_info();
 
 	buf = kmalloc(SPI_BUFSIZ, GFP_KERNEL);

@@ -22,7 +22,7 @@
 #define USE_INVENSENSE /* INVENSENSE */
 #ifdef USE_INVENSENSE
 
-#define FS_SEL 3 /* Å}32.8LSB/?/s  */
+#define FS_SEL 3 /* ÔøΩ}32.8LSB/?/s  */
 
 #endif
 
@@ -33,12 +33,12 @@
 #ifdef MN_3BSD05P1
 #define MDL_VER 0x06
 /*
- * FW_VER e' 0x1E, e lo dice RdFwVr, che non fa altro che restituirlo:
- * "321f0fe0 orr"@0xffffff8008748ea0 e' l'intera funzione, piu' il ret.
+ * FW_VER is 0x1E, and RdFwVr says so, doing nothing but returning it:
+ * "321f0fe0 orr"@0xffffff8008748ea0 is the whole function, plus the ret.
  *
- * MDL_VER resta a 0x06 ma NON E' PIU' USATO DA NESSUNO: la fabbrica ha
- * tolto sia la scrittura di MDLREG in ChkCvr sia la composizione in RdFwVr.
- * Si lascia dov'e' perche' toglierlo non e' misurabile.
+ * MDL_VER stays at 0x06 but is NO LONGER USED BY ANYONE: the factory has
+ * removed both the MDLREG write in ChkCvr and the composition in RdFwVr.
+ * It is left where it is because removing it is not measurable.
  */
 #define FW_VER 0x1E
 #endif
@@ -51,13 +51,13 @@
 
 #ifdef MN_3BSD05P1
 /*
- * IL RAMO ATTIVO E' IL 6.5 OHM, e a dirlo e' A1_IEXP1: IniSrv scrive
- * 0x3F180130 ("72a7e301 movk"@0xffffff80087497a0 e i tre gemelli), che e'
- * il valore del blocco ACTREG_6P5OHM. Il 10.2 ohm avrebbe 0x3F0CCCCD, ed e'
- * quello che il nostro build emetteva.
+ * THE ACTIVE BRANCH IS THE 6.5 OHM ONE, and A1_IEXP1 says so: IniSrv writes
+ * 0x3F180130 ("72a7e301 movk"@0xffffff80087497a0 and its three twins), which is
+ * the value of the ACTREG_6P5OHM block. The 10.2 ohm one would have 0x3F0CCCCD, and
+ * that is what our build emitted.
  *
- * A3_IEXP3 vale 0x3EC0017F in tutti e due i blocchi e non distingue niente:
- * la sola costante che li separa e' A1_IEXP1.
+ * A3_IEXP3 is 0x3EC0017F in both blocks and distinguishes nothing:
+ * the only constant separating them is A1_IEXP1.
  */
 #define ACTREG_6P5OHM /* Use 6.5ohm */
 #endif
@@ -117,18 +117,13 @@
 /* OIS Adjust Parameter */
 #define DAHLXO_INI 0x0000
 /*
- * I VALORI CHE LA FABBRICA HA RITARATO. Sei costanti che ALPS lascia com'e'
- * e che qui hanno un altro valore; nessuna cambia la DIMENSIONE del codice,
- * si vedono solo confrontando le istruzioni.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800874a27c).
  *
- * DAHLXB_INI e DAHLYB_INI: "321207e1 orr"@0xffffff800874a27c scrive 0xC000
- * dove ALPS ha 0xE000.
- * SXGAIN_INI e SYGAIN_INI: "321303e1 orr"@0xffffff800874a2b8, 0x2000 contro
- * 0x3000.
- * GXGAIN_INI e GYGAIN_INI: 0x3F333333 e 0xBF333333, e NON sono piu' uguali
- * fra loro -- ALPS le ha tutte e due a 0xBF147AE1, la fabbrica cambia anche
- * il segno della X ("72a7e661 movk"@0xffffff800874a310 mette 0x3F33, non
- * 0xBF33).
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_Ois.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define DAHLXB_INI 0xC000
 #define DAHLYO_INI 0x0000
@@ -144,9 +139,9 @@
 #define AMP_GAIN_Y 0x05   /* x150 */
 
 /*
- * 0x2C, non 0x2E: lo scrive IniAdj in OSCSET
- * ("52800581 mov"@0xffffff800874a228), l'unico posto in cui OSC_INI compaia.
- * Come RdFwVr, e' una differenza che la misura in byte non vede.
+ * 0x2C, not 0x2E: IniAdj writes it into OSCSET
+ * ("52800581 mov"@0xffffff800874a228), the only place OSC_INI appears.
+ * Like RdFwVr, it is a difference the byte-size measurement does not see.
  */
 #define OSC_INI 0x2C
 
@@ -220,11 +215,11 @@
 #define TCODEH_ADJ 0x0000
 
 /*
- * 0x3DCCCCC0, e i quattro bit bassi contano: la fabbrica tiene questo
- * valore in un registro e ci somma 13 (`add x21, x23, #0xd`) per costruire
- * GYRA34_MID, che invece resta 0x3DCCCCCD. Con GYRLMT1H uguale a
- * GYRA34_MID quel trucco non avrebbe motivo di esistere -- e infatti nel
- * nostro build le due costanti venivano caricate due volte per intero.
+ * 0x3DCCCCC0, and the low four bits matter: the factory keeps this
+ * value in a register and adds 13 to it (`add x21, x23, #0xd`) to build
+ * GYRA34_MID, which stays 0x3DCCCCCD. With GYRLMT1H equal to
+ * GYRA34_MID that trick would have no reason to exist -- and indeed in
+ * our build the two constants were loaded twice in full.
  */
 #define GYRLMT1H 0x3DCCCCC0
 
@@ -279,8 +274,8 @@
 #define GYROY_INI 0x43
 
 /*
- * ZERO, e le quattro scritture che protegge spariscono: la IniAdj di
- * fabbrica non tocca 0x10B8, 0x10B9, 0x11B8 ne' 0x11B9.
+ * ZERO, and the four writes it guards disappear: the factory IniAdj
+ * touches neither 0x10B8, 0x10B9, 0x11B8 nor 0x11B9.
  */
 #define GXHY_GYHX 0
 #endif
@@ -445,14 +440,13 @@ extern void S2cPro(unsigned char D1);
 
 #ifdef MN_3BSD05P1
 /*
- * DIFIL_S2 DIPENDE DAL MODULO, e la prova e' un csel.
+ * DIFIL_S2() was reconstructed from the factory kernel disassembly (0xffffff8008748464).
  *
- * "529fa00a mov"@0xffffff8008748464 carica 0x3F7FFD00, la add che segue ne
- * ricava 0x3F7FFE00 -- il valore di ALPS -- e "9a8b0153 csel"@0xffffff8008748480
- * sceglie fra i due sul confronto di g9c96cbc con 2.
- *
- * Il valore di ALPS e' quindi quello del ramo diverso da 2; l'altro modulo
- * usa 0x3F7FFD00. Vale solo per OisCmd.c, l'unico file che nomini DIFIL_S2.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_lc898122af_Ois.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define DIFIL_S2 ((g9c96cbc == 2) ? 0x3F7FFD00 : 0x3F7FFE00)
 #endif
@@ -491,22 +485,22 @@ extern void SelectModule(unsigned char UcSelPrm);
 extern void SetDOFSTDAF(unsigned char UcSetDat);
 extern void RemOff(unsigned char UcMod);
 /*
- * I globali che SelectModule scrive e SetTregAf/SetDOFSTDAF leggono. Stanno
- * in OisCmd.c e servono anche a OisIni.c, dove SetTregAf e RemOff sono
- * dovute andare per non farsi incorporare (vedi il commento la' in fondo).
- * Il nome e' l'indirizzo: il binario non nomina i dati.
+ * The globals SelectModule writes and SetTregAf/SetDOFSTDAF read. They live
+ * in OisCmd.c and are needed by OisIni.c too, where SetTregAf and RemOff had
+ * to go so as not to be inlined (see the comment at the end there).
+ * The name is the address: the binary does not name data.
  */
 extern unsigned char g9c96cb8;
 extern unsigned char g9c96cbc;
 /*
- * g9c96cc4 ERA UcCvrCod, e tenerne due era un difetto NOSTRO: OisIni.c
- * dichiara `unsigned char UcCvrCod` e ci legge il CverCode, OisCmd.c
- * dichiarava un secondo globale sullo stesso indirizzo di fabbrica. Due
- * oggetti dove la fabbrica ne ha uno: le scritture di ChkCvr non sarebbero
- * mai arrivate a chi le legge in OisCmd.c.
+ * g9c96cc4 WAS UcCvrCod, and keeping two of them was OUR defect: OisIni.c
+ * declares `unsigned char UcCvrCod` and reads the CverCode into it, while OisCmd.c
+ * declared a second global at the same factory address. Two
+ * objects where the factory has one: the ChkCvr writes would never have
+ * reached whoever reads them in OisCmd.c.
  *
- * La dimensione non poteva vederlo -- un ldrb resta un ldrb -- e nessuna
- * delle trentacinque funzioni di OisCmd.o e' cambiata di un byte.
+ * The size could not see it -- an ldrb stays an ldrb -- and none
+ * of the thirty-five functions in OisCmd.o changed by a byte.
  */
 extern unsigned char UcCvrCod;
 

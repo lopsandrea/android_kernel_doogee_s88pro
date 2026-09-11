@@ -1011,17 +1011,13 @@ static void mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 	enum led_brightness bright);
 
 /*
- * wtk_mt6370_pmu_led_bright_set @0xffffff80085cf3cc, 248 byte, globale (T).
- * Sta subito PRIMA di mt6370_pmu_led_bright_set nell'immagine, e la chiama.
+ * wtk_mt6370_pmu_led_bright_set() was reconstructed from the factory kernel disassembly (0xffffff80085cf3cc, 248 bytes).
  *
- * I quattro registri vengono dalla tavola dei salti a 0xffffff8008f2afe8
- * ("10 00 04 06" rispetto a 0xffffff80085cf40c): caso 0 -> 0x82, caso 1 ->
- * 0x83, caso 2 -> 0x84, caso 3 -> il blocco che scrive anche 0x80 in 0x92.
- * Sono RGB1DIM, RGB2DIM, RGB3DIM e RGBCHRINDDIM.
- *
- * Il messaggio d'errore e' lo stesso di mt6370_pmu_led_blink_set --
- * "%s: mode fix fail\n"@0xffffff800914ffbc -- e vale per TUTTI i percorsi
- * d'errore, compreso il caso di indice non valido.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_pmic_mt6370_mt6370_pmu_rgbled.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int wtk_mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 				  enum led_brightness bright)
@@ -1045,20 +1041,20 @@ int wtk_mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 						 MT6370_PMU_REG_RGBCHRINDDIM,
 						 0x80, 0x80);
 		if (ret < 0)
-			goto errore;
+			goto out_err;
 		reg_addr = MT6370_PMU_REG_RGBCHRINDDIM;
 		break;
 	default:
 		ret = -EINVAL;
-		goto errore;
+		goto out_err;
 	}
 
 	ret = mt6370_pmu_led_update_bits(led_cdev, reg_addr, 0x60, 0x40);
 	if (ret >= 0)
-		goto imposta;
-errore:
+		goto set_bright;
+out_err:
 	dev_err(led_cdev->dev, "%s: mode fix fail\n", __func__);
-imposta:
+set_bright:
 	mt6370_pmu_led_bright_set(led_cdev, bright ? 1 : 0);
 	return ret;
 }
@@ -1238,11 +1234,11 @@ static int mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
 	unsigned long *delay_on, unsigned long *delay_off);
 
 /*
- * wtk_mt6370_pmu_led_blink_set @0xffffff80085cf5d8, 84 byte, globale (T).
- * Chiama la blink_set normale e poi calcola la luminosita' dal rapporto fra
- * acceso e spento: "d378dd0a lsl"@0xffffff80085cf604 seguita da
- * "cb08014a sub"@0xffffff80085cf608 e' *on * 255 (256 meno uno), e
- * "9ac80941 udiv"@0xffffff80085cf610 divide per (*off + *on).
+ * wtk_mt6370_pmu_led_blink_set @0xffffff80085cf5d8, 84 bytes, global (T).
+ * It calls the normal blink_set and then computes the brightness from the ratio between
+ * on and off: "d378dd0a lsl"@0xffffff80085cf604 followed by
+ * "cb08014a sub"@0xffffff80085cf608 is *on * 255 (256 minus one), and
+ * "9ac80941 udiv"@0xffffff80085cf610 divides by (*off + *on).
  */
 int wtk_mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
 				 unsigned long *delay_on,

@@ -178,13 +178,13 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_APPLE_BRICK_ID,	/* Apple Charging Method */
 	POWER_SUPPLY_TYPE_WIRELESS,
 	/*
-	 * IL TREDICESIMO VALORE, aggiunto da Wingtech. Che esista e' MISURATO:
-	 * `mt_charger_probe` scrive 13 nel campo `type` del descrittore
-	 * dell'alimentazione inversa ("528001a9 mov"@0xffffff8008ac1ee4 = 0xd,
-	 * poi "b9020809 str"@0xffffff8008ac1f04 a +520), e l'enum di ALPS si
-	 * ferma a 12.
-	 * IL NOME `POWER_SUPPLY_TYPE_REVERSE` E' SCELTO: il binario da' il
-	 * valore, non la costante.
+	 * THE THIRTEENTH VALUE, added by Wingtech. That it exists is MEASURED:
+	 * `mt_charger_probe` writes 13 into the `type` field of the reverse
+	 * supply descriptor ("528001a9 mov"@0xffffff8008ac1ee4 = 0xd, then
+	 * "b9020809 str"@0xffffff8008ac1f04 at +520), and the ALPS enum stops
+	 * at 12.
+	 * THE NAME `POWER_SUPPLY_TYPE_REVERSE` IS CHOSEN: the binary gives the
+	 * value, not the constant.
 	 */
 	POWER_SUPPLY_TYPE_REVERSE,		/* Wireless Charger */
 };

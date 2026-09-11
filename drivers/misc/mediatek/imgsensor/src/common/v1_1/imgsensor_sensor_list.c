@@ -25,31 +25,18 @@
 struct IMGSENSOR_SENSOR_LIST
 	gimgsensor_sensor_list[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	/*
-	 * L'ORDINE DI RICERCA DELLA FABBRICA.
+	 * The factory search order.
 	 *
-	 * Questa non e' una lista di sensori disponibili: e' l'ordine in cui
-	 * `imgsensor_set_driver` li prova, e il primo che si identifica vince.
-	 * Il commento in testa a questo file lo dice gia': "This can avoid I2C
-	 * error during searching sensor".
+	 * This is not a list of available sensors: it is the order in which
+	 * imgsensor_set_driver probes them, and the first one to identify itself
+	 * wins. Read from the factory binary, where the table has 48-byte entries.
 	 *
-	 * Nel binario di fabbrica la tabella ha voci da 48 byte con il nome
-	 * scritto dentro invece che puntato, e i sette nomi si leggono in
-	 * quest'ordine:
-	 *
-	 *     0xffffff8009917b7c  imx230_mipi_raw
-	 *     0xffffff8009917bac  imx230xinfengda_mipi_raw
-	 *     0xffffff8009917bdc  imx219_mipi_raw
-	 *     0xffffff8009917c0c  s5k3p3sx_mipi_raw
-	 *     0xffffff8009917c3c  gc0310_mipi_yuv
-	 *     0xffffff8009917c6c  gc8034_mipi_raw
-	 *     0xffffff8009917c9c  gc032a_mipi_yuv
-	 *
-	 * ALPS le teneva sparse per la lista, e nel nostro binario uscivano
-	 * cosi': gc0310, gc032a, gc8034, imx230, xinfengda, imx219, s5k3p3sx.
-	 * Tre accensioni GC prima di arrivare a imx230, sugli stessi pin PDN e
-	 * RST e sugli stessi regolatori -- e la camera posteriore finiva
-	 * identificata da imx230xinfengda invece che da imx230, con il pattern
-	 * Bayer dichiarato R invece di B.
+	 * The working notes behind this file -- the disassembly citations, the
+	 * measurements against the factory binary, the batch-by-batch record of how
+	 * each function was derived -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_common_v1_1_imgsensor_sensor_list.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 #if defined(IMX230_MIPI_RAW)
 {IMX230_SENSOR_ID, SENSOR_DRVNAME_IMX230_MIPI_RAW, IMX230_MIPI_RAW_SensorInit},
@@ -66,10 +53,10 @@ struct IMGSENSOR_SENSOR_LIST
 	S5K3P3SX_MIPI_RAW_SensorInit},
 #endif
 /*
- * GC0310 e' il sensore all'indice 3: e' quel che dicono i suoi `if
- * (g9c90244 == 3)` in Open e in GetSensorID. Il nome della stringa deve
- * combaciare con la voce di CONFIG_CUSTOM_KERNEL_IMGSENSOR, perche'
- * imgsensor_set_driver confronta proprio quella.
+ * GC0310 is the sensor at index 3: that is what its `if
+ * (g9c90244 == 3)` in Open and in GetSensorID say. The string name has to
+ * match the CONFIG_CUSTOM_KERNEL_IMGSENSOR entry, because
+ * imgsensor_set_driver compares exactly that.
  */
 #if defined(GC0310_MIPI_YUV)
 {GC0310_SENSOR_ID, SENSOR_DRVNAME_GC0310_MIPI_YUV, GC0310_MIPI_YUV_SensorInit},
@@ -78,10 +65,10 @@ struct IMGSENSOR_SENSOR_LIST
 {GC8034_SENSOR_ID, SENSOR_DRVNAME_GC8034_MIPI_RAW, GC8034_MIPI_RAW_SensorInit},
 #endif
 /*
- * GC032A c'era come driver e non c'era come voce: si compilava, e
- * imgsensor_set_driver -- che cerca il nome proprio in questa tabella --
- * non l'avrebbe trovato mai. Nel binario di fabbrica il suo nome sta
- * qui in mezzo agli altri sei, a "gc032a_mipi_yuv"@0x1126c16.
+ * GC032A was there as a driver and not as an entry: it compiled, and
+ * imgsensor_set_driver -- which looks for the name in this very table --
+ * would never have found it. In the factory binary its name sits
+ * here among the other six, at "gc032a_mipi_yuv"@0x1126c16.
  */
 #if defined(GC032A_MIPI_YUV)
 {GC032A_SENSOR_ID, SENSOR_DRVNAME_GC032A_MIPI_YUV, GC032A_MIPI_YUV_SensorInit},

@@ -135,28 +135,13 @@ enum xpr_id {
 
 static u32 mdp_base[1] = {0};
 /*
- * I QUINDICI SOTTOSISTEMI CHE IL CMDQ PUO' SCRIVERE.
+ * This section was reconstructed from the factory kernel disassembly.
  *
- * ALPS lascia questa tabella con UN SOLO elemento a zero. Il risultato e' che
- * `cmdq_mdp_is_sub_valid` accetta soltanto `base == 0` e rifiuta ogni altra
- * scrittura che il servizio della fotocamera mette nella coda di comandi:
- *
- *   [CMDQ][ERR]instr:0x401014100000000
- *   [CMDQ][ERR]CMDQ_IOCTL_ASYNC_JOB_EXEC flush task fail status:-14
- *
- * Quell'istruzione e' una CMDQ_CODE_WRITE (op 0x04) con sop 1 e ai 0x0141,
- * cioe' `base = (0x0141 & 0xf000) | 1 = 1` -- che e' la PRIMA voce della
- * tabella di fabbrica.
- *
- * La tabella vera sta a 0xffffff8008f5c354 e la usa `cmdq_mdp_is_sub_valid`
- * ("910d514a add"@0xffffff80087f181c, poi
- * "b869794a ldr"@0xffffff80087f1820 che indicizza con last_idx). I quindici
- * valori si leggono uno per uno; subito dopo comincia un'altra tabella, con
- * gli indirizzi fisici corrispondenti (0x14000000, 0x14001000, ...), e per
- * questo la lettura si ferma a quindici e non prosegue.
- *
- * Il formato di ogni voce e' `(offset & 0xf000) | subsys`, lo stesso che la
- * funzione calcola per confrontarle.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_cmdq_v3_cmdq_helper_ext.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static u32 mdp_sub_base[] = {
 	0x00000001, 0x00001001, 0x00003001, 0x00004001, 0x00005001,

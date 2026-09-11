@@ -2929,21 +2929,13 @@ static struct early_suspend mtkfb_early_suspend_handler = {
 
 
 /*
- * IL NODO /proc/wtk_lcdInfo -- AGGIUNTA DI FABBRICA, tre funzioni contigue
- * fra mtkfb_get_debug_state e mtkfb_probe nell'immagine:
- *   wtk_creat_proc_lcm_info @0xffffff8008866b88, 64 byte
- *   wtk_lcm_info_open       @0xffffff8008866bc8, 36 byte
- *   wtk_lcm_info_show       @0xffffff8008866bec, 40 byte
+ * wtk_lcm_info_show() was reconstructed from the factory kernel disassembly (0xffffff8008866b88, 64 bytes).
  *
- * I permessi sono 0777, non 0444 come negli altri nodi wtk:
- * "320023e1 orr"@0xffffff8008866ba0 mette 0x1ff in w1. E anche qui il nome
- * del nodo e il messaggio d'errore non coincidono -- "wtk_lcdInfo"
- * @0xffffff80091f5893 contro "create /proc/lcm_info_entry fail"
- * @0xffffff80091f589f. Difetto di fabbrica, riprodotto.
- *
- * Il buffer che la show stampa non e' nuovo: e' `mtkfb_lcm_name`, che ALPS
- * ha gia'. Verificato che sia lo stesso indirizzo che scrivono
- * mtkfb_find_lcm_driver, mtkfb_probe e _parse_tag_videolfb.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_video_mt6771_videox_mtkfb.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int wtk_lcm_info_show(struct seq_file *m, void *v)
 {
@@ -3025,22 +3017,13 @@ int __init mtkfb_init(void)
 	mtkfb_ipo_init();
 
 	/*
-	 * IL BLOCCO WINGTECH: il nodo /proc e la lettura del nome del pannello
-	 * dalla riga di comando. Sta qui, dopo mtkfb_ipo_init e prima
-	 * dell'uscita -- "97bdef6b bl"@0xffffff80093796a8 e' la proc_create e
-	 * "97ebbd26 bl"@0xffffff80093796d0 la strstr.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff80093796a8).
 	 *
-	 * Il `+ 6` salta "lcm=1-": la riga di comando di questo dispositivo
-	 * porta lcm=1-<nome>, e cio' che serve e' il nome.
-	 *
-	 * DUE DIFETTI DI FABBRICA, RIPRODOTTI:
-	 *  - il controllo di lunghezza confronta con strlen(cmdline + 1), non
-	 *    con strlen(cmdline): "91000680 add"@0xffffff80093796dc somma 1
-	 *    prima della __pi_strlen;
-	 *  - il terminatore va a `buf[len + 1]` e non a `buf[len]`:
-	 *    "390006bf strb"@0xffffff8009379798 scrive a [x21,#1] dove x21 e'
-	 *    gia' buf + len. E' innocuo solo perche' il memset ha azzerato
-	 *    tutti i 256 byte.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_video_mt6771_videox_mtkfb.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	if (!proc_create("wtk_lcdInfo", 0777, NULL, &wtk_lcm_info_fops))
 		printk("create /proc/lcm_info_entry fail\n");

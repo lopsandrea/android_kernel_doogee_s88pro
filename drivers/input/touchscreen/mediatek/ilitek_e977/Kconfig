@@ -1,33 +1,33 @@
 config WTK_ILITEK_E977
-	bool "ILITEK touch per pacchetto MediaTek (Doogee S88 Pro, dal disassemblato)"
+	bool "ILITEK touch for the MediaTek package (Doogee S88 Pro, from the disassembly)"
 	default n
 	help
-	  Touchscreen ILITEK del Doogee S88 Pro, ricostruito leggendo il kernel
-	  di fabbrica disassemblato.  Il config di fabbrica lo accende
-	  (CONFIG_WTK_ILITEK_E977=y) e l'albero ALPS non ha il simbolo: senza
-	  questa voce `olddefconfig` scarta la riga del config di fabbrica in
-	  silenzio.
+	  ILITEK touchscreen of the Doogee S88 Pro, reconstructed by reading the
+	  disassembled factory kernel.  The factory config turns it on
+	  (CONFIG_WTK_ILITEK_E977=y) and the ALPS tree does not have the symbol:
+	  without this entry `olddefconfig` discards the factory config line in
+	  silence.
 
-	  Il blocco di fabbrica ha 153 funzioni in otto unita' di traduzione.
+	  The factory block has 153 functions in eight translation units.
 
-	  NON C'E' NESSUN VINCOLO CON GLI ALTRI DUE TOUCHSCREEN, e una stesura
-	  precedente di questo Kconfig ne aveva messo uno sbagliato.  Diceva che i
-	  tre si escludono, e li incatenava con `depends on`; il config di
-	  fabbrica li accende TUTTI E TRE:
+	  THERE IS NO CONSTRAINT WITH THE OTHER TWO TOUCHSCREENS, and an earlier
+	  draft of this Kconfig had a wrong one.  It said the three exclude each
+	  other, and chained them with `depends on`; the factory config turns ALL
+	  THREE on:
 
 	    2220:CONFIG_WTK_GT917S_E977=y
 	    2224:CONFIG_WTK_ILITEK_E977=y
 	    2227:CONFIG_WTK_FT8719_E977=y
 
-	  Ed e' sensato: il quadro `tpd` di MediaTek registra piu' driver e sceglie
-	  a tempo di esecuzione quale pannello risponde.  Le `tpd_probe`,
-	  `tpd_suspend`, `tpd_resume` e `tpd_local_init` di questo driver sono
-	  `static`, quindi non collidono con quelle di FT8719 e GT917S -- i tre
-	  non hanno nemmeno un simbolo globale in comune, ed e' misurato:
+	  And it makes sense: MediaTek's `tpd` framework registers several drivers
+	  and chooses at run time which panel answers.  This driver's `tpd_probe`,
+	  `tpd_suspend`, `tpd_resume` and `tpd_local_init` are `static`, so they do
+	  not collide with those of FT8719 and GT917S -- the three do not even have
+	  one global symbol in common, and it is measured:
 
 	    $ comm -12 <(nm --defined-only --extern-only GT917S/built-in.o) \
 	                <(nm --defined-only --extern-only ilitek_e977/built-in.o)
-	    (nessuna riga)
+	    (no lines)
 
-	  Ma tutti e tre registrano un `tpd_driver_t` per lo stesso pannello, e
-	  ne va acceso uno solo.
+	  But all three register a `tpd_driver_t` for the same panel, and only one
+	  is to be turned on.

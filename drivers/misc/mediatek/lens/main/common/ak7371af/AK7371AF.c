@@ -42,31 +42,24 @@ static spinlock_t *g_pAF_SpinLock;
 static unsigned long g_u4AF_INF;
 static unsigned long g_u4AF_MACRO = 1023;
 /*
- * IL CONTATORE DEI TENTATIVI I2C, che ALPS non ha.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8009928f88).
  *
- * Sta a 0xffffff8009928f88, in .kernel2 subito dopo g_u4AF_MACRO, e i suoi
- * quattro byte nel binario valgono 05 00 00 00: e' INIZIALIZZATO a 5, non
- * azzerato. Per questo va in .data accanto a g_u4AF_MACRO e non in .bss.
- *
- * Quattro byte, non otto: "str w12"@0xffffff800874beb8 e' una store a 32
- * bit, mentre g_u4AF_MACRO li' accanto e' un unsigned long.
- *
- * Chi lo azzera e' il ramo d'errore di s4AF_WriteReg; chi lo rimette a 5 e'
- * SetI2Cclient. Quando arriva a zero le scritture non partono piu': e' un
- * modo per smettere di parlare a un chip che non risponde, e non c'e' in
- * nessun altro driver di lente di questo albero.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7371af_AK7371AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int g9928f88 = 5;
 static unsigned long g_u4CurrPosition;
 /*
- * LA POSIZIONE CHIESTA, tenuta a parte da quella corrente. Sta a
- * 0xffffff8009c96d20, otto byte subito dopo g_u4CurrPosition, e in ALPS non
- * c'e': moveAF passa direttamente il suo argomento a setVCMPos.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8009c96d20).
  *
- * Di fabbrica l'argomento viene prima depositato qui sotto spin_lock
- * ("f9000ee13 str"), e da qui rileggono sia le due scritture I2C sia
- * l'assegnazione finale a g_u4CurrPosition. Il perche' non si legge nel
- * binario; quel che si legge e' che il valore passa da un globale.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7371af_AK7371AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static unsigned long g9c96d20;
 
@@ -158,9 +151,9 @@ static int initAF(void)
 		unsigned short data = 0;
 
 		/*
-		 * L'ESITO SI PROPAGA. ALPS scarta il valore di ritorno di
-		 * s4AF_WriteReg; qui un fallimento esce subito, e il
-		 * chiamante se ne accorge. Il messaggio e' in chiaro:
+		 * THE OUTCOME PROPAGATES. ALPS discards the return value of
+		 * s4AF_WriteReg; here a failure returns at once, and the
+		 * caller notices. The message is in plain sight:
 		 * "AK7371AF_DRV [%s] InitDrv Fail!! I2C error occurred"@0xffffff80091aecec
 		 */
 		/* 00:active mode , 10:Standby mode , x1:Sleep mode */
@@ -172,10 +165,10 @@ static int initAF(void)
 		msleep(20);
 
 		/*
-		 * IL 2 SI SCRIVE SOLO SE IL CHIP HA RISPOSTO. ALPS lo mette
-		 * comunque; qui ci vogliono due condizioni -- la lettura
-		 * deve tornare 0 E il dato deve essere 0 -- e sono due salti
-		 * distinti nel binario, non un && ripiegato in uno.
+		 * THE 2 IS WRITTEN ONLY IF THE CHIP ANSWERED. ALPS writes it
+		 * regardless; here two conditions are required -- the read
+		 * must return 0 AND the datum must be 0 -- and they are two
+		 * distinct jumps in the binary, not an && folded into one.
 		 */
 		if (s4AF_ReadReg(0x02, &data) != 0 || data != 0) {
 			LOG_INF("InitDrv Fail!! I2C error occurred\n");
@@ -213,11 +206,11 @@ static inline int moveAF(unsigned long a_u4Position)
 	unsigned short alta = 0, bassa = 0;
 
 	/*
-	 * IL CONTROLLO D'INTERVALLO, che ALPS non ha in questo driver ma ha
-	 * in DW9714AF. Due confronti senza segno contro i due globali:
-	 * "eb13011f cmp"@0xffffff800874b53c contro g_u4AF_MACRO e il gemello
-	 * contro g_u4AF_INF, tutti e due prima di qualunque chiamata.
-	 * L'esito d'errore e' -22, cioe' -EINVAL.
+	 * THE RANGE CHECK, which ALPS does not have in this driver but does have
+	 * in DW9714AF. Two unsigned comparisons against the two globals:
+	 * "eb13011f cmp"@0xffffff800874b53c against g_u4AF_MACRO and its twin
+	 * against g_u4AF_INF, both before any call.
+	 * The error outcome is -22, that is -EINVAL.
 	 */
 	if (a_u4Position > g_u4AF_MACRO || a_u4Position < g_u4AF_INF) {
 		LOG_INF("out of range\n");
@@ -225,21 +218,20 @@ static inline int moveAF(unsigned long a_u4Position)
 	}
 
 	/*
-	 * L'ACCENSIONE E' QUI, non in SetI2Cclient. Di fabbrica il blocco di
-	 * initAF sta dentro moveAF, che a sua volta viene incorporata
-	 * nell'Ioctl: nell'Ioctl non c'e' nessun `bl` verso initAF, e
-	 * SetI2Cclient e' 44 byte senza chiamate.
+	 * THE POWER-UP IS HERE, not in SetI2Cclient. In the factory build the initAF
+	 * block sits inside moveAF, which in turn is inlined into the Ioctl: in the
+	 * Ioctl there is no `bl` towards initAF, and SetI2Cclient is 44 bytes with no
+	 * calls.
 	 */
 	if (initAF() != 0)
 		return -1;
 
 	/*
-	 * LA POSIZIONE SI RILEGGE DAL CHIP prima di muovere, e non e' un
-	 * controllo: e' proprio da qui che g_u4CurrPosition prende il suo
-	 * valore. Due letture e un innesto di due bit
-	 * ("d37e1d15 ubfiz"@0xffffff800874b774 seguito da
-	 * "b3461d35 bfxil"@0xffffff800874b778, che e' un field insert e non
-	 * una or). Se la seconda lettura fallisce si azzera.
+	 * THE POSITION IS READ BACK FROM THE CHIP before moving, and it is not a
+	 * check: this is precisely where g_u4CurrPosition gets its value. Two reads
+	 * and a two-bit graft ("d37e1d15 ubfiz"@0xffffff800874b774 followed by
+	 * "b3461d35 bfxil"@0xffffff800874b778, which is a field insert and not an
+	 * or). If the second read fails it is zeroed.
 	 */
 	s4AF_ReadReg(0x00, &alta);
 	ret = s4AF_ReadReg(0x01, &bassa);
@@ -254,7 +246,7 @@ static inline int moveAF(unsigned long a_u4Position)
 		spin_unlock(g_pAF_SpinLock);
 	}
 
-	/* Se il motore e' gia' li', non si muove niente. */
+	/* If the motor is already there, nothing moves. */
 	if (g_u4CurrPosition == a_u4Position)
 		return 0;
 
@@ -356,24 +348,24 @@ int AK7371AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 			int *pAF_Opened)
 {
 	/*
-	 * I DUE PARAMETRI NON SI USANO, ed e' misurato: nel prologo di
-	 * fabbrica non c'e' nessuna store verso g_pstAF_I2Cclient ne' verso
-	 * g_pAF_Opened. La funzione legge il globale gia' impostato da
-	 * SetI2Cclient ("f9467d08 ldr"@0xffffff800874bbc4 lo prende dal
-	 * globale, non da x1).
+	 * LOG_INF() was reconstructed from the factory kernel disassembly (0xffffff800874bbc4).
 	 *
-	 * La firma resta con i due parametri perche' e' quella di
-	 * lens_list.h, uguale per tutti i driver di lente.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7371af_AK7371AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	LOG_INF("+\n");
 	/*
-	 * UN RAMO IN PIU', per il caso "gia' aperto". ALPS guarda solo lo
-	 * zero; la fabbrica prova prima il 2 e in quel caso riporta lo stato
-	 * a 1 senza spegnere niente. Il messaggio e' in chiaro nel binario:
+	 * ONE MORE BRANCH, for the "already open" case. ALPS looks only at
+	 * zero; the factory tests 2 first and in that case brings the state
+	 * back to 1 without powering anything down. The message is in plain sight
+	 * in the binary:
 	 * "AK7371AF_DRV [%s] reopen driver init"@0xffffff80091aec10.
 	 *
-	 * Il 1 si scrive con una `str` nuda, senza spin_lock -- al contrario
-	 * dello zero in Release, che il lucchetto ce l'ha.
+	 * The 1 is written with a bare `str`, without a spin_lock -- unlike
+	 * the zero in Release, which does have the lock.
 	 */
 	if (*g_pAF_Opened == 2) {
 		*g_pAF_Opened = 1;
@@ -381,13 +373,13 @@ int AK7371AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 	} else if (*g_pAF_Opened == 0) {
 		unsigned short data = 0;
 		/*
-		 * IL CONTATORE SCENDE, non sale: parte da 1
-		 * ("320003fa orr"@0xffffff800874bbe0) e la condizione d'uscita
-		 * si prova PRIMA del confronto sul dato
-		 * ("cbz w26"@0xffffff800874bc60 viene prima di
-		 * "cmp w25, #0x20"). Il numero di giri e' lo stesso di ALPS
-		 * -- al piu' due -- ma l'ordine dei due controlli no, e con
-		 * `data == 0x20 || cnt == 1` il codice non combacia.
+		 * THE COUNTER COUNTS DOWN, not up: it starts at 1
+		 * ("320003fa orr"@0xffffff800874bbe0) and the exit condition
+		 * is tested BEFORE the comparison on the datum
+		 * ("cbz w26"@0xffffff800874bc60 comes before
+		 * "cmp w25, #0x20"). The number of rounds is the same as ALPS's
+		 * -- at most two -- but the order of the two checks is not, and with
+		 * `data == 0x20 || cnt == 1` the code does not match.
 		 */
 		int cnt = 1;
 
@@ -419,11 +411,10 @@ int AK7371AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
 	g_pAF_Opened = pAF_Opened;
 
 	/*
-	 * NIENTE initAF QUI. Di fabbrica questa funzione e' 44 byte: tre
-	 * store di puntatore, il contatore a 5, e `orr w0, wzr, #0x1` per il
-	 * valore di ritorno. Nessun bl. E' lo stesso nodo di LC898122AF --
-	 * l'accensione si e' spostata dentro l'Ioctl, che infatti e' il
-	 * doppio.
+	 * NO initAF HERE. In the factory build this function is 44 bytes: three
+	 * pointer stores, the counter set to 5, and `orr w0, wzr, #0x1` for the
+	 * return value. No bl. It is the same pattern as LC898122AF -- the power-up
+	 * has moved into the Ioctl, which is indeed twice the size.
 	 */
 	g9928f88 = 5;
 

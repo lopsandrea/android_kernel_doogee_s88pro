@@ -1,26 +1,26 @@
-# WTK_ILITEK_E977 -- touchscreen ILITEK, Doogee S88 Pro (MT6771).
+# WTK_ILITEK_E977 -- ILITEK touchscreen, Doogee S88 Pro (MT6771).
 #
-# NEL KERNEL VA IN `drivers/input/touchscreen/mediatek/ilitek_e977/`, ed e' una
-# directory NUOVA: la fabbrica accende `CONFIG_WTK_ILITEK_E977` e l'albero ALPS
-# quel simbolo non ce l'ha.  L'aggancio -- `Kconfig` qui accanto, piu' una riga
-# `source` e una `obj-$(CONFIG_WTK_ILITEK_E977) += ilitek_e977/` nel padre -- e'
-# stato fatto il 2026-08-23.
+# It goes into `drivers/input/touchscreen/mediatek/ilitek_e977/`, and it is a NEW
+# directory: the factory turns on `CONFIG_WTK_ILITEK_E977` and the ALPS tree does
+# not have that symbol. Hooking it up -- the `Kconfig` next door, plus a `source`
+# line and an `obj-$(CONFIG_WTK_ILITEK_E977) += ilitek_e977/` in the parent -- was
+# done on 2026-08-23.
 #
-# QUESTO FILE E' RIMASTO PER GIORNI SOLO SULLA MACCHINA DI BUILD, e va detto:
-# il repo aveva i sorgenti e non la ricetta per compilarli.  E' lo stesso
-# difetto che il progetto ha gia' incontrato col `pytest.ini` -- una cosa che
-# esiste solo dove gira non e' una cosa che il repository possiede.
+# THIS FILE LIVED FOR DAYS ONLY ON THE BUILD MACHINE, and that has to be said:
+# the repo had the sources and not the recipe to compile them. It is the same
+# defect the project already met with `pytest.ini` -- something that
+# exists only where it runs is not something the repository owns.
 #
-# `ccflags-y` del padre NON si propaga alle sottodirectory (solo
-# `subdir-ccflags-y` lo fa), e questi file includono "tpd.h" del padre: le -I
-# vanno ripetute qui.
+# `ccflags-y` from the parent does NOT propagate into subdirectories (only
+# `subdir-ccflags-y` does), and these files include the parent's "tpd.h": the -I
+# flags have to be repeated here.
 #
-# IL `-Werror` ARRIVA, ed e' quello del padre (`subdir-ccflags-y += -Werror` in
-# drivers/input/touchscreen/mediatek/Makefile).  Arriva pero' SOLO quando
-# kbuild discende dal padre, cioe' da quando c'e' la riga `obj-$(CONFIG_...)`:
-# col comando `make ... <dir>/` che questo progetto usa per misurare, la
-# variabile KBUILD_SUBDIR_CCFLAGS non viene mai esportata e il -Werror non c'e'.
-# Il Makefile di GT917S documenta il meccanismo per esteso.
+# THE `-Werror` DOES ARRIVE, and it is the parent's (`subdir-ccflags-y += -Werror` in
+# drivers/input/touchscreen/mediatek/Makefile). It arrives ONLY when kbuild
+# descends from the parent, that is, since the `obj-$(CONFIG_...)` line exists:
+# with the `make ... <dir>/` command this project uses to measure, the
+# KBUILD_SUBDIR_CCFLAGS variable is never exported and the -Werror is absent.
+# GT917S's Makefile documents the mechanism in full.
 
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/

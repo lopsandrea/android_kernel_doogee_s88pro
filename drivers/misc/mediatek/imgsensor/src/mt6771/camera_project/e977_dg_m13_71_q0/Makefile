@@ -1,18 +1,18 @@
 #
-# I driver di sensore di QUESTO progetto.
+# The sensor drivers of THIS project.
 #
-# Che stiano qui e non in common/v1_1 lo dice il binario: il __FILE__ di
-# gc8034mipi_Sensor.c e degli altri porta il percorso per esteso --
+# That they belong here and not in common/v1_1 is stated by the binary: the
+# __FILE__ of gc8034mipi_Sensor.c and of the others carries the full path --
 # "/home/jenkins/jks-WTK6739_Q0_MP1_AP/alps/kernel-4.14/drivers/misc/"
 # "mediatek/imgsensor/src/mt6771/camera_project/e977_dg_m13_71_q0/"
-# "gc8034_mipi_raw/gc8034mipi_Sensor.c"@0xffffff80091a77b9 -- e
-# CONFIG_ARCH_MTK_PROJECT vale proprio e977_dg_m13_71_q0.
+# "gc8034_mipi_raw/gc8034mipi_Sensor.c"@0xffffff80091a77b9 -- and
+# CONFIG_ARCH_MTK_PROJECT is exactly e977_dg_m13_71_q0.
 #
 #
-# gc0310_mipi_yuv: il nome della directory DEVE combaciare con la voce di
-# CONFIG_CUSTOM_KERNEL_IMGSENSOR ("gc0310_mipi_yuv"), perche' il Makefile di
-# mt6771 costruisce il percorso da li' e imgsensor_set_driver confronta la
-# stessa stringa con SENSOR_DRVNAME_GC0310_MIPI_YUV.
+# gc0310_mipi_yuv: the directory name MUST match the CONFIG_CUSTOM_KERNEL_IMGSENSOR
+# entry ("gc0310_mipi_yuv"), because the mt6771 Makefile builds the path from
+# it and imgsensor_set_driver compares the same string with
+# SENSOR_DRVNAME_GC0310_MIPI_YUV.
 #
 obj-y += gc0310_mipi_yuv/
 obj-y += gc032a_mipi_yuv/

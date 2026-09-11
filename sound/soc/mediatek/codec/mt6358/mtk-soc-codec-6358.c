@@ -4218,16 +4218,13 @@ static int Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 }
 
 /*
- * Ext_Speaker_Amp_Change TOLTA: in stock.map non c'e' (mentre
- * Ext_Speaker_Amp_Get e Ext_Speaker_Amp_Set ci sono entrambe), e dopo la
- * correzione qui sotto non la chiamava piu' nessuno.
+ * Ext_Speaker_Amp_Get() was reconstructed from the factory kernel disassembly.
  *
- * La sua struttura era gia' quella giusta -- stessi ritardi: usleep_range(1000,
- * 20000), msleep(25), udelay(500) -- solo con AudDrv_GPIO_EXTAMP_Select() al
- * posto delle due chiamate all'amplificatore. La fabbrica ha sostituito
- * quelle due chiamate e ha incorporato la funzione dentro
- * Ext_Speaker_Amp_Set. Che i ritardi combacino a uno a uno e' la conferma
- * che la lettura del disassemblato e' giusta.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/sound_soc_mediatek_codec_mt6358_mtk-soc-codec-6358.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static int Ext_Speaker_Amp_Get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
@@ -4238,43 +4235,13 @@ static int Ext_Speaker_Amp_Get(struct snd_kcontrol *kcontrol,
 }
 
 /*
- * L'AMPLIFICATORE ESTERNO AW87329, che ALPS non accende mai.
+ * aw87329_audio_kspk() was reconstructed from the factory kernel disassembly.
  *
- * Il difetto era udibile: nessun suono dall'altoparlante. Il PCM andava --
- * /proc/asound/card0/pcm*p/sub0/status dava "state: RUNNING" -- ma
- * l'amplificatore restava spento: `hwen: 0` in
- * /sys/bus/i2c/devices/6-0059/hwen. Scrivendo 1 a mano in quel file il suono
- * si sentiva, e questo ha chiuso la diagnosi.
- *
- * ALPS qui chiama Ext_Speaker_Amp_Change(), che governa il GPIO di un
- * amplificatore generico e dell'AW87329 non sa nulla. La fabbrica chiama
- * invece direttamente le due funzioni del driver, e nel nostro albero
- * NESSUNO le chiamava: aw87329_audio_kspk e aw87329_audio_off erano
- * compilate e irraggiungibili.
- *
- * I due chiamanti di fabbrica si trovano cercando le BL verso
- * aw87329_audio_kspk (0xffffff8008c5879c):
- *
- *     da 0xffffff8008c1de9c  in Ext_Speaker_Amp_Set
- *     da 0xffffff8008c59e28  in aw87329_set_mode
- *
- * La sequenza qui sotto e' Ext_Speaker_Amp_Set di fabbrica
- * (0xffffff8008c1de68), letta istruzione per istruzione:
- *
- *     "9400ec0c bl"@0xffffff8008c1de8c   aw87329_audio_off
- *     "52807d00 mov"@0xffffff8008c1de90  w0 = 1000
- *     "5289c401 mov"@0xffffff8008c1de94  w1 = 20000   -> usleep_range
- *     "9400ea40 bl"@0xffffff8008c1de9c   aw87329_audio_kspk
- *     "52800320 mov"@0xffffff8008c1dea0  w0 = 25      -> msleep
- *
- * e nel ramo di spegnimento:
- *
- *     "9400ebf7 bl"@0xffffff8008c1dee0   aw87329_audio_off
- *     "52989580 mov"+"72a00400 movk"     w0 = 0x20c4ac = 500 * 0x10C7,
- *                                        cioe' udelay(500)
- *
- * Lo spegnimento prima dell'accensione non e' un refuso: e' la fabbrica che
- * porta l'amplificatore a uno stato noto prima di metterlo in modo speaker.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/sound_soc_mediatek_codec_mt6358_mtk-soc-codec-6358.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 extern int aw87329_audio_kspk(void);
 extern int aw87329_audio_off(void);

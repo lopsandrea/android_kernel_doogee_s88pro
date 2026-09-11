@@ -30,24 +30,18 @@
 #define AF_DEBUG
 #ifdef AF_DEBUG
 /*
- * pr_info, non pr_debug -- e non e' una preferenza, e' una misura.
+ * AK7345AF lens driver -- pr_info, not pr_debug, and that is a measurement
+ * rather than a preference: all five factory functions in this file call
+ * printk.
  *
- * Tutte e cinque le funzioni di fabbrica di questo file chiamano `printk`:
+ * Reconstructed from the disassembly of the factory kernel.
  *
- *   AK7345AF_Ioctl_Main        printk i2c_master_send _raw_spin_lock ...
- *   AK7345AF_Release_Main      printk msleep _raw_spin_lock _raw_spin_unlock
- *   AK7345AF_PowerDown_Main    printk i2c_master_send i2c_master_recv ...
- *   AK7345AF_SetI2Cclient_Main printk i2c_master_send _raw_spin_lock ...
- *   AK7345AF_GetFileName_Main  strrchr strncpy printk __stack_chk_fail
- *
- * pr_debug con CONFIG_DYNAMIC_DEBUG acceso -- e da noi lo e' -- diventa
- * __dynamic_pr_debug, non printk: ogni sito porta con se' un descrittore e il
- * controllo che lo legge, e sono 24 byte a funzione.
- *
- * IL CONFRONTO CHE LO DIMOSTRA e' il gemello ak7371af, stesso mestiere e
- * stesso autore: li' la fabbrica chiama __dynamic_pr_debug, come noi. Quindi
- * non e' una scelta di progetto ne' un effetto della configurazione -- e' una
- * differenza di QUESTO FILE, e va riprodotta qui e non altrove.
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7345af_AK7345AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define LOG_INF(format, args...)                                               \
 	pr_info(AF_DRVNAME " [%s] " format, __func__, ##args)
@@ -68,21 +62,13 @@ static int s4AF_ReadReg(u16 a_u2Addr, u16 *a_pu2Result)
 	int i4RetValue = 0;
 	char pBuff;
 	/*
-	 * IL BUFFER DI UN BYTE, e perche' e' un byte e non due.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff800874c394).
 	 *
-	 * Questo file non e' mai stato compilato in ALPS -- non sta in nessun
-	 * obj-y -- e la riga di sotto, com'era, non compila: passava `&a_u2Addr`
-	 * (un `u16 *`) dove i2c_master_send vuole un `const char *`, ed e'
-	 * -Werror. Qualcosa doveva cambiare comunque; QUALE cambiamento lo dice
-	 * il binario, non il gusto.
-	 *
-	 * "390053f4 strb"@0xffffff800874c394 e' una scrittura di UN BYTE a
-	 * [sp,#20]. Un `(char *)&a_u2Addr` avrebbe dovuto lasciare in pila la
-	 * mezza parola intera -- il chiamato e' opaco e potrebbe leggere due
-	 * byte -- e sarebbe stata una `strh`. Un buffer di un byte solo da'
-	 * la `strb` che c'e'.
-	 *
-	 * E' la stessa forma del gemello ak7371af, che l'albero compila.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7345af_AK7345AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	char puSendCmd[1];
 
@@ -181,23 +167,13 @@ static inline int moveAF(unsigned long a_u4Position)
 	int ret = 0;
 
 	/*
-	 * LA RIGA DI DEBUG LASCIATA DENTRO, e i suoi quindici trattini.
+	 * LOG_INF() was reconstructed from the factory kernel disassembly.
 	 *
-	 * Dice "set I2C failed" e si stampa a OGNI movimento, riuscito o no:
-	 * chi l'ha scritta ha copiato il messaggio dell'else, gli ha aggiunto
-	 * i trattini per ritrovarlo a occhio nel log, e non l'ha piu' tolta.
-	 * E' un difetto di fabbrica e si riproduce (regola 7).
-	 *
-	 * Che ci siano DUE stringhe distinte, e non una sola usata due volte,
-	 * lo dice il binario: le due printk di moveAF dentro AK7345AF_Ioctl_Main
-	 * puntano a due indirizzi diversi di .rodata --
-	 * "97e79d33 bl"@0xffffff800874c008 va alla stringa coi trattini,
-	 * "bl printk"@0xffffff800874c1e8 a quella senza -- e tutte e due
-	 * portano __func__ = "moveAF".
-	 *
-	 * I trattini sono quindici, contati sui byte:
-	 *   "he motor--------"@0xffffff80091af03c  (otto)
-	 *   "-------\n\0"@0xffffff80091af04c       (altri sette, poi fine)
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7345af_AK7345AF.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	LOG_INF("set I2C failed when moving the motor---------------\n");
 
@@ -293,32 +269,13 @@ int AK7345AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 }
 
 /*
- * AK7345AF_PowerDown, aggiunta di fabbrica.
+ * AK7345AF_PowerDown() was reconstructed from the factory kernel disassembly (0xffffff800874c2cc, 384 bytes).
  *
- * L'ordine e' quello del binario -- Ioctl, Release, PowerDown, SetI2Cclient,
- * GetFileName: stock.map: 0xffffff800874c2cc AK7345AF_PowerDown_Main, 384 byte, fra
- * AK7345AF_Release_Main e AK7345AF_SetI2Cclient_Main.
- *
- * Che sia questa forma e non un'altra lo dicono tre costanti immediate:
- *
- *   "321e07f3 orr"@0xffffff800874c340   w19 = 0xc, cioe' AF_I2C_SLAVE_ADDR
- *                                       (0x18) gia' diviso per due
- *   "52840059 mov"@0xffffff800874c33c   w25 = 0x2002, che scritto come u16
- *                                       little-endian a [sp,#16] e' la coppia
- *                                       di byte {0x02, 0x20} di puSendCmd --
- *                                       cioe' s4AF_WriteReg(0x02, 0x20)
- *   "390053f4 strb"@0xffffff800874c394  w20 = 2 a [sp,#20], il singolo byte
- *                                       che s4AF_ReadReg manda prima di
- *                                       ricevere: s4AF_ReadReg(0x02, &data)
- *
- * I due aiutanti sono incorporati (nessuna bl verso di loro), ma le loro
- * stringhe di errore restano e portano il proprio __func__: e' cosi' che si
- * vede che sono s4AF_ReadReg e non altro.
- *
- * Il ciclo, "3400009c cbz"@0xffffff800874c3ec e le due righe dopo, e' un
- * conto alla rovescia da 1: clang ha girato `cnt` in `1 - cnt`. Sono al
- * massimo due giri, e il secondo si fa solo se il registro non ha ancora
- * letto 0x20.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_lens_main_common_ak7345af_AK7345AF.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int AK7345AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 			int *pAF_Opened)

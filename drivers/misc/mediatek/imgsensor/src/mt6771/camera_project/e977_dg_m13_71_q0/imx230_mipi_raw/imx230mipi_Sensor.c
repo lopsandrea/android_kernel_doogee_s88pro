@@ -159,7 +159,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ae_sensor_gain_delay_frame = 0,
 	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
 	.ihdr_support = 0,	/* 1, support; 0,not support */
-	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
+	.ihdr_le_firstline = 0,	/* 1, le first ; 0, se first */
 	.sensor_mode_num = 5,	/* support sensor mode num */
 
 	.cap_delay_frame = 1,	/* enter capture delay frame num */
@@ -181,14 +181,13 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 	/* sensor output first pixel color */
 	/*
-	 * RAW_B, NON RAW_R. Misurato sul telefono con il kernel di fabbrica:
+	 * This section was reconstructed from the factory kernel disassembly.
 	 *
-	 *   fabbrica: CAM[0]:imx230_mipi_raw ... output_format(0:B,...,3:R)= 0
-	 *   noi:      CAM[0]:imx230_mipi_raw ... output_format(0:B,...,3:R)= 3
-	 *
-	 * Il pattern Bayer si sposta in diagonale quando il modulo e' montato
-	 * ruotato di 180 gradi: B e R sono i due estremi di quello spostamento.
-	 * ALPS dichiarava R perche' il suo imx230 era di un altro modulo.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_imx230_mipi_raw_imx230mipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B,
 
@@ -593,36 +592,13 @@ static void set_dummy(void)
 }				/*    set_dummy  */
 
 /*
- * LA GUARDIA CHE DISTINGUE I DUE MODULI IMX230.
+ * return_sensor_id() was reconstructed from the factory kernel disassembly (0xffffff8008709ce0).
  *
- * Questo telefono ha DUE driver per lo stesso sensore Sony IMX230, con lo
- * stesso IMX230_SENSOR_ID e la stessa i2c_addr_table: imx230_mipi_raw e
- * imx230xinfengda_mipi_raw. Il codice dei due file e' identico a meno dei
- * nomi. Cio' che li distingue -- e che ALPS non ha -- e' UNA riga: ciascuno
- * interroga l'EEPROM del PROPRIO fornitore di modulo, e si tira indietro se
- * non la trova.
- *
- *     fabbrica, imx230:     "52800904 mov"@0xffffff8008709ce0   -> w4 = 0x48
- *     fabbrica, xinfengda:  "321d07e4 orr"@0xffffff8008724ca4   -> w4 = 0x18
- *
- * Le due funzioni sono per il resto uguali fra loro e uguali alla nostra:
- * stessa scrittura 0x0A02/0x0A00/0x0A01 e stessa lettura 0x0A38/0x0A39. Solo
- * la guardia iniziale cambia -- la fabbrica controlla la LETTURA
- * dell'EEPROM ("37f805f3 tbnz"@0xffffff8008709d10), noi controllavamo la
- * SCRITTURA sul sensore.
- *
- * I due messaggi lasciati dal fornitore lo dicono apertamente:
- *   "---test----imx230---get_byte===%%d--ret==%%d\n"@0xffffff80091a6c80
- *   "---test----imx230xinfengda---get_byte===%%d--ret==%%d\n"@0xffffff80091a8b81
- *
- * SENZA QUESTA GUARDIA i due driver sono indistinguibili e vince quello che
- * capita: il nostro kernel sceglieva imx230xinfengda per la camera
- * posteriore, che e' il modulo dell'ALTRO fornitore. Il sintomo visibile era
- * l'immagine ruotata e output_format dichiarato R invece di B -- il pattern
- * Bayer si sposta in diagonale quando il modulo e' montato girato.
- *
- * Il messaggio lo lasciamo a pr_debug e non a printk: serviva al fornitore
- * in collaudo, e il buffer dei messaggi di questo telefono e' gia' stretto.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_imx230_mipi_raw_imx230mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static kal_uint32 return_sensor_id(void)
 {
@@ -1620,25 +1596,13 @@ kal_uint16 addr_data_pair_init_imx230[] = {
 	0x6B4C, 0x00,
 	0x6B4D, 0x8C,
 	/*
-	 * IL RIBALTAMENTO CHE LA FABBRICA APPLICA AL SENSORE.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8009918c9c).
 	 *
-	 * Qui ALPS scrive 0x0138=0x01 (controllo di temperatura); la fabbrica al
-	 * suo posto scrive 0x0101=0x03, cioe' IMAGE_HV_MIRROR -- specchiatura
-	 * orizzontale E verticale, che e' una rotazione di 180 gradi.
-	 *
-	 * Letto confrontando la tabella intera con quella di fabbrica, che sta a
-	 * 0xffffff8009918c9c (e la gemella di xinfengda a 0xffffff800991a464).
-	 * Su 446 coppie questa e' l'UNICA differenza, e la tabella di preview
-	 * combacia per intero.
-	 *
-	 * Il modulo di questo telefono e' montato girato, e la fabbrica lo
-	 * raddrizza nel sensore invece che a valle. Il ribaltamento sposta anche
-	 * il pattern Bayer di una posizione in diagonale: per questo il driver
-	 * dichiara SENSOR_OUTPUT_FORMAT_RAW_B e non RAW_R.
-	 *
-	 * Le due cose vanno insieme. Con il formato corretto ma senza questa
-	 * scrittura l'immagine resta ruotata E i colori sbagliano, perche' l'ISP
-	 * legge come B un mosaico che il sensore sta ancora producendo come R.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_imx230_mipi_raw_imx230mipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	0x0101, 0x03,
 };
@@ -3449,9 +3413,10 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	/*0: NO PDAF, 1: PDAF Raw Data mode, 2:PDAF VC mode */
 	sensor_info->PDAF_Support = 2;
 
-	/* la fabbrica dichiara 0 per questo modulo, non 2 (mvHDR):
-	 * "HDR_Support(0:NO HDR,1: iHDR,2:mvHDR,3:zHDR)= 0" nel suo
-	 * /proc/driver/camera_info, riletto dal telefono.
+	/*
+	 * the factory declares 0 for this module, not 2 (mvHDR):
+	 * "HDR_Support(0:NO HDR,1: iHDR,2:mvHDR,3:zHDR)= 0" in its
+	 * /proc/driver/camera_info, read back from the phone.
 	 */
 	sensor_info->HDR_Support = 0;	/*0: NO HDR, 1: iHDR, 2:mvHDR, 3:zHDR */
 

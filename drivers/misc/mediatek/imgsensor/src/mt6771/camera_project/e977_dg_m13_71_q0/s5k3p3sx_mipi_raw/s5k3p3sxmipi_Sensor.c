@@ -55,10 +55,10 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = S5K3P3SX_SENSOR_ID,
 
 	/*
-	 * 0x0623a073, non un numero inventato: e' quel che
-	 * GET_TEST_PATTERN_CHECKSUM_VALUE restituisce, costruito da
-	 * "52940e68 mov"@0xffffff800872151c (0xa073) e
-	 * "72a0c468 movk"@0xffffff8008721520 (0x623 nella meta' alta).
+	 * 0x0623a073, not an invented number: it is what
+	 * GET_TEST_PATTERN_CHECKSUM_VALUE returns, built from
+	 * "52940e68 mov"@0xffffff800872151c (0xa073) and
+	 * "72a0c468 movk"@0xffffff8008721520 (0x623 in the high half).
 	 */
 	.checksum_value = 0x0623a073,
 
@@ -71,19 +71,13 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_width = 2320,
 		.grabwindow_height = 1748,
 		/*
-		 * VENTITRE, non 85. E' il tempo di assestamento del ricevitore
-		 * MIPI, e l'85 veniva da GC8034: qui non c'entra niente.
+		 * This section was reconstructed from the factory kernel disassembly (0xffffff8008720e3c).
 		 *
-		 * get_info di fabbrica lo scrive con
-		 * "5282e00a mov"@0xffffff8008720e3c (w10 = 0x1700) e
-		 * "7808f26a sturh"@0xffffff8008720e60 verso l'offset 143: i due
-		 * byte sono {0x00, 0x17}, cioe'
-		 * MIPIDataLowPwr2HighSpeedTermDelayCount = 0 e
-		 * MIPIDataLowPwr2HighSpeedSettleDelayCount = 23.
-		 *
-		 * Con un assestamento sbagliato il ricevitore campiona i dati
-		 * nel momento sbagliato: l'immagine parte, e dopo una ventina
-		 * di fotogrammi l'ISP perde il completamento.
+		 * The working notes -- the disassembly citations, the measurements against
+		 * the factory binary and the reasoning behind each choice -- are in
+		 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+		 * in the oracolo repository. They are kept in Italian, as the project's
+		 * internal record.
 		 */
 		.mipi_data_lp2hs_settle_dc = 23,
 		.max_framerate = 300,
@@ -134,12 +128,12 @@ static struct imgsensor_info_struct imgsensor_info = {
 	},
 
 	/*
-	 * OTTO, non dieci. E' il margine fra otturatore e lunghezza del
-	 * fotogramma, e si legge in SET_ESHUTTER:
+	 * EIGHT, not ten. It is the margin between the shutter and the frame
+	 * length, and it is readable in SET_ESHUTTER:
 	 *   "5100210b sub"@0xffffff8008721008    min_frame_length - 8
 	 *   "110022ca add"@0xffffff8008721000    shutter + 8
-	 * Con dieci il driver calcola una lunghezza di fotogramma che non
-	 * corrisponde all'esposizione chiesta.
+	 * With ten the driver computes a frame length that does not
+	 * match the exposure requested.
 	 */
 	.margin = 8,
 	.min_shutter = 5,   /* "710016df cmp"@0xffffff8008721034 */
@@ -165,12 +159,12 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.mclk = 24,
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
 	/*
-	 * DUE indirizzi, e 0x20 viene per primo. `open` prova 0x20
-	 * ("321b03e8 orr"@0xffffff800871fc20, scritto in i2c_write_id da
-	 * "390a42a8 strb"@0xffffff800871fc28) e solo se fallisce passa a 0x5a
-	 * ("52800b48 mov"@0xffffff800871fccc). La prima versione aveva letto
-	 * solo il secondo, che e' quello che si vede piu' avanti nel
-	 * disassemblato.
+	 * TWO addresses, and 0x20 comes first. `open` tries 0x20
+	 * ("321b03e8 orr"@0xffffff800871fc20, written into i2c_write_id by
+	 * "390a42a8 strb"@0xffffff800871fc28) and only if that fails moves to 0x5a
+	 * ("52800b48 mov"@0xffffff800871fccc). The first version had read only the
+	 * second one, which is the one that appears further down in the
+	 * disassembly.
 	 */
 	.i2c_addr_table = {0x20, 0x5a, 0xff},
 	.i2c_speed = 400,
@@ -193,17 +187,13 @@ static struct imgsensor_struct imgsensor = {
 
 
 /*
- * LA TARATURA DEL RILEVAMENTO DI FASE, 380 byte letti dal binario.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008721634, 380 bytes).
  *
- * `GET_PDAF_INFO` la copia tale e quale nel buffer del chiamante:
- * "941cd9b3 bl"@0xffffff8008721634 e' un __memcpy di 0x17c byte
- * ("52802f82 mov"@0xffffff8008721630) dalla struttura a
- * 0xffffff8008f4a3e0.
- *
- * PERCHE' CONTA. Senza queste quattro voci il flusso si rompe dopo una
- * ventina di fotogrammi -- l'ISP stampa `Lost p1 done` e il servizio chiude
- * tutto. Il PDAF viaggia su un canale MIPI aggiuntivo, e se il driver non
- * dichiara come e' fatto, chi riceve non sa cosa scartare.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 	.i4OffsetX = 0,
@@ -233,18 +223,13 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 };
 
 /*
- * QUATTRO VOCI, NON CINQUE -- e le due di mezzo erano scambiate.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff8008f4a360, 128 bytes).
  *
- * La tabella di fabbrica sta a 0xffffff8008f4a360, la trova
- * `SENSOR_FEATURE_GET_CROP_INFO` ("910d8129 add"@0xffffff80087215d4), ed e'
- * lunga 128 byte: quattro voci da 32. Il byte successivo e' gia' la
- * struttura del PDAF, che sta a 0xffffff8008f4a3e0.
- *
- * Le due di mezzo le avevo scritte al contrario: il ritaglio 1920x1080 con
- * spostamento 200,334 e' del VIDEO NORMALE, non del video ad alta velocita'.
- * Chiedendo l'anteprima video il servizio riceveva misure che non
- * corrispondono a quel che il sensore manda, e il fotogramma non si
- * completava -- e' l'`ISP ... Lost p1 done` che si vedeva nel registro.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[4] = {
 	{2320, 1748,    0,    0, 2320, 1748, 2320, 1748,
@@ -258,25 +243,17 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[4] = {
 };
 
 /*
- * Samsung legge e scrive con l'indirizzo a SEDICI bit: il buffer e' di
- * quattro byte, non di due, e le due meta' vanno spezzate a mano.
+ * Samsung reads and writes with a SIXTEEN-bit address: the buffer is
+ * four bytes, not two, and the two halves have to be split by hand.
  */
 /*
- * UN byte per volta, non due.
+ * read_cmos_sensor() was reconstructed from the factory kernel disassembly (0xffffff800871fc64).
  *
- * Il sensore non rispondeva all'identificativo, e la ragione era qui: questa
- * funzione chiedeva DUE byte in una lettura sola, e S5K3P3SX non risponde
- * cosi'. La fabbrica fa due letture separate da un byte, dai registri 0x0000
- * e 0x0001, e le rimette insieme --
- *
- *   "790003ff strh"@0xffffff800871fc64   comando = registro 0x0000
- *   "97ff9421 bl"@0xffffff800871fc68     iReadRegI2C(..., 1, id)
- *   "790003f7 strh"@0xffffff800871fc88   comando = registro 0x0001
- *   "97ff9418 bl"@0xffffff800871fc8c     iReadRegI2C(..., 1, id)
- *   "2a192119 orr"@0xffffff800871fc94    id = (primo << 8) | secondo
- *
- * Il terzultimo argomento di iReadRegI2C e' la LUNGHEZZA della risposta, ed
- * e' 1 ("320003e3 orr"@0xffffff800871fc5c), non 2.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 {
@@ -289,7 +266,7 @@ static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 	return get_byte;
 }
 
-/* L'identificativo sta in due registri consecutivi, uno per byte. */
+/* The identifier lives in two consecutive registers, one per byte. */
 static kal_uint16 read_sensor_id(void)
 {
 	return (kal_uint16)((read_cmos_sensor(0x0000) << 8) |
@@ -304,7 +281,7 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 	iWriteRegI2C(pu_send_cmd, 4, imgsensor.i2c_write_id);
 }
 
-/* Tre byte: indirizzo a sedici bit, dato a otto. La usa solo il guadagno. */
+/* Three bytes: a sixteen-bit address, an eight-bit datum. Only the gain uses it. */
 static void write_cmos_sensor_8(kal_uint32 addr, kal_uint32 para)
 {
 	char pu_send_cmd[3] = { (char)(addr >> 8), (char)(addr & 0xFF),
@@ -690,27 +667,17 @@ static void set_shutter(kal_uint32 shutter)
 }
 
 /*
- * IL GUADAGNO SI SCRIVE CON TRE BYTE SU DUE REGISTRI, NON CON QUATTRO SU UNO.
+ * gain2reg() was reconstructed from the factory kernel disassembly (0xffffff8008721108).
  *
- * Questa e' la differenza che rompeva il flusso: la camera si apriva, faceva
- * una ventina di fotogrammi e poi l'ISP stampava `Lost p1 done` e il servizio
- * chiudeva tutto. Scrivere quattro byte dove il sensore ne aspetta tre gli
- * manda un byte in piu' sul registro adiacente.
- *
- *   "52808049 mov"@0xffffff8008721108    w9 = 0x0402 -> registro 0x0204
- *   "320007e1 orr"@0xffffff8008721110    LUNGHEZZA 3, non 4
- *   "53093ea8 ubfx"@0xffffff8008721104   (gain >> 9) & 0x7f, cioe' l'alto
- *   "5280a048 mov"@0xffffff8008721128    w8 = 0x0502 -> registro 0x0205
- *   "39004bf3 strb"@0xffffff8008721138   il basso, reg_gain
- *
- * `set_dummy` e `write_shutter` invece usano QUATTRO byte
- * ("321e03e1 orr"@0xffffff8008722174 e @0xffffff8008721794), e li' il driver
- * era gia' giusto. Le due larghezze convivono nello stesso sensore, e non si
- * possono indovinare: si leggono una per una.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static kal_uint16 gain2reg(const kal_uint16 gain)
 {
-	/* "53013eb3 ubfx"@0xffffff80087210d0 -- gain >> 1, quindici bit */
+	/* "53013eb3 ubfx"@0xffffff80087210d0 -- gain >> 1, fifteen bit */
 	return (kal_uint16)(gain >> 1);
 }
 
@@ -719,10 +686,10 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	kal_uint16 reg_gain;
 
 	/*
-	 * L'intervallo e' 64..2048, non 64..1024:
-	 * "510102a8 sub"@0xffffff8008721084 toglie 0x40 e
-	 * "711f051f cmp"@0xffffff8008721088 confronta con 0x7c1, cioe'
-	 * accetta senza correzioni tutto quel che sta fra 64 e 2048.
+	 * The range is 64..2048, not 64..1024:
+	 * "510102a8 sub"@0xffffff8008721084 subtracts 0x40 and
+	 * "711f051f cmp"@0xffffff8008721088 compares with 0x7c1, that is, it
+	 * accepts anything between 64 and 2048 without correction.
 	 */
 	if (gain < BASEGAIN || gain > 32 * BASEGAIN) {
 		LOG_INF("Error gain setting\n");
@@ -750,21 +717,19 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	LOG_INF("E\n");
 
 	/*
-	 * FERMA IL FLUSSO PRIMA DI RICONFIGURARE.
+	 * write_cmos_sensor() was reconstructed from the factory kernel disassembly (0xffffff80087219e8).
 	 *
-	 * La fabbrica lo fa, e si vede nei casi `capture` e `normal_video` di
-	 * `control`: una scrittura sola, write(0x0100, 0x0000), estratta
-	 * dall'intervallo 0xffffff80087219e8-0xffffff8008721a8c. Il registro
-	 * 0x0100 e' mode_select: zero mette il sensore in attesa.
-	 *
-	 * Senza, il sensore viene riconfigurato MENTRE TRASMETTE, e il
-	 * fotogramma in corso non si completa mai -- e' l'`ISP ... Lost p1
-	 * done` che si vedeva nel registro. `preview` lo riaccende in coda,
-	 * con write(0x0100, 0x0100).
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	write_cmos_sensor(0x0100, 0x0000);
-	/* "941cd7df bl"@0xffffff8008721af8 -- un millesimo di secondo perche'
-	 * il fotogramma in corso finisca prima di riconfigurare */
+	/*
+	 * "941cd7df bl"@0xffffff8008721af8 -- one millisecond for the frame in
+	 * flight to finish before reconfiguring
+	 */
 	mdelay(1);
 
 	spin_lock(&imgsensor_drv_lock);
@@ -788,21 +753,19 @@ static kal_uint32 normal_video(
 	LOG_INF("E\n");
 
 	/*
-	 * FERMA IL FLUSSO PRIMA DI RICONFIGURARE.
+	 * write_cmos_sensor() was reconstructed from the factory kernel disassembly (0xffffff80087219e8).
 	 *
-	 * La fabbrica lo fa, e si vede nei casi `capture` e `normal_video` di
-	 * `control`: una scrittura sola, write(0x0100, 0x0000), estratta
-	 * dall'intervallo 0xffffff80087219e8-0xffffff8008721a8c. Il registro
-	 * 0x0100 e' mode_select: zero mette il sensore in attesa.
-	 *
-	 * Senza, il sensore viene riconfigurato MENTRE TRASMETTE, e il
-	 * fotogramma in corso non si completa mai -- e' l'`ISP ... Lost p1
-	 * done` che si vedeva nel registro. `preview` lo riaccende in coda,
-	 * con write(0x0100, 0x0100).
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	write_cmos_sensor(0x0100, 0x0000);
-	/* "941cd7df bl"@0xffffff8008721af8 -- un millesimo di secondo perche'
-	 * il fotogramma in corso finisca prima di riconfigurare */
+	/*
+	 * "941cd7df bl"@0xffffff8008721af8 -- one millisecond for the frame in
+	 * flight to finish before reconfiguring
+	 */
 	mdelay(1);
 
 	spin_lock(&imgsensor_drv_lock);
@@ -913,10 +876,10 @@ static kal_uint32 close(void)
 }
 
 /*
- * get_resolution @0xffffff8008720e7c, 100 byte.
+ * get_resolution @0xffffff8008720e7c, 100 bytes.
  *
- * Le dieci misure escono da tre `movk` in fila: 0x0910 = 2320 e 0x06d4 = 1748
- * per quattro scenari, 0x0780 = 1920 e 0x0438 = 1080 per il video veloce.
+ * The ten sizes come out of three `movk`s in a row: 0x0910 = 2320 and 0x06d4 = 1748
+ * for four scenarios, 0x0780 = 1920 and 0x0438 = 1080 for the fast video.
  */
 static kal_uint32 get_resolution(
 	MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_resolution)
@@ -1009,16 +972,13 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	sensor_info->SensorGrabStartY = imgsensor_info.pre.starty;
 
 	/*
-	 * PDAF_Support = 0, e va SCRITTO.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008720e58, 200 bytes).
 	 *
-	 * La fabbrica lo azzera con "3902b27f strb"@0xffffff8008720e58, verso
-	 * l'offset 172. Il nostro get_info non lo toccava affatto, e il campo
-	 * restava col valore che ci aveva lasciato chi chiama.
-	 *
-	 * Il confronto e' stato fatto sugli OFFSET che le due funzioni
-	 * scrivono, estratti dai due binari: combaciavano tutti tranne questo.
-	 * Le due funzioni misurano 200 byte entrambe, quindi la dimensione non
-	 * lo diceva.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	sensor_info->PDAF_Support = 0;
 
@@ -1340,7 +1300,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			       sizeof(struct SENSOR_WINSIZE_INFO_STRUCT));
 			break;
 		case MSDK_SCENARIO_ID_SLIM_VIDEO:
-			/* la tabella ha quattro voci: l'ultima e' l'indice 3 */
+			/* the table has four entries: the last is index 3 */
 			memcpy((void *)wininfo,
 			       (void *)&imgsensor_winsize_info[3],
 			       sizeof(struct SENSOR_WINSIZE_INFO_STRUCT));
@@ -1360,35 +1320,34 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			(UINT16) *(feature_data + 2));
 		break;
 	/*
-	 * I QUATTRO CASI DEL PDAF, E QUELLO DI TROPPO CHE C'ERA AL LORO POSTO.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff8008f4a198).
 	 *
-	 * La tavola di salto di fabbrica sta a 0xffffff8008f4a198 e ha novanta
-	 * voci, ventidue delle quali non sono il ripiego. Il primo tentativo ne
-	 * aveva diciannove, copiate da GC8034: mancavano questi quattro e ce
-	 * n'era uno in piu' -- GET_MIPI_PIXEL_RATE (3111), che di fabbrica NON
-	 * e' gestito e cadeva nel ripiego. Rispondere dove la fabbrica tace e'
-	 * un difetto quanto tacere dove risponde.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_s5k3p3sx_mipi_raw_s5k3p3sxmipi_Sensor.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	case SENSOR_FEATURE_GET_PDAF_INFO:
 		LOG_INF("SENSOR_FEATURE_GET_PDAF_INFO scenarioId:%llu\n",
 			*feature_data);
-		/* solo la cattura: "f100051f cmp"@0xffffff800872161c */
+		/* capture only: "f100051f cmp"@0xffffff800872161c */
 		if (*feature_data == MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG)
 			memcpy((void *)(uintptr_t)(*(feature_data + 1)),
 			       (void *)&imgsensor_pd_info,
 			       sizeof(struct SET_PD_BLOCK_INFO_T));
 		break;
 	case SENSOR_FEATURE_GET_PDAF_DATA:
-		/* di fabbrica e' solo un messaggio: nessun dato viene copiato */
+		/* in the factory build it is only a message: no data is copied */
 		LOG_INF("SENSOR_FEATURE_GET_PDAF_DATA\n");
 		break;
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 		LOG_INF("SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%llu\n",
 			*feature_data);
 		/*
-		 * Cinque scenari, e solo il secondo risponde uno: la tavola a
-		 * 0xffffff8008f4a260 e' {0x00, 0x97, 0x00, 0x00, 0x00} e solo
-		 * la voce 0x97 porta al blocco che scrive 1
+		 * Five scenarios, and only the second answers one: the table at
+		 * 0xffffff8008f4a260 is {0x00, 0x97, 0x00, 0x00, 0x00} and only
+		 * the 0x97 entry leads to the block that writes 1
 		 * ("320003e9 orr"@0xffffff80087218f0).
 		 */
 		switch (*feature_data) {
@@ -1418,11 +1377,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 static kal_uint8 s5k3p3sx_eeprom_data[S5K3P3SX_MAX_PDAF_SIZE];
 
 /*
- * read_3P3_eeprom @0xffffff80087225d4, 432 byte, simbolo GLOBALE (T).
+ * read_3P3_eeprom @0xffffff80087225d4, 432 bytes, a GLOBAL symbol (T).
  *
- * Legge la taratura del rilevamento di fase dalla memoria esterna. I due
- * messaggi qui sono `__dynamic_pr_debug` nel disassemblato, non `printk`:
- * sono gli unici pr_debug veri del driver, tutto il resto e' pr_info.
+ * It reads the phase detection calibration from the external memory. The two
+ * messages here are `__dynamic_pr_debug` in the disassembly, not `printk`:
+ * they are the only real pr_debugs in the driver, everything else is pr_info.
  */
 UINT32 read_3P3_eeprom(kal_uint16 addr, char *data, kal_uint32 size)
 {

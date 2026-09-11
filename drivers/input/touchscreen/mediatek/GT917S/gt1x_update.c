@@ -147,10 +147,12 @@ struct fw_info {
 struct fw_update_info update_info = {
 	.status = UPDATE_STATUS_IDLE, .progress = 0, .max_progress = 9};
 
-/* DELTA DI HEADER: di fabbrica `struct fw_update_info` ha un `int` in piu' a
- * offset 16, e da `firmware` in poi tutti i campi slittano di otto byte.  I
- * dodici offset sono MISURATI uno per uno -- citazioni in coda, NOTE (1).
- * La riga da aggiungere all'header e' `int c16;`, e la fa il lotto di merge.
+/*
+ * HEADER DELTA: in the factory build `struct fw_update_info` has one extra
+ * `int` at offset 16, and from `firmware` onwards every field shifts by eight
+ * bytes.  The twelve offsets are MEASURED one by one -- citations at the end,
+ * NOTE (1). The line to add to the header is `int c16;`, and the merge batch
+ * does it.
  */
 struct fw_update_info_fab {
 	int update_type;
@@ -169,7 +171,7 @@ struct fw_update_info_fab {
 #define upd (*(struct fw_update_info_fab *)&update_info)
 
 
-/* Dichiarazioni in avanti: l'ordine qui e' quello dei __LINE__, NOTE (2). */
+/* Forward declarations: the order here is that of the __LINE__s, NOTE (2). */
 static u8 gt1x_search_update_files(void);
 int gt1x_update_prepare(char *filename);
 int gt1x_check_firmware(void);
@@ -268,12 +270,14 @@ int gt1x_auto_update_proc(void *data)
 	return 0;
 }
 
-/* gt1x_search_update_files -- di fabbrica non ha simbolo proprio: e'
+/*
+ * gt1x_search_update_files -- in the factory build it has no symbol of its own:
+ * it is
  *
- * incorporata in gt1x_auto_update_proc, e a dirlo e' il __func__ delle sue
- * tre printk, "gt1x_search_update_files"@0xffffff800924da9d, diverso da
- * quello del contenitore, "gt1x_auto_update_proc"@0xffffff800924c6a0.
- * E' la classe B5 vista dal lato buono.  Vedi NOTE (3).
+ * inlined into gt1x_auto_update_proc, and what says so is the __func__ of its
+ * three printks, "gt1x_search_update_files"@0xffffff800924da9d, different from
+ * the container's, "gt1x_auto_update_proc"@0xffffff800924c6a0.
+ * It is class B5 seen from the good side.  See NOTE (3).
  */
 static u8 gt1x_search_update_files(void)
 {
@@ -326,7 +330,8 @@ static u8 gt1x_search_update_files(void)
 	return found_flag;
 }
 
-/* nessun gt1x_esd_switch: la fabbrica chiama solo printk e
+/*
+ * no gt1x_esd_switch: the factory calls only printk and
  * gt1x_irq_disable ("97fff88c bl"@0xffffff8008a78c14).
  */
 void gt1x_enter_update_mode(void)
@@ -335,12 +340,13 @@ void gt1x_enter_update_mode(void)
 	gt1x_irq_disable();
 }
 
-/* la fabbrica NON ricontrolla il flash: dopo il ciclo di gt1x_burn_subsystem
+/*
+ * the factory does NOT re-check the flash: after the gt1x_burn_subsystem loop
  *
  *
- * si va dritti all'uscita ("17ffff55 b"@0xffffff8008a78bcc verso
- * 0xffffff8008a78920), senza seconda gt1x_run_ss51_isp e senza il ciclo di
- * gt1x_check_subsystem_in_flash.  Vedi NOTE (4).
+ * it goes straight to the exit ("17ffff55 b"@0xffffff8008a78bcc towards
+ * 0xffffff8008a78920), with no second gt1x_run_ss51_isp and no
+ * gt1x_check_subsystem_in_flash loop.  See NOTE (4).
  */
 int gt1x_update_firmware(char *filename)
 {
@@ -469,10 +475,11 @@ gt1x_update_exit:
 	return ret;
 }
 
-/* aggiornamento da FILE, non dall'header: vedi NOTE (5) per le prove e per
+/*
+ * an update from a FILE, not from the header: see NOTE (5) for the proofs and
  *
  *
- * i due difetti di fabbrica riprodotti qui dentro.
+ * for the two factory defects reproduced in here.
  */
 int gt1x_update_prepare(char *filename)
 {
@@ -531,34 +538,14 @@ gt1x_update_pre_fail1:
 	return ret;
 }
 
-/* gt1x_check_firmware combacia da quando gt1x_get_fw_data legge dal file:
+/*
+ * gt1x_check_firmware() was reconstructed from the factory kernel disassembly.
  *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- * era -336 byte, e non aveva un difetto suo -- il -336 era tutto della
- * gt1x_get_fw_data che ALPS riduce a un `return &fw_data[offset];`.
- * Le sei GTP_DEBUG del blocco di stampa in fondo sono DEBUG e non INFO:
- * i letterali di fabbrica portano il prefisso <<GTP-DBG>>, per esempio
- * "<<GTP-DBG>>[%s:%d]Type: %d\n"@0xffffff800924cca9, e la copia ALPS
- * usava GTP_INFO.  E' una divergenza che la DIMENSIONE non denuncia:
- * cambia solo quale stringa di .rodata l'istruzione indirizza.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_update.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int gt1x_check_firmware(void)
 {
@@ -634,10 +621,7 @@ int gt1x_check_firmware(void)
 	return 0;
 }
 
-/* legge dal file quando update_type vale 1.  Vedi NOTE (6).
- *
- *
- */
+/* it reads from the file when update_type is 1.  See NOTE (6). */
 u8 *gt1x_get_fw_data(u32 offset, int length)
 {
 	int ret;
@@ -734,9 +718,7 @@ int gt1x_update_judge(void)
 	return 0;
 }
 
-/* il limite di ritentativi e' 30, non 2000.  Vedi NOTE (7).
- *
- */
+/* the retry limit is 30, not 2000.  See NOTE (7). */
 int __gt1x_hold_ss51_dsp_20(void)
 {
 	int ret = -1;
@@ -775,11 +757,12 @@ int __gt1x_hold_ss51_dsp_20(void)
 	return 0;
 }
 
-/* comincia con un ciclo di lettura di 0x4220 che ALPS non ha, e non ha
+/*
+ * it starts with a read loop of 0x4220 that ALPS does not have, and has
  *
  *
  *
- * nessuna msleep(20).  Vedi NOTE (8).
+ * no msleep(20) at all.  See NOTE (8).
  */
 int gt1x_hold_ss51_dsp(void)
 {
@@ -833,10 +816,7 @@ int gt1x_hold_ss51_dsp(void)
 	return 0;
 }
 
-/* arrivata gia' identica dalla copia ALPS.
- *
- *
- */
+/* came across already identical from the ALPS copy. */
 int gt1x_run_ss51_isp(u8 *ss51_isp, int length)
 {
 	int ret;
@@ -911,9 +891,10 @@ int gt1x_run_ss51_isp(u8 *ss51_isp, int length)
 	return 0;
 }
 
-/* gt1x_calc_checksum e gt1x_update_cleanup non stampano niente, quindi il
- * binario non dice a che riga stanno: la loro POSIZIONE nel file e' una
- * scelta, non una misura, ed e' l'unica cosa qui dentro che lo sia.
+/*
+ * gt1x_calc_checksum and gt1x_update_cleanup print nothing, so the
+ * binary does not say which line they are on: their POSITION in the file is a
+ * choice, not a measurement, and it is the only thing in here that is.
  */
 u16 gt1x_calc_checksum(u8 *fw, u32 length)
 {
@@ -1081,10 +1062,7 @@ int gt1x_burn_subsystem(struct fw_subsystem_info *subsystem)
 		return ERROR_RETRY;
 }
 
-/* combacia da quando gt1x_get_fw_data legge dal file.
- *
- *
- */
+/* it matches from the moment gt1x_get_fw_data reads from the file. */
 int gt1x_check_subsystem_in_flash(struct fw_subsystem_info *subsystem)
 {
 	int block_len;
@@ -1128,8 +1106,7 @@ int gt1x_check_subsystem_in_flash(struct fw_subsystem_info *subsystem)
 	return check_state;
 }
 
-/* "Error occured." con una sola r: vedi NOTE (9).
- */
+/* "Error occured." with a single r: see NOTE (9). */
 int gt1x_read_flash(u32 addr, int length)
 {
 	int wait_time;
@@ -1175,8 +1152,7 @@ int gt1x_read_flash(u32 addr, int length)
 	return 0;
 }
 
-/* la funzione che ALPS non ha.  Vedi NOTE (10).
- */
+/* the function ALPS does not have.  See NOTE (10). */
 int gt1x_error_erase(void)
 {
 	int block_len;
@@ -1299,10 +1275,7 @@ int gt1x_error_erase(void)
 	return ERROR_RETRY;
 }
 
-/* il 2 di `status` salta il reset: vedi NOTE (11).
- *
- *
- */
+/* the 2 in `status` skips the reset: see NOTE (11). */
 void gt1x_leave_update_mode(void)
 {
 	GTP_DEBUG("Leave FW update mode.");
@@ -1331,26 +1304,14 @@ void gt1x_update_cleanup(void)
 	}
 }
 
-/* arrivata gia' identica dalla copia ALPS.
+/*
+ * gt1x_hold_ss51_dsp_no_reset() was reconstructed from the factory kernel disassembly.
  *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_update.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 int gt1x_hold_ss51_dsp_no_reset(void)
 {
@@ -1466,295 +1427,23 @@ int gt1x_startup_patch(void)
 	return ret;
 }
 
-/* ==========================================================================
- * NOTE -- le prove, nella forma verificabile.  Stanno in coda e non dentro le
- * funzioni perche' l'ordine e la SPAZIATURA di questo file non sono liberi:
- * ognuna delle 124 macro GTP_* emette il proprio __LINE__ nel binario, e i
- * 124 valori di fabbrica fissano la riga di ogni chiamata.  Dalla riga 1467
- * in giu' non c'e' piu' niente da fissare.
+/*
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800998c700).
  *
- * (1) DELTA DI HEADER, il campo `c16` e i sette che gli slittano dietro.
- *     Offset misurati uno per uno su update_info (base 0xffffff800998c700):
- *       +0  update_type  "b9470108 ldr"@0xffffff8008a7a024, poi `cmp w8,#0x1`
- *       +4  status       "b9470708 ldr"@0xffffff8008a78870 (cbz all'ingresso
- *                        di gt1x_update_firmware) e
- *                        "b907071f str"@0xffffff8008a7894c
- *       +8  progress     "b940092a ldr"@0xffffff8008a789f0 (x9 = base+0x700)
- *       +12 max_progress "29002329 stp"@0xffffff8008a78908, che scrive +8 e
- *                        +12 con una sola istruzione
- *       +16 c16          il campo NUOVO: lo scrive gt1x_debug_write_proc
- *                        ("b9071128 str"@0xffffff8008a75f30) e lo legge
- *                        gt1x_update_judge ("b9471129 ldr"@0xffffff8008a79638)
- *       +24 firmware     "f9438f88 ldr"@0xffffff8008a78b58, e il kfree di
- *                        gt1x_update_cleanup "f9438e60 ldr"@0xffffff8008a7a094
- *       +32 fw_length    "b9000a80 str"@0xffffff8008a78d68 (x20 = base+0x718,
- *                        quindi +8 = base+32) subito dopo la seconda llseek
- *       +40 fw_name      "f90016b4 str"@0xffffff8008a78c98 (x21 = base+0x700)
- *       +48 buffer       "f9039ac0 str"@0xffffff8008a78e68 e il kfree
- *                        "f9439a60 ldr"@0xffffff8008a7a080
- *       +56 old_fs       "f9001ea8 str"@0xffffff8008a78c68 (get_fs salvato)
- *       +64 fw_file      "f90022a0 str"@0xffffff8008a78ca8 (esito di filp_open)
- *       +72 fw_data      "f943a508 ldr"@0xffffff8008a7971c in gt1x_get_fw_data
- *     CONSEGUENZA DICHIARATA, e non e' una misura: finche' l'header non
- *     cambia, `update_info` occupa 72 byte e non 80, e il campo a offset 72
- *     (`fw_data`) cade oltre la fine dell'oggetto.  Il `.text` che l'oracolo
- *     giudica e' corretto; la RISERVA dei byte no, e si chiude con quella
- *     riga sola.  gt1x_generic.c fa gia' la stessa cosa per il solo `c16`.
- *
- * (2) L'ORDINE DELLE DEFINIZIONI.  Non e' una scelta: i 124 __LINE__ dicono
- *     dove ogni funzione sta.  Due sole funzioni non stampano niente --
- *     gt1x_calc_checksum e gt1x_update_cleanup -- e per quelle due la
- *     posizione E' una scelta, dichiarata qui e da nessun'altra parte.
- *     Nota: l'ordine delle definizioni non e' l'ordine del `.text`; clang
- *     riordina, e infatti nel nostro `.o` gt1x_update_firmware sta al quinto
- *     posto pur essendo definita per settima, esattamente come di fabbrica.
- *
- * (3) gt1x_search_update_files, incorporata in gt1x_auto_update_proc.
- *     La prova e' il __func__ delle sue printk, diverso da quello del
- *     contenitore: "gt1x_search_update_files"@0xffffff800924da9d contro
- *     "gt1x_auto_update_proc"@0xffffff800924c6a0.  E' incorporata anche
- *     gt1x_check_fs_mounted, che pero' ha ANCHE un corpo suo a
- *     0xffffff8008a7839c: le due kern_path, il confronto dei due `mnt_sb`
- *     ("f9400514 ldr"@0xffffff8008a78704 e "f9400536 ldr"@0xffffff8008a78708,
- *     offset 8 di struct vfsmount) e le due path_put sono il suo corpo, e il
- *     valore che ne esce e' ERROR_PATH ("52840014 mov"@0xffffff8008a786ec con
- *     "72b00014 movk"@0xffffff8008a786f0, cioe' 0x80002000).
- *     Il ciclo e' un CONTO ALLA ROVESCIA da 40: "128004f5 mov"@0xffffff8008a785e0
- *     lo parte a -40 e "310006b5 adds"@0xffffff8008a7873c con
- *     "54fffc03 b.cc"@0xffffff8008a78740 lo chiude sul riporto, senza nessun
- *     `cmp`.  Misurato: `for (i = 0; i < 40; i++)` da' 840 byte con add+cmp;
- *     la forma discendente da' gli 836 esatti.  Quale delle due scritture ci
- *     fosse non lo dice il binario -- dice quale RIPRODUCE.
- *     La msleep e' di 500 ms: "52803e80 mov"@0xffffff8008a786c0.
- *
- * (4) gt1x_update_firmware NON ricontrolla il flash.  Dopo il ciclo di
- *     gt1x_burn_subsystem si va dritti all'uscita
- *     ("17ffff55 b"@0xffffff8008a78bcc verso 0xffffff8008a78920): niente
- *     seconda gt1x_run_ss51_isp, niente ciclo di
- *     gt1x_check_subsystem_in_flash, che ALPS invece ha.  `max_progress` non
- *     e' la costante 9 di ALPS ma `subsystem_count + 3`
- *     ("11000d08 add"@0xffffff8008a78904), e sul ramo d'errore `progress`
- *     diventa il doppio di `max_progress` ("531f7929 lsl"@0xffffff8008a78978).
- *
- * (5) gt1x_update_prepare apre un FILE.  "97dfb36f bl"@0xffffff8008a78ca0
- *     chiama filp_open, e le due llseek che seguono
- *     ("d63f0100 blr"@0xffffff8008a78d38 e @0xffffff8008a78d58) danno
- *     `fw_length`.  DUE DIFETTI DI FABBRICA, riprodotti:
- *     - il primo ciclo di allocazione va a fondo anche quando l'ultimo
- *       tentativo RIESCE: dopo la quinta kzalloc si passa comunque per
- *       filp_close e ERROR_RETRY ("51401d14 sub"@0xffffff8008a78f6c);
- *     - il secondo ciclo non decrementa `retry`, quindi non ha fondo:
- *       "b4fffea0 cbz"@0xffffff8008a78eac torna alla printk d'errore senza
- *       toccare nessun contatore, e dopo il ciclo non c'e' nessun controllo
- *       `retry <= 0` ("2a1f03f4 mov"@0xffffff8008a78ecc mette w20 a zero e si
- *       esce con 0).  Non c'e' quindi nemmeno il ramo che libera
- *       `upd.firmware`: l'etichetta gt1x_update_pre_fail0 di ALPS qui non c'e'.
- *     Il ramo d'errore non rimette a posto `old_fs`: "f943a100 ldr"
- *     @0xffffff8008a78f5c e' seguita subito da filp_close e il ritorno non
- *     passa da nessun `mrs sp_el0`.  Anche questo e' della fabbrica.
- *
- * (6) gt1x_get_fw_data legge dal file quando `update_type` vale 1
- *     ("7100051f cmp"@0xffffff8008a796bc).  La lunghezza e' un `int` e ci
- *     arriva con estensione di SEGNO: "93407e62 sxtw"@0xffffff8008a796f4.
- *     L'offset invece e' senza segno: "8b204100 add"@0xffffff8008a79720 lo
- *     estende con `uxtw`.  E' la classe A3 del criterio di revisione.
- *
- * (7) __gt1x_hold_ss51_dsp_20 ritenta 30 volte, non 2000.  Lo dicono
- *     "710076ff cmp"@0xffffff8008a7a148 (`cmp w23,#0x1d`) e
- *     "71007aff cmp"@0xffffff8008a7a1a4 (`cmp w23,#0x1e`).  Questa funzione
- *     misurava 356 byte su 356 fin dal principio: e' un difetto che la
- *     DIMENSIONE non denuncia e che ha denunciato il confronto per codifica.
- *
- * (8) gt1x_hold_ss51_dsp comincia con un ciclo che ALPS non ha: legge 0x4220
- *     ("52884400 mov"@0xffffff8008a7a288) finche' riesce, e il contatore parte
- *     da -5 ("321d7bf3 orr"@0xffffff8008a7a278), esce a zero
- *     ("34000073 cbz"@0xffffff8008a7a294) e viene incrementato DOPO il
- *     confronto ("11000673 add"@0xffffff8008a7a298), cioe' `retry--` valutato
- *     per primo.  Non c'e' nessuna msleep(20).
- *
- * (9) "Error occured." con una sola `r`.  Il letterale di fabbrica e'
- *     "<<GTP-ERR>>[%s:%d] Error occured.\n"@0xffffff800924d759; ALPS scrive
- *     "occurred".  E' un difetto della fabbrica e si riproduce (regola 7).
- *     Nella stessa funzione la msleep del ciclo d'attesa e' di 5 ms e non di
- *     20: "528000a0 mov"@0xffffff8008a7a998.  Anche questo la dimensione non
- *     lo denunciava -- gt1x_read_flash misurava 480 su 480 dal principio.
- *
- * (10) gt1x_error_erase, la funzione che ALPS non ha: 1172 byte, 293
- *      istruzioni.  Scrive 4096 byte di 0xFF nell'area ss51 e li ribatte
- *      cinque volte, sempre e comunque -- anche dopo un "burning success.",
- *      perche' il ramo di successo salta al FONDO del ciclo
- *      ("14000032 b"@0xffffff8008a7adc8 verso 0xffffff8008a7ae90) e non fuori.
- *      Il buffer e' kmalloc e non kzalloc -- le flag sono 0x14000c0
- *      ("52801801 mov"@0xffffff8008a7ab48 con
- *      "72a02801 movk"@0xffffff8008a7ab50), senza il bit 0x8000 di __GFP_ZERO
- *      che la kzalloc di gt1x_update_prepare invece ha ("52901801 mov"
- *      @0xffffff8008a78d64) -- e viene riempito a mano con
- *      "940f7524 bl"@0xffffff8008a7ab70 verso __memset, con
- *      "32001fe1 orr"@0xffffff8008a7ab64 che mette 0xff in w1.
- *      La lunghezza e' 4096: "f140051f cmp"@0xffffff8008a7ae14 chiude il ciclo
- *      di checksum a `#0x1, lsl #12`, e i quattro byte di testata sono
- *      0x10,0,0,0 ("321c03f9 orr"@0xffffff8008a7ab8c mette 0x10 in w25 e
- *      "b9000bf9 str"@0xffffff8008a7ae30 lo scrive come parola).
- *      Il tipo scritto in 0x8020 e' 0x02 due volte:
- *      "52804048 mov"@0xffffff8008a7acc4 mette 0x202 e
- *      "790013e8 strh"@0xffffff8008a7acd4 lo scrive a mezza parola.
- *      L'attesa usa gt1x_i2c_read_dbl_check ("97ffe446 bl"@0xffffff8008a7ad3c)
- *      e non due gt1x_i2c_read come gt1x_burn_subsystem.
- *      I valori d'errore: ERROR_FW sul "get isp fail"
- *      ("11400913 add"@0xffffff8008a7abe0 = 0x80002000+0x2000), ERROR_MEM
- *      sull'alloc ("11001af3 add"@0xffffff8008a7aecc = 0x80000002+6),
- *      ERROR_RETRY in coda ("113ffae8 add"@0xffffff8008a7aea4), e sul
- *      "run isp fail" un 0x80002000 che e' _ERROR(13)
- *      ("52840013 mov"@0xffffff8008a7ab24 con
- *      "72b00013 movk"@0xffffff8008a7ab34): il bit e' misurato, il nome che
- *      l'header di fabbrica gli dava no.
- *
- * (11) gt1x_leave_update_mode salta il reset quando `status` vale 2:
- *      "b9470668 ldr"@0xffffff8008a7a0d8 e "7100091f cmp"@0xffffff8008a7a0dc.
- *      Il 2 lo scrivono i rami d'errore di gt1x_update_firmware
- *      ("321f03e8 orr"@0xffffff8008a78914).  Il binario non lo nomina.
- *
- * (12) gt1x_burn_subsystem legge 0x8022 DUE volte, con cinque millisecondi in
- *      mezzo, e va avanti solo se le due letture concordano: la seconda
- *      gt1x_i2c_read punta a un secondo vettore
- *      ("910053e1 add"@0xffffff8008a79e64, x1 = sp+0x14 contro il sp+0x8 della
- *      prima) e il confronto e' "6b08007f cmp"@0xffffff8008a79e80 seguito da
- *      "54000301 b.ne"@0xffffff8008a79e84.  Il seme 0x55 del secondo vettore e'
- *      "52800aa8 mov"@0xffffff8008a79e40 con "390053e8 strb"@0xffffff8008a79e50.
- *      La fabbrica NON fa la gt1x_recall_check dopo aver scritto i dati (ALPS
- *      si': erano 64 byte in piu'), e la lettura del ciclo d'attesa prova il
- *      SEGNO e non lo zero -- "37f80460 tbnz"@0xffffff8008a79e58.
- *
- * (13) read_reg, TOLTA.  Nel binario di fabbrica non c'e' ne' come funzione ne'
- *      incorporata: il suo unico letterale non compare in tutta l'immagine.
- *        $ strings oracolo/stock.elf | grep -cF 'Read address: 0x%04X, Length: %d'
- *        0
- *      (controprova sulla stessa scansione: 'Enter FW update mode.' da' 1 e
- *      'Erase flash area of ss51.' da' 1.)  Il cappello di gt1x_wtk.c la
- *      contava gia' fra le quattro funzioni di ALPS che la fabbrica non ha.
- * ==========================================================================
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_update.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 
-/* (14) I 106 LETTERALI DI QUESTA UNITA', uno per uno, con l'indirizzo dei
- *      byte che producono nel binario di fabbrica.  I messaggi non esistono
- *      nell'immagine come li scrive il codice: le macro Goodix li saldano al
- *      proprio prefisso (`<<GTP-ERR>>[%s:%d] `, `<<GTP-INF>>[%s:%d] `,
- *      `<<GTP-DBG>>[%s:%d]`) e alla `\n`, e la citazione porta il testo
- *      ASSEMBLATO, che e' quello che sta davvero a quell'indirizzo.
- *      I quattro letterali che non compaiono sono i tre percorsi di #include
- *      e "gt1151_default_", che sta sotto CONFIG_GTP_REQUEST_FW_UPDATE, spenta.
+/*
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800924c6b6).
  *
- * "/data/_goodix_update_.bin"@0xffffff800924c6b6
- * "/sdcard/_goodix_update_.bin"@0xffffff800924c6d0
- * "/data/_gt1x_config_.cfg"@0xffffff800924c6ec
- * "/sdcard/_gt1x_config_.cfg"@0xffffff800924c704
- * "/" -- INDIRIZZO NON DETERMINATO. Quello che stava qui,
- *     0xffffff80080811d9, cade in .text, e un letterale di stringa in .text
- *     non c'e' mai: la scansione aveva preso il PRIMO byte uguale in tutta
- *     l'immagine (2833 occorrenze), non il letterale. Da rifare cercando
- *     nella sola .rodata -- oppure da togliere, perche' qui '/' e' una
- *     costante di carattere passata a strrchr, e una costante di carattere
- *     vive in un immediato d'istruzione, non ha un indirizzo suo.
- * "<<GTP-INF>>[%s:%d] Start auto update thread...\n"@0xffffff800924c670
- * "<<GTP-ERR>>[%s:%d] Update config failed!\n"@0xffffff800924c71e
- * "<<GTP-INF>>[%s:%d] Update config successfully!\n"@0xffffff800924c748
- * "<<GTP-INF>>[%s:%d] Search firmware file...\n"@0xffffff800924da71
- * "/data"@0xffffff800924dab6
- * "<<GTP-DBG>>[%s:%d]filesystem is not ready\n"@0xffffff800924dabc
- * "<<GTP-INF>>[%s:%d] Not found firmware or config file, retry.\n"@0xffffff800924dae7
- * "<<GTP-DBG>>[%s:%d]Enter FW update mode.\n"@0xffffff800924c778
- * "<<GTP-ERR>>[%s:%d] Update process is running!\n"@0xffffff800924c7b8
- * "<<GTP-ERR>>[%s:%d] get isp fail\n"@0xffffff800924c7fc
- * "<<GTP-ERR>>[%s:%d] run isp fail\n"@0xffffff800924c81d
- * "<<GTP-INF>>[%s:%d] subsystem: %d\n"@0xffffff800924c83e
- * "<<GTP-INF>>[%s:%d] Length: %d\n"@0xffffff800924c860
- * "<<GTP-INF>>[%s:%d] Address: %d\n"@0xffffff800924c87f
- * "<<GTP-ERR>>[%s:%d] burn subsystem fail!\n"@0xffffff800924c89f
- * "<<GTP-ERR>>[%s:%d] Update firmware failed!\n"@0xffffff800924c8c8
- * "<<GTP-INF>>[%s:%d] Update firmware succeefully!\n"@0xffffff800924c8f4
- * "<<GTP-ERR>>[%s:%d] No Fw in .h file!\n"@0xffffff800924c925
- * "<<GTP-INF>>[%s:%d] Firmware: %s\n"@0xffffff800924c95f
- * "<<GTP-ERR>>[%s:%d] Open update file(%s) error!\n"@0xffffff800924c980
- * "<<GTP-INF>>[%s:%d] Alloc %zu bytes memory fail.\n"@0xffffff800924c9b0
- * "<<GTP-INF>>[%s:%d] Alloc %zu bytes memory success.\n"@0xffffff800924c9e1
- * "<<GTP-ERR>>[%s:%d] Alloc %d bytes memory fail.\n"@0xffffff800924ca15
- * "<<GTP-INF>>[%s:%d] Alloc %d bytes memory success.\n"@0xffffff800924ca45
- * "<<GTP-ERR>>[%s:%d] Bad firmware!(file length: %d)\n"@0xffffff800924ca78
- * "<<GTP-ERR>>[%s:%d] Bad firmware!(file length: %d, header define: %d)\n"@0xffffff800924cabf
- * "<<GTP-ERR>>[%s:%d] Bad firmware!(checksum: 0x%04X, header define: 0x%04X)\n"@0xffffff800924cb05
- * "<<GTP-INF>>[%s:%d] Update type: %s\n"@0xffffff800924cb50
- * "Header"@0xffffff80091b53c0
- * "File"@0xffffff800927b2eb -- 2 occorrenze
- * "<<GTP-INF>>[%s:%d] Firmware length: %d\n"@0xffffff800924cb74
- * "<<GTP-INF>>[%s:%d] Firmware product: GT%s\n"@0xffffff800924cb9c
- * "<<GTP-INF>>[%s:%d] Firmware patch: %02X%02X%02X\n"@0xffffff800924cbc7
- * "<<GTP-INF>>[%s:%d] Firmware chip: 0x%02X\n"@0xffffff800924cbf8
- * "<<GTP-INF>>[%s:%d] Subsystem count: %d\n"@0xffffff800924cc22
- * "<<GTP-DBG>>[%s:%d]------------------------------------------\n"@0xffffff800924cc4a
- * "<<GTP-INF>>[%s:%d] Subsystem: %d\n"@0xffffff800924d3ef
- * "<<GTP-DBG>>[%s:%d]Type: %d\n"@0xffffff800924cca9
- * "<<GTP-INF>>[%s:%d] Address: 0x%08X\n"@0xffffff800924d425
- * "<<GTP-DBG>>[%s:%d]Offset: %d\n"@0xffffff800924cd06
- * "<<GTP-ERR>>[%s:%d] Read data error!\n"@0xffffff800924cd24
- * "<<GTP-INF>>[%s:%d] Update abort because of i2c error.\n"@0xffffff800924cd5a
- * "<<GTP-INF>>[%s:%d] Check fw status reg not pass,reg[0x814E]=0x%2X,reg[0x5095]=0x%2X!\n"@0xffffff800924cda3
- * "<<GTP-INF>>[%s:%d] Get IC's version info failed, force update!\n"@0xffffff800924cdf9
- * "<<GTP-INF>>[%s:%d] Product id is not match!\n"@0xffffff800924ce39
- * "<<GTP-INF>>[%s:%d] Mask id is not match!\n"@0xffffff800924ce66
- * "<<GTP-INF>>[%s:%d] CID is not equal, need update!\n"@0xffffff800924ce90
- * "<<GTP-DBG>>[%s:%d]Debug mode, force update fw.\n"@0xffffff800924cec3
- * "<<GTP-INF>>[%s:%d] The version of the fw is not high than the IC's!\n"@0xffffff800924cef3
- * "<<GTP-ERR>>[%s:%d] Hold ss51 & dsp I2C error,retry:%d\n"@0xffffff800924cf38
- * "<<GTP-ERR>>[%s:%d] Hold ss51 & dsp confirm 0x4180 failed,value:%d\n"@0xffffff800924cf87
- * "<<GTP-ERR>>[%s:%d] Hold ss51&dsp failed!\n"@0xffffff800924cfca
- * "<<GTP-INF>>[%s:%d] Hold ss51&dsp successfully.\n"@0xffffff800924cff4
- * "<<GTP-ERR>>[%s:%d] enabel dsp & mcu power fail!\n"@0xffffff800924d024
- * "<<GTP-ERR>>[%s:%d] disable wdt fail!\n"@0xffffff800924d068
- * "<<GTP-ERR>>[%s:%d] clear cache fail!\n"@0xffffff800924d08e
- * "<<GTP-ERR>>[%s:%d] software reset fail!\n"@0xffffff800924d0b4
- * "<<GTP-ERR>>[%s:%d] set scramble fail!\n"@0xffffff800924d0dd
- * "<<GTP-ERR>>[%s:%d] select bank4 fail.\n"@0xffffff800924d104
- * "<<GTP-ERR>>[%s:%d] enable patch area access fail!\n"@0xffffff800924d13d
- * "<<GTP-INF>>[%s:%d] ss51_isp length: %d, checksum: 0x%04X\n"@0xffffff800924d170
- * "<<GTP-ERR>>[%s:%d] load ss51 isp fail!\n"@0xffffff800924d1aa
- * "<<GTP-ERR>>[%s:%d] recall check ss51 isp fail!\n"@0xffffff800924d1d2
- * "<<GTP-ERR>>[%s:%d] disable patch area access fail!\n"@0xffffff800924d202
- * "<<GTP-ERR>>[%s:%d] set 0x8006[0~7] 0x55 fail!\n"@0xffffff800924d236
- * "<<GTP-ERR>>[%s:%d] release ss51 fail!\n"@0xffffff800924d265
- * "<<GTP-ERR>>[%s:%d] read 0x8006 fail!\n"@0xffffff800924d28c
- * "<<GTP-ERR>>[%s:%d] ERROR: isp is not running! 0x8006: %02X %02X\n"@0xffffff800924d2b2
- * "<<GTP-ERR>>[%s:%d] recall i2c error,exit!\n"@0xffffff800924d2f3
- * "<<GTP-ERR>>[%s:%d] Recall frame not equal(addr: 0x%04X)\n"@0xffffff800924d330
- * "<<GTP-DBG>>[%s:%d]chk_src array:\n"@0xffffff800924d369
- * "<<GTP-DBG>>[%s:%d]recall array:\n"@0xffffff800924d38b
- * "<<GTP-DBG>>[%s:%d]Recall check %d bytes(address: 0x%04X) success.\n"@0xffffff800924d3ac
- * "<<GTP-INF>>[%s:%d] Burn block ==> length: %d, address: 0x%08X\n"@0xffffff800924d449
- * "<<GTP-ERR>>[%s:%d] write length & address fail!\n"@0xffffff800924d488
- * "<<GTP-ERR>>[%s:%d] write fw data fail!\n"@0xffffff800924d4b9
- * "<<GTP-ERR>>[%s:%d] write checksum fail!\n"@0xffffff800924d4e1
- * "<<GTP-ERR>>[%s:%d] clear control flag fail!\n"@0xffffff800924d50a
- * "<<GTP-ERR>>[%s:%d] write subsystem type fail!\n"@0xffffff800924d537
- * "<<GTP-DBG>>[%s:%d]burning.....\n"@0xffffff800924d566
- * "<<GTP-ERR>>[%s:%d] checksum error!\n"@0xffffff800924d586
- * "<<GTP-INF>>[%s:%d] burning success.\n"@0xffffff800924d5aa
- * "<<GTP-ERR>>[%s:%d] burning failed!\n"@0xffffff800924d5cf
- * "<<GTP-DBG>>[%s:%d]unknown state!(0x8022: 0x%02X)\n"@0xffffff800924d5f3
- * "<<GTP-INF>>[%s:%d] Check block ==> length: %d, address: 0x%08X\n"@0xffffff800924d643
- * "<<GTP-ERR>>[%s:%d] Block in flash is broken!\n"@0xffffff800924d683
- * "<<GTP-ERR>>[%s:%d] Subsystem in flash is broken!\n"@0xffffff800924d6b1
- * "<<GTP-INF>>[%s:%d] Subsystem in flash is correct!\n"@0xffffff800924d6e3
- * "<<GTP-INF>>[%s:%d] Read flash: 0x%04X, length: %d\n"@0xffffff800924d716
- * "<<GTP-ERR>>[%s:%d] Error occured.\n"@0xffffff800924d759
- * "<<GTP-INF>>[%s:%d] Read success(addr: 0x%04X, length: %d)\n"@0xffffff800924d77c
- * "<<GTP-ERR>>[%s:%d] Read Flash FAIL!\n"@0xffffff800924d7b7
- * "<<GTP-INF>>[%s:%d] Erase flash area of ss51.\n"@0xffffff800924d7dc
- * "<<GTP-ERR>>[%s:%d] error when alloc mem.\n"@0xffffff800924d81b
- * "<<GTP-DBG>>[%s:%d]Leave FW update mode.\n"@0xffffff800924d845
- * "<<GTP-INF>>[%s:%d] Load patch code(size: %d, checksum: 0x%04X, position: 0x%04X, bank-size: %d\n"@0xffffff800924d911
- * "<<GTP-ERR>>[%s:%d] select bank%d fail!\n"@0xffffff800924d981
- * "<<GTP-INF>>[%s:%d] Select bank%d success.\n"@0xffffff800924d9a9
- * "<<GTP-ERR>>[%s:%d] load 0x%04X, %dbytes fail!\n"@0xffffff800924d9d4
- * "<<GTP-ERR>>[%s:%d] Recall check 0x%04X, %dbytes fail!\n"@0xffffff800924da03
- * "<<GTP-INF>>[%s:%d] load code 0x%04X, %dbytes success.\n"@0xffffff800924da3a
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_input_touchscreen_mediatek_GT917S_gt1x_update.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 

@@ -1,19 +1,18 @@
 config WTK_DA218B
-	bool "MiraMEMS DA218-B (mir3da) for MediaTek package (Doogee S88 Pro, dal disassemblato)"
+	bool "MiraMEMS DA218-B (mir3da) for MediaTek package (Doogee S88 Pro, from the disassembly)"
 	default n
 	help
-	  Accelerometro MiraMEMS DA218-B ("mir3da" nei simboli di fabbrica) del
-	  Doogee S88 Pro, ricostruito leggendo il kernel di fabbrica
-	  disassemblato.  Il config di fabbrica lo accende
-	  (CONFIG_WTK_DA218B=y, riga 1557 di e977_dg_m13_71_q0.config); nessun
-	  albero pubblico ha il sorgente — ne' ALPS ne' il ramo .186.
+	  MiraMEMS DA218-B accelerometer ("mir3da" in the factory symbols) of the
+	  Doogee S88 Pro, reconstructed by reading the disassembled factory
+	  kernel.  The factory config turns it on (CONFIG_WTK_DA218B=y, line 1557
+	  of e977_dg_m13_71_q0.config); no public tree has the source -- neither
+	  ALPS nor the .186 branch.
 
-	  Due unita' di traduzione: mir3da_cust.c (37 funzioni su 37) e
-	  mir3da_core.c (19 delle 29 funzioni del blocco del core).  Le 19
-	  sono la chiusura transitiva di cio' che serve al link: le 9 di
-	  confine dichiarate in mir3da_core.h, le 6 che quelle chiamano
-	  (mir3da_read_raw_data, mir3da_temp_calibrate, mir3da_read_offset,
-	  mir3da_parse_chip_info, mir3da_module_detect, squareRoot) e le 4
-	  puntate dalla tabella dei descrittori del chip.  Le 10 che restano
-	  fuori sono globali che nessun altro oggetto del kernel chiama:
-	  l'elenco, con la ragione, e' nel cappello di mir3da_core.c, §1.
+	  Two translation units: mir3da_cust.c (37 functions out of 37) and
+	  mir3da_core.c (19 of the core block's 29 functions).  The 19 are the
+	  transitive closure of what the link needs: the 9 boundary ones declared
+	  in mir3da_core.h, the 6 those call (mir3da_read_raw_data,
+	  mir3da_temp_calibrate, mir3da_read_offset, mir3da_parse_chip_info,
+	  mir3da_module_detect, squareRoot) and the 4 pointed at by the chip
+	  descriptor table.  The 10 left out are globals no other kernel object
+	  calls: the list, with the reason, is in the header of mir3da_core.c, §1.

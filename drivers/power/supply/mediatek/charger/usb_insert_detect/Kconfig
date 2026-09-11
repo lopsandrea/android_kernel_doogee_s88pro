@@ -1,25 +1,25 @@
 config WTK_USB_INSERT_DETECT
-	bool "Rilevamento inserimento USB Wingtech (Doogee S88 Pro, LOTTO PARZIALE)"
+	bool "Wingtech USB insertion detection (Doogee S88 Pro, PARTIAL BATCH)"
 	default n
 	help
-	  UNA funzione su cinque, e va detto in cima.
+	  ONE function out of five, and that has to be said at the top.
 
-	  L'unita' di traduzione di fabbrica ne ha cinque, in corsa contigua
-	  subito dopo la fine di `mt5725`:
+	  The factory translation unit has five of them, in a contiguous run right
+	  after the end of `mt5725`:
 
-	    ffffff8008ace8f0 T usb_insert_online                 <- QUESTA, 20 byte
-	    ffffff8008ace904 t usb_insert_detect_probe           (596 byte)
-	    ffffff8008aceb58 t usb_insert_detect_remove          (8 byte)
+	    ffffff8008ace8f0 T usb_insert_online                 <- THIS ONE, 20 bytes
+	    ffffff8008ace904 t usb_insert_detect_probe           (596 bytes)
+	    ffffff8008aceb58 t usb_insert_detect_remove          (8 bytes)
 	    ffffff8008aceb60 t usb_insert_detect_thread_kthread
 	    ffffff8009385a80 t usb_insert_detect_init            (in .init.text)
 
-	  QUI CE N'E' UNA SOLA, e il perche' e' esplicito: `mt5725` la chiama, e
-	  senza di essa quel driver -- completo per il resto -- non si linka.  Le
-	  altre quattro non sono state scritte, e non sono rinviate per
-	  difficolta': semplicemente non servivano a chiudere il link di mt5725.
+	  THERE IS ONLY ONE HERE, and the reason is explicit: `mt5725` calls it,
+	  and without it that driver -- complete in every other respect -- does not
+	  link.  The other four were not written, and they are not postponed out of
+	  difficulty: they simply were not needed to close the mt5725 link.
 
-	  IL DRIVER COSI' NON FUNZIONA: senza `probe` nessuno registra niente e
-	  `usb_insert_online` legge un `int` che nessuno aggiorna, quindi torna
-	  sempre lo stesso valore.  E' una IMPALCATURA DICHIARATA per il link, non
-	  un driver, ed e' `select`ata da MTK_MT5725_WLS_SUPPORT proprio per
-	  questo -- accenderla da sola non ha senso.
+	  THE DRIVER DOES NOT WORK LIKE THIS: with no `probe` nobody registers
+	  anything and `usb_insert_online` reads an `int` nobody updates, so it
+	  always returns the same value.  It is DECLARED SCAFFOLDING for the link,
+	  not a driver, and it is `select`ed by MTK_MT5725_WLS_SUPPORT exactly for
+	  that -- turning it on by itself makes no sense.

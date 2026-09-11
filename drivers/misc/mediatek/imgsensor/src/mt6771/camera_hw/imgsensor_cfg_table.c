@@ -28,37 +28,18 @@ enum IMGSENSOR_RETURN
 };
 
 /*
- * LE QUATTRO VOCI CHE ALPS HA DIVERSE DALLA FABBRICA.
+ * The four entries where ALPS differs from the factory configuration.
  *
- * Le camere non venivano rilevate: nessun sensore rispondeva sull'I2C, e il
- * kernel diceva perche'
+ * The cameras were not being detected: no sensor answered on I2C, because
+ * the AVDD regulator refused 2.8 V. The values here are the factory ones,
+ * read from the binary.
  *
- *   [regulator]fail to regulator_set_voltage, powertype:3 powerId:2800000
- *
- * powertype 3 e' AVDD. Il regolatore c'era e si accendeva, ma rifiutava i 2,8
- * volt: e' la firma del REGOLATORE FITTIZIO che `regulator_get` restituisce
- * quando la proprieta' `-supply` non e' nel device tree. E infatti il nodo
- * `kd_camera_hw1@1a040000`, che l'overlay `dtbo` riempie, per cam0 ha SOLO
- * `cam0_vcamio-supply`: niente vcama, niente vcamd.
- *
- * Non e' un difetto dell'overlay. E' che per la camera principale
- * l'alimentazione analogica di questo telefono NON viene da un regolatore del
- * PMIC ma da un GPIO -- ed e' questo che rispondeva alla domanda sui «cinque
- * GPIO di alimentazione delle camere» rimasta aperta il 2026-08-26.
- *
- * La tabella di fabbrica sta a 0x1482e90 nel binario e si legge voce per
- * voce; le sue cinque righe sono:
- *
- *   MAIN   i2c0  MCLK  AVDD=GPIO       DOVDD=REGULATOR  DVDD=GPIO
- *   SUB    i2c1  MCLK  AVDD=REGULATOR  DOVDD=REGULATOR  DVDD=REGULATOR
- *   MAIN2  i2c1  MCLK  AVDD=REGULATOR  DOVDD=REGULATOR  DVDD=GPIO
- *   SUB2   i2c1  MCLK  AVDD=REGULATOR  DOVDD=REGULATOR  DVDD=REGULATOR
- *   MAIN3  i2c1  MCLK  AVDD=GPIO       DOVDD=REGULATOR  DVDD=GPIO
- *
- * Rispetto ad ALPS cambiano quattro caselle: MAIN.AVDD (da REGULATOR a GPIO),
- * MAIN2.AVDD (da GPIO a REGULATOR), SUB2.AVDD e SUB2.DVDD (idem). Tre delle
- * quattro vanno nel verso opposto alla prima, quindi non e' una regola
- * generale «qui si usano i GPIO»: e' una tabella, e va letta.
+ * The working notes behind this file -- the disassembly citations, the
+ * measurements against the factory binary, the batch-by-batch record of how
+ * each function was derived -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_hw_imgsensor_cfg_table.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 	{
@@ -66,7 +47,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 		IMGSENSOR_I2C_DEV_0,
 		{
 			{IMGSENSOR_HW_PIN_MCLK,  IMGSENSOR_HW_ID_MCLK},
-			/* GPIO, non REGULATOR: l'overlay non da' cam0_vcama */
+			/* GPIO, not REGULATOR: the overlay does not give cam0_vcama */
 			{IMGSENSOR_HW_PIN_AVDD,  IMGSENSOR_HW_ID_GPIO},
 			{IMGSENSOR_HW_PIN_DOVDD, IMGSENSOR_HW_ID_REGULATOR},
 			{IMGSENSOR_HW_PIN_DVDD,  IMGSENSOR_HW_ID_GPIO},
@@ -592,24 +573,13 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 #endif
 #if defined(IMX230_MIPI_RAW)
 	/*
-	 * LE QUATTRO SEQUENZE CHE ALPS NON HA, lette dal binario di fabbrica.
+	 * This section was reconstructed from the factory kernel disassembly (0xffffff80099182d0, 100 bytes).
 	 *
-	 * Senza di queste il sensore non si accende mai: `imgsensor_hw_power`
-	 * cerca il nome del driver in questa tabella, e se non lo trova non ha
-	 * nessuna sequenza da eseguire. GC8034, GC032A e GC0310 sono tre dei
-	 * sette sensori di questo telefono, e nessuno dei tre c'era.
-	 *
-	 * La tabella di fabbrica comincia a 0xffffff80099182d0 e ha voci da
-	 * 0x100 byte; i sette nomi si trovano dalle rilocazioni che li
-	 * scrivono, in quest'ordine: s5k3p3sx, imx230, imx230xinfengda,
-	 * gc8034, gc032a, gc0310, imx219.
-	 *
-	 * `AFVDD` in questa piattaforma vale IMGSENSOR_HW_PIN_UNDEF (-1), ed e'
-	 * cosi' che compare nel binario: non e' una voce corrotta.
-	 *
-	 * Le due sequenze che gia' avevamo -- imx230 e s5k3p3sx -- combaciano
-	 * con la fabbrica riga per riga, e questo e' il controllo che dice che
-	 * la lettura delle altre quattro e' fatta bene.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_hw_imgsensor_cfg_table.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	{
 		SENSOR_DRVNAME_IMX230XINFENGDA_MIPI_RAW,

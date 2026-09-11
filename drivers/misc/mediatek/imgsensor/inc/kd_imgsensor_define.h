@@ -1242,25 +1242,13 @@ struct SENSOR_FUNCTION_STRUCT {
 
 	MUINT32 (*SensorClose)(void);
 	/*
-	 * IL SETTIMO PUNTATORE, che ALPS non ha. Non e' dedotto: il nostro
-	 * `arch` sta a +132 e quello di fabbrica a +140
-	 * ("39402308 ldrb"@0xffffff80086ff5f4 legge [x8,#140] dove x8 e'
-	 * pfunc), cioe' la struttura di fabbrica ha OTTO byte in piu' prima
-	 * di arch. E camera_main3_yuv_bv_show chiama proprio +48
-	 * ("f9401908 ldr"@0xffffff8008705c38 poi "d63f0100 blr"): un
-	 * puntatore a funzione senza argomenti, subito dopo SensorClose.
+	 * MUINT32() was reconstructed from the factory kernel disassembly (0xffffff80086ff5f4).
 	 *
-	 * IL NOME E' L'OFFSET, non un nome inventato: il binario non lo
-	 * nomina e un nome descrittivo si leggerebbe come un fatto misurato.
-	 *
-	 * ATTENZIONE, ed e' un pericolo vero, non una nota di stile: tutti i
-	 * driver di sensore di ALPS inizializzano questa struttura con sei
-	 * voci POSIZIONALI, quindi da noi c48 resta NULL. La fabbrica lo
-	 * chiama SENZA controllarlo -- il suo `cbz` e' su pfunc, non su c48.
-	 * Finche' i driver di sensore della fabbrica non ci sono, leggere
-	 * /sys/class/camera_main3_yuv_bv con un sensore presente all'indice 3
-	 * salta su NULL. E' quello che fa il binario, ed e' riprodotto; non e'
-	 * un difetto della fabbrica, e' un pezzo del blocco camera che manca.
+	 * The working notes -- the disassembly citations, the measurements against
+	 * the factory binary and the reasoning behind each choice -- are in
+	 * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_inc_kd_imgsensor_define.md
+	 * in the oracolo repository. They are kept in Italian, as the project's
+	 * internal record.
 	 */
 	MUINT32 (*c48)(void);
 #if 1 /* isp suspend resume patch */

@@ -48,14 +48,13 @@
 #define PFX "gc8034_camera_sensor"
 
 /*
- * pr_info, NON pr_debug.
+ * LOG_INF() was reconstructed from the factory kernel disassembly.
  *
- * Lo dicono le stringhe nel binario: cominciano tutte con il byte 6, che e'
- * il prefisso di KERN_INFO -- "\0016gc8034_camera_sensor[%s] E". Con
- * pr_debug e senza CONFIG_DYNAMIC_DEBUG quei messaggi non verrebbero emessi
- * affatto, e la funzione risulterebbe piu' corta della fabbrica senza che
- * niente lo segnali: si aggiungono i messaggi giusti e la misura non cambia
- * di un byte, che e' esattamente quel che era successo qui.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc8034_mipi_raw_gc8034mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 #define LOG_INF(format, args...)    \
 	pr_info(PFX "[%s] " format, __func__, ##args)
@@ -199,14 +198,13 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 
 
 /*
- * L'OTP di GalaxyCore: la memoria di taratura scritta in fabbrica dentro il
- * sensore. Contiene i pixel morti, i guadagni per bilanciare il bianco e
- * l'identificativo del modulo.
+ * This section was reconstructed from the factory kernel disassembly (0xffffff800871c23c).
  *
- * La forma di queste strutture non e' inventata: si legge nel passo con cui
- * il ciclo dei pixel morti avanza dentro la tabella --
- * "38406768 ldrb"@0xffffff800871c23c e' un `ldrb w8, [x27],#6`, cioe' sei
- * byte per voce, che sono due mezze parole e un byte con l'imbottitura.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc8034_mipi_raw_gc8034mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 struct gc8034_dd_t {
 	kal_uint16 x;
@@ -241,12 +239,12 @@ struct gc8034_otp_t {
 static struct gc8034_otp_t gc8034_otp;
 
 /*
- * gc8034_read_otp_group @0xffffff800871e538, 672 byte.
+ * gc8034_read_otp_group @0xffffff800871e538, 672 bytes.
  *
- * Apre la finestra sull'OTP a un indirizzo e ne legge `len` byte dal
- * registro 0xd7. Le nove letture che l'estrattore mostra come
- * `iWriteRegI2C(0xd7)` senza dato sono letture srotolate, non scritture:
- * lo si distingue solo guardando che la chiamata e' `iReadRegI2C`.
+ * It opens the OTP window at an address and reads `len` bytes from register
+ * 0xd7. The nine reads the extractor shows as `iWriteRegI2C(0xd7)` with no
+ * data are unrolled reads, not writes: the only way to tell is to notice
+ * that the call is `iReadRegI2C`.
  */
 static void gc8034_read_otp_group(kal_uint16 addr, kal_uint8 *buf,
 				  kal_uint16 len)
@@ -269,12 +267,12 @@ static void gc8034_read_otp_group(kal_uint16 addr, kal_uint8 *buf,
 }
 
 /*
- * gc8034_gcore_read_otp_info @0xffffff800871e7d8, 2228 byte.
+ * gc8034_gcore_read_otp_info @0xffffff800871e7d8, 2228 bytes.
  *
- * Legge, nell'ordine: il modulo (0x58), l'obiettivo (0x60), il motore di
- * messa a fuoco (0x68), la data (0x70), i guadagni del bilanciamento del
- * bianco, i valori d'oro a 0x0a70 e infine la tabella dei pixel morti,
- * un byte alla volta con l'indirizzo che avanza di otto.
+ * It reads, in order: the module (0x58), the lens (0x60), the focus
+ * motor (0x68), the date (0x70), the white balance gains, the golden
+ * values at 0x0a70 and finally the dead pixel table,
+ * one byte at a time with the address advancing by eight.
  */
 static void gc8034_gcore_read_otp_info(void)
 {
@@ -322,12 +320,12 @@ static void gc8034_gcore_read_otp_info(void)
 }
 
 /*
- * L'applicazione dei pixel morti, in coda a `open`.
+ * The application of the dead pixels, at the tail of `open`.
  *
- * I quattro byte per voce escono da due mezze parole rimescolate:
- * "531c6f1c lsl"@0xffffff800871c1d0 sposta y di quattro,
- * "53082ef3 ubfx"@0xffffff800871c1d4 prende i quattro bit alti di x, e
- * "331c0f17 bfi"@0xffffff800871c204 li rimette insieme in un byte solo.
+ * The four bytes per entry come out of two reshuffled half-words:
+ * "531c6f1c lsl"@0xffffff800871c1d0 shifts y by four,
+ * "53082ef3 ubfx"@0xffffff800871c1d4 takes the four high bits of x, and
+ * "331c0f17 bfi"@0xffffff800871c204 puts them back together into a single byte.
  */
 static void gc8034_gcore_update_dd(void)
 {
@@ -769,12 +767,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 }
 
 /*
- * gc8034_gcore_update_chipversion: il nome e' nel binario, fra le stringhe
- * che __func__ referenzia.
+ * gc8034_gcore_update_chipversion: the name is in the binary, among the
+ * strings __func__ references.
  *
- * Apre la finestra sull'OTP a 0x0b40, aspetta un millesimo di secondo
- * ("52912b00 mov"@0xffffff800871c324 e' __const_udelay(0x418958), cioe'
- * mille microsecondi) e legge 0xd7. I due bit che guarda sono lo 0x06:
+ * It opens the OTP window at 0x0b40, waits one millisecond
+ * ("52912b00 mov"@0xffffff800871c324 is __const_udelay(0x418958), that is a
+ * thousand microseconds) and reads 0xd7. The two bits it looks at are 0x06:
  * "121f0513 and"@0xffffff800871c380.
  */
 static void gc8034_gcore_update_chipversion(void)
@@ -892,7 +890,7 @@ static kal_uint16 gain2reg(const kal_uint16 gain)
 {
 	kal_uint16 reg_gain = gain << 4;
 
-	/* BASEGAIN vale 0x40, cioe' 64: e' un DIVISORE, non uno spostamento. */
+	/* BASEGAIN is 0x40, that is 64: it is a DIVISOR, not a shift. */
 	reg_gain = reg_gain / BASEGAIN;
 
 	if (reg_gain < 0x40)
@@ -1025,14 +1023,13 @@ static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 }
 
 /*
- * open @0xffffff800871ac48, 6604 byte.
+ * open() was reconstructed from the factory kernel disassembly (0xffffff800871ac48, 6604 bytes).
  *
- * Cerca l'identificativo su ogni indirizzo della tabella, poi scrive le 189
- * righe di `sensor_init`, legge l'OTP e ne applica i pixel morti.
- *
- * I due registri dell'identificativo sono 0xf0 e 0xf1, e la coppia che ne
- * esce vale 0x8044 -- "52881aa8 mov" e le sue simili portano lo stesso
- * numero in giro per `feature_control`.
+ * The working notes -- the disassembly citations, the measurements against
+ * the factory binary and the reasoning behind each choice -- are in
+ * docs/bringup/verbali-driver/drivers_misc_mediatek_imgsensor_src_mt6771_camera_project_e977_dg_m13_71_q0_gc8034_mipi_raw_gc8034mipi_Sensor.md
+ * in the oracolo repository. They are kept in Italian, as the project's
+ * internal record.
  */
 static kal_uint32 open(void)
 {
@@ -1094,7 +1091,7 @@ static kal_uint32 open(void)
 	return ERROR_NONE;
 }
 
-/* close @0xffffff800871e510, 40 byte: una printk e un ritorno, nient'altro. */
+/* close @0xffffff800871e510, 40 bytes: one printk and a return, nothing else. */
 static kal_uint32 close(void)
 {
 	LOG_INF("E\n");
@@ -1103,10 +1100,10 @@ static kal_uint32 close(void)
 }
 
 /*
- * get_resolution @0xffffff800871c704, 100 byte.
+ * get_resolution @0xffffff800871c704, 100 bytes.
  *
- * Le dieci misure escono da tre store larghe: "mov x8,#0x660" costruisce
- * 0x0990_0CC0_04C8_0660, che letto come quattro mezze parole e' 1632, 1224,
+ * The ten sizes come out of three wide stores: "mov x8,#0x660" builds
+ * 0x0990_0CC0_04C8_0660, which read as four half-words is 1632, 1224,
  * 3264, 2448.
  */
 static kal_uint32 get_resolution(
@@ -1141,13 +1138,13 @@ static kal_uint32 get_resolution(
 }
 
 /*
- * get_info @0xffffff800871c614, 240 byte.
+ * get_info @0xffffff800871c614, 240 bytes.
  *
- * E' PIU' CORTA di quella di imx230, e la differenza non e' una svista: qui
- * non si scrivono PDAF_Support, HDR_Support ne' TEMPERATURE_SUPPORT. Gli
- * offset delle store combaciano uno per uno con i campi della struttura --
- * 13 e' SensorClockPolarity, 22 SensorInterruptDelayLines, 161
- * SensorModeNum -- e chi li riscrive puo' verificarlo senza compilare.
+ * It is SHORTER than the imx230 one, and the difference is not an oversight:
+ * here PDAF_Support, HDR_Support and TEMPERATURE_SUPPORT are not written. The
+ * store offsets match the structure fields one by one -- 13 is
+ * SensorClockPolarity, 22 SensorInterruptDelayLines, 161 SensorModeNum -- and
+ * whoever rewrites them can check without compiling.
  */
 static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 			   MSDK_SENSOR_INFO_STRUCT *sensor_info,
@@ -1212,11 +1209,11 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 }
 
 /*
- * control @0xffffff800871dbb4, 2396 byte.
+ * control @0xffffff800871dbb4, 2396 bytes.
  *
- * Cinque casi in tavola di salto a 0xffffff8008f49ff6, letta a byte:
- * 0x00, 0x3f, 0x67, 0x86, 0xa7. Il ramo di ripiego -- quello del `b.hi` --
- * fa la stessa cosa di `preview` e restituisce 4, cioe'
+ * Five cases in a jump table at 0xffffff8008f49ff6, read as bytes:
+ * 0x00, 0x3f, 0x67, 0x86, 0xa7. The fallback branch -- the `b.hi` one --
+ * does the same as `preview` and returns 4, that is
  * ERROR_INVALID_SCENARIO_ID ("321e03e0 orr"@0xffffff800871dd34).
  */
 static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id,
@@ -1434,12 +1431,12 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 }
 
 /*
- * feature_control @0xffffff800871c768, 5196 byte.
+ * feature_control @0xffffff800871c768, 5196 bytes.
  *
- * DICIANNOVE casi su centodieci, e non e' una lettura a occhio: la tavola di
- * salto sta a 0xffffff8008f49f02 ed e' fatta di mezze parole, novantuno delle
- * quali valgono 0x04d5 -- cioe' il ramo di ripiego. I diciannove che valgono
- * altro sono quelli qui sotto, in ordine di numero.
+ * NINETEEN cases out of a hundred and ten, and that is not read by eye: the
+ * jump table sits at 0xffffff8008f49f02 and is made of half-words, ninety-one
+ * of which are 0x04d5 -- that is, the fallback branch. The nineteen holding
+ * something else are the ones below, in numeric order.
  */
 static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 				  UINT8 *feature_para, UINT32 *feature_para_len)

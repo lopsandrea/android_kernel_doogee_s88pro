@@ -5,9 +5,9 @@
 
 ccflags-$(CONFIG_SPI_DEBUG) := -DDEBUG
 
-# spi-mt65xx registra il proprio clock presso il gestore del TEE
-# (tee_clkmgr_register): l'header sta nell'albero di tkcore, non fra quelli
-# generali del kernel.
+# spi-mt65xx registers its own clock with the TEE's clock manager
+# (tee_clkmgr_register): the header lives in the tkcore tree, not among the
+# kernel's general ones.
 ccflags-$(CONFIG_TRUSTKERNEL_TEE_SUPPORT) += \
 	-I$(srctree)/drivers/misc/mediatek/tkcore/include
 
