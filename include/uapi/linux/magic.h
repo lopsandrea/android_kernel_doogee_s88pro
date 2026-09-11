@@ -84,6 +84,7 @@
 #define BTRFS_TEST_MAGIC	0x73727279
 #define NSFS_MAGIC		0x6e736673
 #define BPF_FS_MAGIC		0xcafe4a11
+#define BINDERFS_SUPER_MAGIC	0x6c6f6f70
 #define AAFS_MAGIC		0x5a3c69f0
 
 /* Since UDF 2.01 is ISO 13346 based... */

@@ -156,7 +156,9 @@ static int binder_##name##_open(struct inode *inode, struct file *file) \
 	return single_open(file, binder_##name##_show, inode->i_private); \
 } \
 \
-static const struct file_operations binder_##name##_fops = { \
+/* not static: binderfs shows state, stats and transactions
+ * inside its own mount, see binder_internal.h */ \
+const struct file_operations binder_##name##_fops = { \
 	.owner = THIS_MODULE, \
 	.open = binder_##name##_open, \
 	.read = seq_read, \
@@ -199,7 +201,7 @@ static uint32_t binder_debug_mask = BINDER_DEBUG_USER_ERROR |
 	BINDER_DEBUG_FAILED_TRANSACTION | BINDER_DEBUG_DEAD_TRANSACTION;
 module_param_named(debug_mask, binder_debug_mask, uint, 0644);
 
-static char *binder_devices_param = CONFIG_ANDROID_BINDER_DEVICES;
+char *binder_devices_param = CONFIG_ANDROID_BINDER_DEVICES;
 module_param_named(devices, binder_devices_param, charp, 0444);
 
 static DECLARE_WAIT_QUEUE_HEAD(binder_user_error_wait);
@@ -328,8 +330,9 @@ struct binder_transaction_log {
 	struct binder_transaction_log_entry entry[32];
 #endif
 };
-static struct binder_transaction_log binder_transaction_log;
-static struct binder_transaction_log binder_transaction_log_failed;
+/* not static: binderfs shows both inside its own mount */
+struct binder_transaction_log binder_transaction_log;
+struct binder_transaction_log binder_transaction_log_failed;
 
 static struct binder_transaction_log_entry *binder_transaction_log_add(
 	struct binder_transaction_log *log)
@@ -373,19 +376,7 @@ struct binder_transaction_log_entry entry_t[MAX_ENG_TRANS_LOG_BUFF_LEN];
 #endif
 #endif
 
-struct binder_context {
-	struct binder_node *binder_context_mgr_node;
-	struct mutex context_mgr_node_lock;
-
-	kuid_t binder_context_mgr_uid;
-	const char *name;
-};
-
-struct binder_device {
-	struct hlist_node hlist;
-	struct miscdevice miscdev;
-	struct binder_context context;
-};
+#include "binder_internal.h"
 
 #ifdef BINDER_WATCHDOG
 #ifdef CONFIG_MTK_EXTMEM
@@ -6941,7 +6932,7 @@ static int binder_transaction_log_show(struct seq_file *m, void *unused)
 BINDER_DEBUG_ENTRY(timeout_log);
 #endif
 
-static const struct file_operations binder_fops = {
+const struct file_operations binder_fops = {
 	.owner = THIS_MODULE,
 	.poll = binder_poll,
 	.unlocked_ioctl = binder_ioctl,
@@ -7064,6 +7055,11 @@ static int __init binder_init(void)
 	init_binder_transaction_log(
 		&binder_transaction_log, &binder_transaction_log_failed);
 #endif
+
+	ret = init_binderfs();
+	if (ret)
+		goto err_init_binder_device_failed;
+
 	return ret;
 
 err_init_binder_device_failed:
