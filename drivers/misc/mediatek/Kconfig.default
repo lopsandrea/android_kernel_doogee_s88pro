@@ -183,7 +183,13 @@ config ANDROID_DEFAULT_SETTING
 	select PROCESS_RECLAIM
 	select PROFILING
 	select RTC_CLASS
-	select RT_GROUP_SCHED
+	# No "select RT_GROUP_SCHED" here. This list is MediaTek's idea of what
+	# Android wants, and it was written for an older one:
+	# kernel/configs/r/android-4.14/android-base.config asks for
+	# CONFIG_RT_GROUP_SCHED to be OFF, and checkvintf refuses the build
+	# over it:
+	#   For config CONFIG_RT_GROUP_SCHED, value = y but required n
+	# A select cannot be contradicted from a defconfig, so it goes here.
 	select SECCOMP
 	select SECCOMP_FILTER
 	select SECURITY
