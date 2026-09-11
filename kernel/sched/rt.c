@@ -2589,12 +2589,18 @@ const struct sched_class rt_sched_class = {
 #endif
 };
 
-#ifdef CONFIG_RT_GROUP_SCHED
-/*
- * Ensure that the real time constraints are schedulable.
- */
-static DEFINE_MUTEX(rt_constraints_mutex);
 #ifdef CONFIG_MTK_SCHED_INTEROP
+/*
+ * Outside CONFIG_RT_GROUP_SCHED on purpose. Its callers -- in fair.c and
+ * eas_plus.c -- ask only for CONFIG_MTK_SCHED_INTEROP, so with RT group
+ * scheduling off the link fails on an undefined is_rt_throttle. And it has
+ * to be off: kernel/configs/r/android-4.14/android-base.config asks for
+ * CONFIG_RT_GROUP_SCHED=n.
+ *
+ * The body needs nothing from RT groups. for_each_rt_rq() is defined either
+ * way: with groups it walks the task groups, without it visits rq->rt once,
+ * which is the whole answer when there is only one runqueue to ask.
+ */
 bool is_rt_throttle(int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
@@ -2611,6 +2617,12 @@ bool is_rt_throttle(int cpu)
 	return rt_throttle;
 }
 #endif
+
+#ifdef CONFIG_RT_GROUP_SCHED
+/*
+ * Ensure that the real time constraints are schedulable.
+ */
+static DEFINE_MUTEX(rt_constraints_mutex);
 
 /* Must be called with tasklist_lock held */
 static inline int tg_has_rt_tasks(struct task_group *tg)
