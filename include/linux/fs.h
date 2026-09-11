@@ -1468,6 +1468,18 @@ struct super_block {
 
 	spinlock_t		s_inode_wblist_lock;
 	struct list_head	s_inodes_wb;	/* writeback inodes */
+
+#ifndef __GENKSYMS__
+#ifdef CONFIG_FS_VERITY
+	/*
+	 * Last, and out of sight of genksyms, for the reason given on
+	 * i_sequence above: super_block is reached from the inode, so a
+	 * field added in the middle would move what the prebuilt vendor
+	 * modules expect to find. fs/verity only follows this pointer.
+	 */
+	const struct fsverity_operations *s_vop;
+#endif
+#endif
 } __randomize_layout;
 
 /* Helper functions so that in most cases filesystems will
@@ -1898,6 +1910,7 @@ struct super_operations {
 #define S_DAX		0	/* Make all the DAX code disappear */
 #endif
 #define S_ENCRYPTED	16384	/* Encrypted file (using fs/crypto/) */
+#define S_VERITY	65536	/* Verity file (using fs/verity/) */
 
 /*
  * Note that nosuid etc flags are inode-specific: setting some file-system
@@ -1938,6 +1951,7 @@ static inline bool sb_rdonly(const struct super_block *sb) { return sb->s_flags 
 #define IS_NOSEC(inode)		((inode)->i_flags & S_NOSEC)
 #define IS_DAX(inode)		((inode)->i_flags & S_DAX)
 #define IS_ENCRYPTED(inode)	((inode)->i_flags & S_ENCRYPTED)
+#define IS_VERITY(inode)	((inode)->i_flags & S_VERITY)
 
 #define IS_WHITEOUT(inode)	(S_ISCHR(inode->i_mode) && \
 				 (inode)->i_rdev == WHITEOUT_DEV)
