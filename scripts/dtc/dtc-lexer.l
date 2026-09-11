@@ -38,18 +38,6 @@ LINECOMMENT	"//".*\n
 #include "srcpos.h"
 #include "dtc-parser.tab.h"
 
-/*
- * extern, otherwise it does not build with modern toolchains.
- *
- * With -fno-common -- the default since GCC 10 and in recent clang -- this
- * tentative definition conflicts with the one bison generates in
- * dtc-parser.tab.c, and linking scripts/dtc/dtc dies with
- * \ld.lld: error: duplicate symbol: yylloc\.
- *
- * It is needed to build inside LineageOS, which uses clang-r487747c; with
- * the factory clang-r353983c the defect did not show.
- */
-extern YYLTYPE yylloc;
 extern bool treesource_error;
 
 /* CAUTION: this will stop working if we ever use yyless() or yyunput() */

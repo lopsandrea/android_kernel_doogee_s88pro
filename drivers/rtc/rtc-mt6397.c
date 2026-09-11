@@ -43,13 +43,6 @@
 #define RTC_IRQ_EN_LP		BIT(3)
 #define RTC_IRQ_EN_ONESHOT_AL	(RTC_IRQ_EN_ONESHOT | RTC_IRQ_EN_AL)
 
-#define RTC_AL_YEA_MASK		0x007f
-#define RTC_AL_MTH_MASK		0x000f
-#define RTC_AL_DOM_MASK		0x001f
-#define RTC_AL_HOU_MASK		0x001f
-#define RTC_AL_MIN_MASK		0x003f
-#define RTC_AL_SEC_MASK		0x003f
-
 #define RTC_AL_MASK		0x0008
 #define RTC_AL_MASK_DOW		BIT(4)
 
@@ -68,6 +61,14 @@
 #define RTC_OFFSET_COUNT	7
 
 #define RTC_AL_SEC		0x0018
+
+#define RTC_AL_SEC_MASK		0x003f
+#define RTC_AL_MIN_MASK		0x003f
+#define RTC_AL_HOU_MASK		0x001f
+#define RTC_AL_DOM_MASK		0x001f
+#define RTC_AL_DOW_MASK		0x0007
+#define RTC_AL_MTH_MASK		0x000f
+#define RTC_AL_YEA_MASK		0x007f
 
 #define RTC_PDN2		0x002e
 #define RTC_PDN1		0x002c
@@ -452,7 +453,7 @@ static irqreturn_t mtk_rtc_irq_handler_thread(int irq, void *data)
 		irqen = irqsta & ~RTC_IRQ_EN_AL;
 
 		if (regmap_write(rtc->regmap, rtc->addr_base + RTC_IRQ_EN,
-				 irqen) >= 0)
+				 irqen) == 0)
 			mtk_rtc_write_trigger(rtc);
 		mutex_unlock(&rtc->lock);
 
@@ -786,6 +787,7 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	tm->tm_year -= RTC_MIN_YEAR_OFFSET;
 	tm->tm_mon++;
 
+	mutex_lock(&rtc->lock);
 	ret = regmap_bulk_read(rtc->regmap, rtc->addr_base + RTC_AL_SEC,
 			       data_b, RTC_OFFSET_COUNT);
 	if (ret < 0)
@@ -809,7 +811,6 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 		   tm->tm_year + RTC_MIN_YEAR, tm->tm_mon, tm->tm_mday,
 		   tm->tm_hour, tm->tm_min, tm->tm_sec, alm->enabled);
 
-	mutex_lock(&rtc->lock);
 	switch (alm->enabled) {
 	case 2:
 		/* enable power-on alarm */
@@ -916,6 +917,10 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 	mt_rtc = rtc;
 	platform_set_drvdata(pdev, rtc);
 
+	rtc->rtc_dev = devm_rtc_allocate_device(rtc->dev);
+	if (IS_ERR(rtc->rtc_dev))
+		return PTR_ERR(rtc->rtc_dev);
+
 	ret = request_threaded_irq(rtc->irq, NULL,
 				   mtk_rtc_irq_handler_thread,
 				   IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
@@ -928,11 +933,11 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 1);
 
-	rtc->rtc_dev = rtc_device_register("mt6397-rtc", &pdev->dev,
-					   &mtk_rtc_ops, THIS_MODULE);
-	if (IS_ERR(rtc->rtc_dev)) {
+	rtc->rtc_dev->ops = &mtk_rtc_ops;
+
+	ret = rtc_register_device(rtc->rtc_dev);
+	if (ret) {
 		dev_err(&pdev->dev, "register rtc device failed\n");
-		ret = PTR_ERR(rtc->rtc_dev);
 		goto out_free_irq;
 	}
 
@@ -949,7 +954,6 @@ static int mtk_rtc_remove(struct platform_device *pdev)
 {
 	struct mt6397_rtc *rtc = platform_get_drvdata(pdev);
 
-	rtc_device_unregister(rtc->rtc_dev);
 	free_irq(rtc->irq, rtc->rtc_dev);
 	irq_dispose_mapping(rtc->irq);
 
