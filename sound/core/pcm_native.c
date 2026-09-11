@@ -720,9 +720,22 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 	while (runtime->boundary * 2 <= LONG_MAX - runtime->buffer_size)
 		runtime->boundary *= 2;
 
-	/* clear the buffer for avoiding possible kernel info leaks */
+	/*
+	 * Clear the buffer, so that userspace cannot read back whatever the
+	 * previous owner left in it.
+	 *
+	 * memset_io(), not memset(): dma_area is not always ordinary memory.
+	 * The MediaTek AFE points it at the internal audio SRAM, which
+	 * mtk-auddrv-afe.c maps with ioremap_nocache() -- and on arm64
+	 * memset() clears through DC ZVA, which on Device memory raises an
+	 * alignment fault and brings the kernel down the moment anything
+	 * plays. memset_io() writes with ordinary stores and is correct for
+	 * both kinds of memory, and the buffer is cleared once per
+	 * hw_params, so the slower loop costs nothing that matters.
+	 */
 	if (runtime->dma_area && !substream->ops->copy_user)
-		memset(runtime->dma_area, 0, runtime->dma_bytes);
+		memset_io((void __iomem *)runtime->dma_area, 0,
+			  runtime->dma_bytes);
 
 	snd_pcm_timer_resolution_change(substream);
 	snd_pcm_set_state(substream, SNDRV_PCM_STATE_SETUP);
