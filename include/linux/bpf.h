@@ -70,6 +70,12 @@ struct bpf_map {
 	atomic_t refcnt;
 	atomic_t usercnt;
 	struct work_struct work;
+
+#ifndef __GENKSYMS__
+	/* In fondo e nascosto a genksyms di proposito: vedi il commento in
+	 * struct bpf_prog_aux qui sotto. */
+	u8 name[BPF_OBJ_NAME_LEN];
+#endif
 };
 
 /* function argument constraints */
@@ -207,6 +213,24 @@ struct bpf_prog_aux {
 		struct work_struct work;
 		struct rcu_head	rcu;
 	};
+
+#ifndef __GENKSYMS__
+	/* Spostati in fondo e nascosti a genksyms di proposito.
+	 *
+	 * Li aggiungono i due riporti da android-4.14 che danno un nome alle
+	 * mappe e ai programmi BPF, senza i quali il bpfloader di Android 14
+	 * non parte. Ma genksyms espande i tipi puntati, e struct net_device
+	 * ha un bpf_prog *xdp_prog mentre struct perf_event ha un bpf_prog
+	 * *prog: cambiare questa struttura sposta il CRC di alloc_netdev_mqs,
+	 * register_netdev, netif_rx e perf_event_create_kernel_counter, e i
+	 * moduli WiFi, BT e GPS di fabbrica smettono di caricarsi.
+	 *
+	 * Nasconderli e legittimo perche queste strutture le alloca il kernel:
+	 * nessun modulo le incorpora ne le ispeziona. I campi preesistenti
+	 * restano dove erano. */
+	u64 load_time; /* ns since boottime */
+	u8 name[BPF_OBJ_NAME_LEN];
+#endif
 };
 
 struct bpf_array {
