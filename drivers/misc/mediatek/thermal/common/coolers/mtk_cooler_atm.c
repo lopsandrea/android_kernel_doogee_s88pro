@@ -320,6 +320,36 @@ static int COEF_AE = -1;
 static int COEF_BE = -1;
 static int COEF_AX = -1;
 static int COEF_BX = -1;
+
+/* The knees of the cATM+ ramp, in millidegrees. Zero leaves the vendor policy
+ * alone.
+ *
+ * The junction target is not a threshold but the temperature cATM+ regulates
+ * to, and the line COEF_AE - COEF_BE*Tpcb collapses it as the board NTC warms.
+ * Stock knees are 44 and 47 C: three degrees of PCB burn twenty-three degrees
+ * of target, and the result lands under the MIN_TTJ floor. On this phone the
+ * NTC reaches 47 C after half a minute of load, so the useful part of the line
+ * is never used.
+ *
+ * Measured with the knees at 52 and 58, same 180 second load, average weighted
+ * by per-frequency residency rather than sampled:
+ *
+ *   knees 44/47 (stock)   1823 and 1805 MHz   median Tj 74-77 C
+ *   knees 52/58           1946 MHz            median Tj 79 C
+ *
+ * More important than the 8 percent: the oscillation goes away. The controller
+ * has a dead band of +-1 degree around the target, and with a target it can
+ * actually reach it sits inside it instead of chasing it. The sum of frequency
+ * changes between consecutive samples drops from 2158 and 5486 MHz to 364, and
+ * the profile becomes a monotone settle.
+ *
+ * The coefficients have to be recomputed by hand: the kernel's own branch for
+ * that requires TPCB_EXTEND > 0, and here it is -1.
+ */
+static int s88pro_tpcb_low = 52000;
+static int s88pro_tpcb_high = 58000;
+module_param_named(tpcb_knee_low, s88pro_tpcb_low, int, 0644);
+module_param_named(tpcb_knee_high, s88pro_tpcb_high, int, 0644);
 #if defined(CATM_TPCB_EXTEND)
 static int TPCB_EXTEND = -1;
 static int g_turbo_bin;
@@ -2702,6 +2732,22 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 		COEF_BE = t_COEF_BE;
 		COEF_AX = t_COEF_AX;
 		COEF_BX = t_COEF_BX;
+
+		/* Our knees, when set: see s88pro_tpcb_low above. */
+		if (s88pro_tpcb_low > 0 && s88pro_tpcb_high > s88pro_tpcb_low) {
+			int span = (s88pro_tpcb_high - s88pro_tpcb_low) / 1000;
+
+			TRIP_TPCB = s88pro_tpcb_low;
+			STEADY_TARGET_TPCB = s88pro_tpcb_high;
+			COEF_BE = (MAX_TARGET_TJ - STEADY_TARGET_TJ) / span;
+			COEF_AE = STEADY_TARGET_TJ +
+				(STEADY_TARGET_TPCB * COEF_BE) / 1000;
+			COEF_BX = (MAX_EXIT_TJ - STEADY_EXIT_TJ) / span;
+			COEF_AX = STEADY_EXIT_TJ +
+				(STEADY_TARGET_TPCB * COEF_BX) / 1000;
+			pr_info("[thermal] cATM+ knees Tpcb %d/%d, COEF_AE=%d COEF_BE=%d\n",
+				TRIP_TPCB, STEADY_TARGET_TPCB, COEF_AE, COEF_BE);
+		}
 
 #if defined(CATM_TPCB_EXTEND)
 		if (g_turbo_bin && (STEADY_TARGET_TPCB >= 52000)) {
