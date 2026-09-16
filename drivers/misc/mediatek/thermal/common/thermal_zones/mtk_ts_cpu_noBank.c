@@ -138,12 +138,12 @@ static int g_max_temp = 50000;	/* default=50 deg */
 
 static int tc_mid_trip = -275000;
 /* A floor for the adaptive cooler's target junction temperature, in
- * millidegrees. Zero, the default, leaves the vendor policy alone.
+ * millidegrees. Zero leaves the vendor policy alone; the default here is
+ * 80000, and the reason is measured rather than chosen.
  *
- * It is a parameter and not a constant because the question it answers is
- * empirical and the measurement needs several values in one boot: with the
- * floor off, root can write any target into /proc/driver/thermal/tzcpu
- * directly and compare.
+ * It stays a parameter and not a constant because the question is empirical
+ * and the measurement wants several values in one boot: root can set it and
+ * rewrite /proc/driver/thermal/tzcpu to see the effect without a build.
  *
  * The number the vendor thermal daemon writes is not a threshold at which
  * throttling begins: it is the temperature ATM regulates to, which is why the
@@ -169,7 +169,7 @@ static int tc_mid_trip = -275000;
  * is labelled proc_thermal, a type defined only in the vendor policy, and
  * system-side policy cannot name vendor types.
  */
-static int s88pro_min_target_tj;
+static int s88pro_min_target_tj = 80000;
 module_param_named(min_target_tj, s88pro_min_target_tj, int, 0644);
 MODULE_PARM_DESC(min_target_tj,
 	"floor for the adaptive cooler target Tj, in millidegrees; 0 disables");
