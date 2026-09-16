@@ -121,7 +121,18 @@
 /* #define THERMAL_VPU_SUPPORT */
 
 /* EARA_Thermal power budget allocation support */
-#define EARA_THERMAL_SUPPORT
+/* Off: the real symbol lives in drivers/misc/mediatek/performance/
+ * eara_thermal/, which is only built with CONFIG_MTK_EARA_THERMAL, absent from
+ * this defconfig. What is left is the weak stub, which prints
+ * "E_WF: mtk_eara_thermal_pb_handle doesn't exist" on every ATM tick: about
+ * fifteen lines a second, measured, which is 44 percent of the kernel ring.
+ * An unthrottled pr_notice inside a control loop, at that.
+ *
+ * With it off, EARA_handled() falls to the #else branch, which returns 0
+ * without calling anything -- exactly what the stub did. No change to thermal
+ * behaviour, no structure touched.
+ */
+/* #define EARA_THERMAL_SUPPORT */
 
 /* Thermal workaround for DDR/stressapptest fail
  * 8core@OPP0 can't over 70 degreeC
