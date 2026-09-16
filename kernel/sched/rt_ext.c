@@ -27,6 +27,17 @@ DEFINE_PER_CPU(u64, update_exec_start);
 DEFINE_PER_CPU(u64, sched_update_exec_start);
 DEFINE_PER_CPU(struct task_struct, exec_task);
 
+/* The three functions below print while RT throttling is active: once per RT
+ * period, per CPU, for as long as it lasts. That is fine for a fault that
+ * clears, and not fine for one that does not -- a boot where the audio HAL was
+ * being restarted in a loop produced 343243 of these lines, which crowd every
+ * other message out of the kernel ring and cost a printk each.
+ *
+ * Rate limiting keeps the first ones, which are the ones that say what
+ * happened, and reports how many were dropped.
+ */
+static DEFINE_RATELIMIT_STATE(rt_throttle_rs, 5 * HZ, 4);
+
 /* sched: print __disable_runtime unthrottled */
 static inline void print_disable_runtime_unthrottle(struct rt_rq *rt_rq)
 {
@@ -37,6 +48,8 @@ static inline void print_disable_runtime_unthrottle(struct rt_rq *rt_rq)
 #endif
 
 	rt_rq->rt_throttled = 0;
+	if (!__ratelimit(&rt_throttle_rs))
+		return;
 	printk_deferred("[name:rt&]sched: disable_runtime: RT throttling inactivated cpu=%d\n",
 			cpu_of(rq));
 	printk_deferred("[name:rt&]sched: cpu=%d, rt_time[%llu] rt_throttled=%d, rt_runtime[%llu]\n",
@@ -51,6 +64,8 @@ static inline void print_rt_throttle_info(int cpu, struct rt_rq *rt_rq,
 					u64 runtime_pre, u64 runtime)
 {
 	/* sched: print throttle*/
+	if (!__ratelimit(&rt_throttle_rs))
+		return;
 	printk_deferred("[name:rt&]sched: initial rt_time %llu, start at %llu\n",
 			per_cpu(init_rt_time, cpu),
 			per_cpu(rt_period_time, cpu));
