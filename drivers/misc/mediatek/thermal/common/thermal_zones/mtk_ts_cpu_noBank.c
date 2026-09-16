@@ -137,6 +137,43 @@ int tscpu_g_prev_temp;
 static int g_max_temp = 50000;	/* default=50 deg */
 
 static int tc_mid_trip = -275000;
+/* A floor for the adaptive cooler's target junction temperature, in
+ * millidegrees. Zero, the default, leaves the vendor policy alone.
+ *
+ * It is a parameter and not a constant because the question it answers is
+ * empirical and the measurement needs several values in one boot: with the
+ * floor off, root can write any target into /proc/driver/thermal/tzcpu
+ * directly and compare.
+ *
+ * The number the vendor thermal daemon writes is not a threshold at which
+ * throttling begins: it is the temperature ATM regulates to, which is why the
+ * CPU limit keeps tightening while the chip is already cooling. On this phone
+ * it asks for 57000, and the result is the big cluster held at 1248 MHz after
+ * a minute of load -- with the hardware protection trip sixty degrees further
+ * up, at 117000, and the junction measured at 62 C.
+ *
+ * Measured with 70000 instead, same load: 1846 MHz held for forty seconds and
+ * 1716 MHz at one minute, a third more sustained clock, with the junction
+ * peaking at 74 C. Two thirds of the margin to the protection trip is still
+ * unused.
+ *
+ * This is a deliberate trade, and it is why this lives on a branch of its own:
+ * a sealed phone sheds heat slowly, and a higher sustained junction temperature
+ * is paid in surface heat and, over years, in the life of the parts. The floor
+ * only raises what userspace asks for, and only for the adaptive cooler -- the
+ * protection trip at trip[0] is never touched.
+ *
+ * The vendor policy cannot be edited instead: it lives in
+ * /vendor/etc/.tp/.thermal_policy_*, which is obfuscated, inside a prebuilt
+ * image. Nor can it be overridden from userspace on our side: the proc entry
+ * is labelled proc_thermal, a type defined only in the vendor policy, and
+ * system-side policy cannot name vendor types.
+ */
+static int s88pro_min_target_tj;
+module_param_named(min_target_tj, s88pro_min_target_tj, int, 0644);
+MODULE_PARM_DESC(min_target_tj,
+	"floor for the adaptive cooler target Tj, in millidegrees; 0 disables");
+
 /* trip_temp[0] must be initialized to the thermal HW protection point. */
 #if defined(TZCPU_SET_INIT_CFG)
 static int trip_temp[10] = {
@@ -1240,6 +1277,38 @@ static ssize_t tscpu_write
 		down(&sem_mutex);
 		tscpu_dprintk("%s tscpu_unregister_thermal\n", __func__);
 		tscpu_unregister_thermal();
+
+		/* Raise whatever the daemon asked for to our floor, for the
+		 * adaptive cooler only. See S88PRO_MIN_TARGET_TJ above.
+		 */
+		{
+			char *binds[10] = {
+				ptr_mtktscpu_data->bind0,
+				ptr_mtktscpu_data->bind1,
+				ptr_mtktscpu_data->bind2,
+				ptr_mtktscpu_data->bind3,
+				ptr_mtktscpu_data->bind4,
+				ptr_mtktscpu_data->bind5,
+				ptr_mtktscpu_data->bind6,
+				ptr_mtktscpu_data->bind7,
+				ptr_mtktscpu_data->bind8,
+				ptr_mtktscpu_data->bind9,
+			};
+
+			for (i = 0; i < 10 && s88pro_min_target_tj; i++) {
+				if (strncmp(binds[i], adaptive_cooler_name, 13))
+					continue;
+				if (ptr_mtktscpu_data->trip[i] >=
+						s88pro_min_target_tj)
+					continue;
+				pr_info("[thermal] %s: raising %s target Tj %d -> %d\n",
+					__func__, binds[i],
+					ptr_mtktscpu_data->trip[i],
+					s88pro_min_target_tj);
+				ptr_mtktscpu_data->trip[i] =
+					s88pro_min_target_tj;
+			}
+		}
 
 		for (i = 0; i < num_trip; i++)
 			g_THERMAL_TRIP[i] =  ptr_mtktscpu_data->t_type[i];
