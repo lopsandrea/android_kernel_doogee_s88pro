@@ -27,6 +27,39 @@
 #include "mtk_perfmgr_internal.h"
 #include <mt-plat/mtk_sched.h>
 #include <linux/sched.h>
+#include <linux/moduleparam.h>
+
+/* A floor for the top-app schedtune boost, in the same units as
+ * /dev/stune/top-app/schedtune.boost. Zero restores the stock behaviour.
+ *
+ * This kernel has SchedTune and does not expose uclamp in the cgroups, so the
+ * floor the framework has expected since Android 12 does not exist and has to
+ * be supplied by hand. Writing /dev/stune directly does not work: that file is
+ * not a setting but the output of the arbitration below, and every app launch
+ * recomputes it from the kickers -- all zero -- and writes zero back. Measured
+ * on the phone: the value survives idling, a force-stop and any amount of
+ * scrolling, and dies exactly on am start.
+ *
+ * So the value is set as a kicker instead, the same one /proc/perfmgr's
+ * boot_boost writes. The arbitration takes the MAX across kickers, so this can
+ * only raise the boost, never cap it: when the vendor perf service asks for
+ * more during a launch, it still wins. That is also why the debug_ta_boost
+ * knob is the wrong place -- it sets debug_fix_boost, which stops the
+ * arbitration from writing at all and freezes the dynamic behaviour.
+ *
+ * Why 10, measured with dumpsys gfxinfo over a scripted scroll through
+ * Settings, three runs per value, alternated, legacy jank:
+ *
+ *      boost 0    83.56  83.27  83.00   ->  83.3%
+ *      boost 10   78.07  79.08  80.15   ->  79.1%
+ *      boost 30   83.69  86.53  84.42   ->  84.9%
+ *
+ * The groups do not overlap, so the four points are real. 30 is worse than 0,
+ * and worse still at the tail (95th percentile 40-42 ms against 32), which is
+ * the reason this is a measured value and not a large round number.
+ */
+static int ta_boost_floor = 10;
+module_param(ta_boost_floor, int, 0644);
 
 #ifdef CONFIG_TRACING
 #include <linux/kallsyms.h>
@@ -318,6 +351,16 @@ int update_eas_boost_value(int kicker, int cgroup_idx, int value)
 
 		set_bit(i, &policy_mask[cgroup_idx]);
 	}
+
+	/* Our floor, applied to the result. Seeding a kicker was tried first
+	 * and does not hold: the boot kicker is also written from userspace,
+	 * and the vendor perf service initialises it to zero, which wiped the
+	 * value before the phone had finished booting. Here nothing can
+	 * overwrite it, and it stays a floor -- when any kicker asks for more,
+	 * final_boost is already larger and this changes nothing.
+	 */
+	if (cgroup_idx == CGROUP_TA && final_boost < ta_boost_floor)
+		final_boost = ta_boost_floor;
 
 	current_boost_value[cgroup_idx] = check_boost_value(final_boost);
 
