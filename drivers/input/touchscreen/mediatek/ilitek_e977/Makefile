@@ -27,3 +27,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
 
 obj-y := ilitek_main.o ilitek_bus.o ilitek_plat.o ilitek_ic.o ilitek_touch.o ilitek_fw.o ilitek_node.o ilitek_mp.o
+
+# Not in the factory kernel: the double tap to wake switch Android uses.
+obj-y += ilitek_tp_gesture.o

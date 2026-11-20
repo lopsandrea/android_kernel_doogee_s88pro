@@ -120,6 +120,8 @@ extern void ilitek_tddi_ic_get_panel_info(void);
 extern void ilitek_tddi_fw_read_flash_info(void);
 /* group H (/proc nodes). "94007179 bl"@0xffffff8008a55104 */
 extern void ilitek_tddi_node_init(void);
+/* Not in the factory kernel: see ilitek_tp_gesture.c. */
+#include "ilitek_tp_gesture.h"
 /*
  * group E. Of this symbol group A uses ONLY THE ADDRESS
  * ("910c614a add"@0xffffff8008a55014, then "f901a90a str"@0xffffff8008a5502c
@@ -2033,6 +2035,11 @@ int ilitek_tddi_init(void)
 	ILI_INFO("Registre touch to input subsystem\n");
 	/* "94000310 bl"@0xffffff8008a55174 */
 	ilitek_plat_input_register();
+	/*
+	 * Not in the factory kernel: see ilitek_tp_gesture.c. After the input
+	 * device exists, since it declares the gesture keys on it.
+	 */
+	ilitek_tp_gesture_init();
 
 	/*
 	 * the two real calls: "97fffbba bl"@0xffffff8008a55180 and

@@ -31,6 +31,8 @@
 #include <linux/types.h>
 
 #include "ilitek.h"
+/* Not in the factory kernel: see ilitek_tp_gesture.c. */
+#include "ilitek_tp_gesture.h"
 
 /*
  * ilitek_tddi_fw_upgrade_handler_arg() was reconstructed from the factory kernel disassembly.
@@ -1693,13 +1695,20 @@ void ilitek_tddi_report_gesture_mode(u8 *data, int len)
 		ILI_INFO("Double Click key event\n");
 		/* "97ffa504 bl"@0xffffff8008a5d3f0, w2 = 116 = KEY_POWER
 		 * ("52800e82 mov"@0xffffff8008a5d3e0) */
-		input_report_key(in, KEY_POWER, 1);
-		/* "97ffa4ff bl"@0xffffff8008a5d404 */
-		input_sync(in);
-		/* "97ffa4fa bl"@0xffffff8008a5d418 */
-		input_report_key(in, KEY_POWER, 0);
-		/* "97ffa4f5 bl"@0xffffff8008a5d42c */
-		input_sync(in);
+		/*
+		 * Not in the factory kernel: the gesture mode may now be on for
+		 * the other gestures alone, and then a double tap must not
+		 * wake the phone. See ilitek_tp_gesture.c.
+		 */
+		if (ilitek_tp_gesture_double_tap_enabled()) {
+			input_report_key(in, KEY_POWER, 1);
+			/* "97ffa4ff bl"@0xffffff8008a5d404 */
+			input_sync(in);
+			/* "97ffa4fa bl"@0xffffff8008a5d418 */
+			input_report_key(in, KEY_POWER, 0);
+			/* "97ffa4f5 bl"@0xffffff8008a5d42c */
+			input_sync(in);
+		}
 		/* "b90006e9 str"@0xffffff8008a5d438 with w9 = 0x58 */
 		g->c4 = 0x58;
 		/* "39000af9 strb"@0xffffff8008a5d43c */
@@ -1857,6 +1866,9 @@ void ilitek_tddi_report_gesture_mode(u8 *data, int len)
 		 g->pos[2].c2, g->pos[2].c4, g->pos[3].c2, g->pos[3].c4,
 #line 1057
 		 g->pos[4].c2, g->pos[4].c4, g->pos[5].c2, g->pos[5].c4);
+
+	/* Not in the factory kernel: see ilitek_tp_gesture.c. */
+	ilitek_tp_gesture_report(in, code);
 
 	/* "97fffd56 bl"@0xffffff8008a5d764 */
 	ilitek_tddi_touch_send_debug_data(data, len);
