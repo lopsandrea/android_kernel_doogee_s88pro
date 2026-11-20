@@ -838,6 +838,84 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 	return -1;
 }
 
+/*
+ * Mode 6: the LED is a channel of the MT6370's RGB driver. Not in ALPS, and
+ * not in this file's enum: the factory kernel's Wingtech code compares with
+ * the bare 6 (mt_mt65xx_led_work, "7100191f cmp w8, #0x6"@0xffffff800879ee50)
+ * and hands the level to the MT6370 driver, through the two wtk_ functions
+ * reconstructed there. The device tree gives the notification LED's red,
+ * green and blue this mode, with the channel index as their data (3, 1 and
+ * 0); without it, writes to them did nothing at all, and the only light ever
+ * seen on that LED was the charger's own indicator.
+ */
+#define WTK_LED_MODE_MT6370 6
+
+#ifdef CONFIG_MT6370_PMU_RGBLED
+extern struct led_classdev *wtk_mt6370_pmu_led_get(unsigned int index);
+extern int wtk_mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
+					 enum led_brightness bright);
+extern int wtk_mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
+					unsigned long *delay_on,
+					unsigned long *delay_off);
+
+/*
+ * The current step for a level of 1 to 255: 1 to the channel's maximum (6 for
+ * the green and the blue, 3 for the red).
+ *
+ * Not in the factory kernel, which lights a channel at its lowest step
+ * whatever the level -- wtk_mt6370_pmu_led_bright_set() ends with
+ * mt6370_pmu_led_bright_set(led_cdev, bright ? 1 : 0) -- and so has neither
+ * brightness nor colour mixes: any colour comes out as one of the seven
+ * combinations of full red, green and blue. The step is set on top, through
+ * the channel's own brightness_set.
+ */
+static int wtk_mt6370_step(struct led_classdev *cdev, int level)
+{
+	if (level <= 0)
+		return 0;
+	if (level > 255)
+		level = 255;
+	return DIV_ROUND_UP(level * cdev->max_brightness, 255);
+}
+
+/* Sets an MT6370 channel as the factory does: its brightness, then the chip. */
+static void wtk_mt6370_set(struct mt65xx_led_data *led_data, int level)
+{
+	struct led_classdev *cdev = wtk_mt6370_pmu_led_get(led_data->cust.data);
+
+	if (!cdev)
+		return;
+	cdev->brightness = level;
+	wtk_mt6370_pmu_led_bright_set(cdev, level);
+	if (level > 0)
+		cdev->brightness_set(cdev, wtk_mt6370_step(cdev, level));
+}
+
+/*
+ * The caller has just set the LED's level to 255, as for any blink; the level
+ * last asked for is still the class device's brightness. The factory's
+ * wtk_mt6370_pmu_led_blink_set() leaves the channel at a step worked out from
+ * the on/off ratio, which can exceed the channel's maximum: the step for that
+ * level goes on top here too.
+ */
+static void wtk_mt6370_blink(struct mt65xx_led_data *led_data,
+			     unsigned long delay_on, unsigned long delay_off)
+{
+	struct led_classdev *cdev = wtk_mt6370_pmu_led_get(led_data->cust.data);
+	int level = led_data->cdev.brightness;
+
+	if (!cdev)
+		return;
+	cdev->brightness = 255;
+	wtk_mt6370_pmu_led_blink_set(cdev, &delay_on, &delay_off);
+	cdev->brightness_set(cdev, wtk_mt6370_step(cdev, level > 0 ? level : 255));
+}
+#else
+static void wtk_mt6370_set(struct mt65xx_led_data *led_data, int level) {}
+static void wtk_mt6370_blink(struct mt65xx_led_data *led_data,
+			     unsigned long delay_on, unsigned long delay_off) {}
+#endif
+
 void mt_mt65xx_led_work(struct work_struct *work)
 {
 	struct mt65xx_led_data *led_data =
@@ -845,7 +923,10 @@ void mt_mt65xx_led_work(struct work_struct *work)
 
 	LEDS_DEBUG("%s:%d work start\n", led_data->cust.name, led_data->level);
 	mutex_lock(&leds_mutex);
-	mt_mt65xx_led_set_cust(&led_data->cust, led_data->level);
+	if ((int)led_data->cust.mode == WTK_LED_MODE_MT6370)
+		wtk_mt6370_set(led_data, led_data->level);
+	else
+		mt_mt65xx_led_set_cust(&led_data->cust, led_data->level);
 	mutex_unlock(&leds_mutex);
 }
 
@@ -931,6 +1012,15 @@ int mt_mt65xx_blink_set(struct led_classdev *led_cdev,
 			    led_data->delay_on;
 			mt_led_blink_pmic(led_data->cust.data,
 					  &nled_tmp_setting);
+		} else if ((int)led_data->cust.mode == WTK_LED_MODE_MT6370) {
+			/*
+			 * The chip blinks by itself. The factory code reaches
+			 * this only with the wake lock below already held, and
+			 * the first time takes the lock and returns without
+			 * blinking; neither is kept.
+			 */
+			wtk_mt6370_blink(led_data, led_data->delay_on,
+					 led_data->delay_off);
 		} else if (!got_wake_lock) {
 			__pm_stay_awake(&leds_suspend_lock);
 			got_wake_lock = 1;
@@ -943,6 +1033,8 @@ int mt_mt65xx_blink_set(struct led_classdev *led_cdev,
 				       &nled_tmp_setting);
 		} else if (led_data->cust.mode == MT65XX_LED_MODE_PMIC)
 			mt_brightness_set_pmic(led_data->cust.data, 0, 0);
+		else if ((int)led_data->cust.mode == WTK_LED_MODE_MT6370)
+			wtk_mt6370_set(led_data, 0);
 		else if (got_wake_lock) {
 			__pm_relax(&leds_suspend_lock);
 			got_wake_lock = 0;
@@ -954,6 +1046,8 @@ int mt_mt65xx_blink_set(struct led_classdev *led_cdev,
 			mt_led_set_pwm(led_data->cust.data, &nled_tmp_setting);
 		} else if (led_data->cust.mode == MT65XX_LED_MODE_PMIC)
 			mt_brightness_set_pmic(led_data->cust.data, 1, 0);
+		else if ((int)led_data->cust.mode == WTK_LED_MODE_MT6370)
+			wtk_mt6370_set(led_data, 255);
 		else if (got_wake_lock) {
 			__pm_relax(&leds_suspend_lock);
 			got_wake_lock = 0;

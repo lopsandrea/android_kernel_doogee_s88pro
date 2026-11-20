@@ -1315,6 +1315,22 @@ static struct mt6370_led_classdev mt6370_led_classdev[MT6370_PMU_MAXLED] = {
 	},
 };
 
+/*
+ * Not in the factory source as a function. The factory leds-mt65xx reaches
+ * the array above directly for its LEDs of mode 6 -- the red, green and blue
+ * notification LED, which are MT6370 channels 4, 2 and 1 (the "data" of
+ * their device tree nodes is the index): mt_mt65xx_led_work() and
+ * mt_mt65xx_blink_set() compute 0xffffff8009900b78 + index * 0x158. This
+ * hands the same element out, and only once it is registered: before that,
+ * the wtk_ functions would dereference its unset device.
+ */
+struct led_classdev *wtk_mt6370_pmu_led_get(unsigned int index)
+{
+	if (index >= MT6370_PMU_MAXLED || !mt6370_led_classdev[index].led_dev.dev)
+		return NULL;
+	return &mt6370_led_classdev[index].led_dev;
+}
+
 static int mt6370_pmu_led_change_mode(struct led_classdev *led_cdev, int mode)
 {
 	int led_index = mt6370_pmu_led_get_index(led_cdev);

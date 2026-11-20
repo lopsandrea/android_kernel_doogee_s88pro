@@ -471,6 +471,18 @@ static int mt65xx_leds_probe(struct platform_device *pdev)
 		g_leds_data[i]->cdev.name = cust_led_list[i].name;
 		g_leds_data[i]->cust.config_data = cust_led_list[i].config_data;
 
+		/*
+		 * Not in the factory kernel. A mode 6 LED is a channel of the
+		 * MT6370 (see mt6771/mtk_leds.c), and channel 4, the red of the
+		 * notification LED, starts out as the charger's own indicator:
+		 * it stays so, lit whenever a charger is in, until something
+		 * writes it. The first write is usually a 0, which
+		 * mt_mt65xx_led_set() would drop as "no level change" against
+		 * kzalloc's 0. A level no write can match lets it through.
+		 */
+		if ((int)g_leds_data[i]->cust.mode == 6)
+			g_leds_data[i]->level = -1;
+
 		g_leds_data[i]->cdev.brightness_set = mt65xx_led_set;
 		g_leds_data[i]->cdev.blink_set = mt65xx_blink_set;
 
