@@ -697,9 +697,20 @@ int fscrypt_get_encryption_info(struct inode *inode)
 			res = init_crypt_info_for_hie(inode, crypt_info);
 			if (res)
 				goto out;
-			else
-				goto hw_encrypt_out;
 		}
+		/*
+		 * The contents of a hardware encrypted file never go through
+		 * ci_ctfm (fscrypt_do_page_crypto() BUGs on them), and
+		 * find_and_derive_key() derives no per-file key for them, so
+		 * raw_key is still uninitialized memory here. Keying an XTS
+		 * transform with it fails with -EINVAL whenever its two halves
+		 * happen to be equal, which zeroed memory does: file creation
+		 * in an encrypted directory then failed at random with EINVAL
+		 * (O_TMPFILE in tombstoned, open() in system_server and init).
+		 * Skip the software transform, as the IV_INO_LBLK_32 case
+		 * above always did.
+		 */
+		goto hw_encrypt_out;
 	}
 
 	res = setup_crypto_transform(crypt_info, mode, raw_key, inode);
